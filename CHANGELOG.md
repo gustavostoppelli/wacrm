@@ -9,6 +9,41 @@ Versions follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0, `MINOR` bumps cover new modules; `PATCH` bumps cover bug fixes
 and polish.
 
+## [0.9.0] — 2026-08-05
+
+Pipeline polish (Portuguese default stages, manual contact entry, a
+`source` field on deals) plus a new public-API endpoint to create
+deals from outside the dashboard.
+
+> **Migration required:** apply `supabase/migrations/038_deal_source.sql`
+> (adds `deals.source`, restricted to a fixed list of allowed values).
+
+### Added
+
+- **Deal source.** The deal form gained a **Source** dropdown (Site
+  form, paid traffic, outbound prospecting, referral, etc.) so a deal
+  records where the lead came from. Optional; existing deals are
+  unaffected.
+- **Manual contact entry on the deal form.** Creating a deal for
+  someone not yet in the CRM no longer requires adding them as a
+  contact first — a **"+ New contact"** link on the Contact field
+  switches to Name/Phone inputs. Saving the deal creates the contact
+  (same duplicate-phone check as the Contacts page) and links it.
+- **`POST /api/v1/deals`.** New public-API endpoint (scope
+  `deals:write`) to create a pipeline deal from an external
+  integration — finds-or-creates the contact by phone, resolves the
+  target pipeline/stage by name (defaulting to the account's first
+  pipeline/stage), and validates `source` against the same list the
+  dashboard uses. See `docs/public-api.md`.
+
+### Changed
+
+- **Default pipeline stages are now in Portuguese** and gained two new
+  stages after "Novo Lead": **Primeiro Contato** and **Segundo
+  Contato**. Applies to pipelines created from now on — existing
+  pipelines keep their current stages (rename/reorder/add from
+  **Manage Pipelines** as usual).
+
 ## [0.8.1] — 2026-07-10
 
 Fixes inbound chats fragmenting into multiple threads for the same

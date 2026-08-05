@@ -5,8 +5,8 @@ scripts and automations — send messages, manage contacts, launch
 broadcasts — without going through the dashboard UI.
 
 > **Status:** stable. Authentication, scopes, rate limiting, the
-> messages / contacts / conversations / broadcasts endpoints, and
-> outbound event [webhooks](#webhooks) all ship now.
+> messages / contacts / conversations / broadcasts / deals endpoints,
+> and outbound event [webhooks](#webhooks) all ship now.
 
 ## Authentication
 
@@ -50,6 +50,7 @@ it. Grant the minimum.
 | `conversations:read` | List and read conversations              |
 | `broadcasts:send`    | Launch broadcast campaigns               |
 | `webhooks:manage`    | Register and manage outbound webhooks    |
+| `deals:write`        | Create pipeline deals                    |
 
 A key with **no scopes** still authenticates and can call
 `GET /api/v1/me` — useful for verifying a key works.
@@ -219,6 +220,52 @@ Paginated. Each message includes its `direction` (`inbound` /
 `content_*`. The conversation is verified to belong to your account
 first (`404` otherwise).
 
+### `POST /api/v1/deals`
+
+Create a deal in a pipeline. Scope: `deals:write`. The linked contact
+is found-or-created inline, the same way `POST /api/v1/messages` does —
+`contact.phone` is the only required field.
+
+```bash
+curl -X POST https://your-crm.example.com/api/v1/deals \
+  -H "Authorization: Bearer wacrm_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "contact": { "phone": "+14155550123", "name": "Jane Doe" },
+        "title": "Jane Doe — Rinoplastia",
+        "value": 12000,
+        "currency": "BRL",
+        "source": "Tráfego Pago (Meta/Google Ads)",
+        "pipeline": "Sales Pipeline",
+        "stage": "Novo Lead",
+        "notes": "Veio do formulário de diagnóstico do site"
+      }'
+```
+
+- `pipeline` / `stage` match by name (case-insensitive). Both are
+  optional — omitted, the deal lands in the account's oldest pipeline,
+  in that pipeline's first stage (by `position`) — wherever a deal
+  created by hand would default to.
+- `source` must be one of the account's known deal sources (the same
+  list the dashboard's deal form offers); omit it to leave the deal
+  unsourced. An unrecognized value is rejected with `bad_request`.
+- `title` defaults to the contact's name (or phone) when omitted.
+  `value` defaults to `0`.
+
+Response (201):
+
+```json
+{
+  "data": {
+    "id": "…", "title": "Jane Doe — Rinoplastia", "value": 12000,
+    "currency": "BRL", "source": "Tráfego Pago (Meta/Google Ads)",
+    "notes": "…", "status": "active",
+    "pipeline_id": "…", "stage_id": "…", "contact_id": "…",
+    "created_at": "…", "contact_created": true
+  }
+}
+```
+
 ### `POST /api/v1/broadcasts`
 
 Launch a template broadcast to a list of recipients. Scope:
@@ -377,7 +424,7 @@ internal targets are refused at delivery time.
 ## Roadmap
 
 The public API now covers messaging, contacts, conversations,
-broadcasts, and outbound webhooks — the full scope of
+broadcasts, deals, and outbound webhooks — the full scope of
 [#245](https://github.com/ArnasDon/wacrm/issues/245). Future ideas
-(deals/pipelines, templates, flows, a delivery queue for webhooks) are
-not yet scheduled.
+(pipeline/stage management, templates, flows, a delivery queue for
+webhooks) are not yet scheduled.

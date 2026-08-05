@@ -5,6 +5,13 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { CURRENCIES } from "@/lib/currency";
+import {
+  findExistingContact,
+  isExactMatch,
+  isUniqueViolation,
+  type ExistingContact,
+} from "@/lib/contacts/dedupe";
+import { DEAL_SOURCES } from "@/lib/deals/source";
 import type {
   Contact,
   Conversation,
@@ -30,6 +37,9 @@ import {
   MessageSquare,
   DollarSign,
   Loader2,
+  UserPlus,
+  ArrowLeft,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
@@ -65,11 +75,24 @@ export function DealForm({
   const [assignedTo, setAssignedTo] = useState("");
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [source, setSource] = useState("");
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [linkedConversation, setLinkedConversation] =
     useState<Conversation | null>(null);
+
+  // "New contact" mode: the contact field switches from the existing-
+  // contacts <select> to Name + Phone inputs. On save, a Contact row is
+  // created first (same dedupe path as the Contacts page form) and its
+  // id is used as the deal's contact_id.
+  const [creatingContact, setCreatingContact] = useState(false);
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactPhone, setNewContactPhone] = useState("");
+  const [dupMatch, setDupMatch] = useState<
+    { contact: ExistingContact; exact: boolean } | null
+  >(null);
+  const [checkingDup, setCheckingDup] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [statusAction, setStatusAction] = useState<DealStatus | null>(null);
@@ -83,6 +106,10 @@ export function DealForm({
   useEffect(() => {
     if (!open) return;
     setConfirmDelete(false);
+    setCreatingContact(false);
+    setNewContactName("");
+    setNewContactPhone("");
+    setDupMatch(null);
     if (deal) {
       setTitle(deal.title);
       setValue(String(deal.value ?? ""));
@@ -94,6 +121,7 @@ export function DealForm({
       setAssignedTo(deal.assigned_to ?? "");
       setExpectedCloseDate(deal.expected_close_date ?? "");
       setNotes(deal.notes ?? "");
+      setSource(deal.source ?? "");
     } else {
       setTitle("");
       setValue("");
@@ -103,6 +131,7 @@ export function DealForm({
       setAssignedTo("");
       setExpectedCloseDate("");
       setNotes("");
+      setSource("");
     }
   }, [open, deal, defaultStageId, stages, defaultCurrency]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -151,23 +180,105 @@ export function DealForm({
     };
   }, [open, contactId, supabase]);
 
+  // Look up an existing contact with this number, so a manually-typed
+  // contact doesn't create a second row for someone already saved.
+  // Runs on blur, mirroring the Contacts page form.
+  async function checkDuplicate() {
+    if (!accountId) return;
+    const value = newContactPhone.trim();
+    if (!value) {
+      setDupMatch(null);
+      return;
+    }
+    setCheckingDup(true);
+    try {
+      const existing = await findExistingContact(supabase, accountId, value);
+      setDupMatch(
+        existing
+          ? { contact: existing, exact: isExactMatch(existing, value) }
+          : null,
+      );
+    } finally {
+      setCheckingDup(false);
+    }
+  }
+
   async function handleSave() {
-    if (!title.trim() || !contactId || !stageId) {
+    if (creatingContact) {
+      if (!newContactPhone.trim()) {
+        toast.error(t("toastPhoneRequired"));
+        return;
+      }
+      if (dupMatch?.exact) {
+        toast.error(t("toastContactConflict"));
+        return;
+      }
+    } else if (!contactId) {
+      toast.error(t("toastRequired"));
+      return;
+    }
+    if (!title.trim() || !stageId) {
       toast.error(t("toastRequired"));
       return;
     }
     setSaving(true);
 
+    const {
+      data: { session: authSession },
+    } = await supabase.auth.getSession();
+    const user = authSession?.user;
+    if (!user) {
+      toast.error(t("toastNotSignedIn"));
+      setSaving(false);
+      return;
+    }
+    if (!accountId) {
+      toast.error(t("toastNotLinked"));
+      setSaving(false);
+      return;
+    }
+
+    let resolvedContactId = contactId;
+    if (creatingContact) {
+      const { data: newContact, error: contactError } = await supabase
+        .from("contacts")
+        .insert({
+          user_id: user.id,
+          account_id: accountId,
+          name: newContactName.trim() || null,
+          phone: newContactPhone.trim(),
+        })
+        .select("id")
+        .single();
+      if (contactError || !newContact) {
+        if (isUniqueViolation(contactError)) {
+          toast.error(t("toastContactConflict"));
+          const existing = await findExistingContact(
+            supabase,
+            accountId,
+            newContactPhone.trim(),
+          );
+          if (existing) setDupMatch({ contact: existing, exact: true });
+        } else {
+          toast.error(t("toastFailedCreateContact"));
+        }
+        setSaving(false);
+        return;
+      }
+      resolvedContactId = newContact.id;
+    }
+
     const payload = {
       title: title.trim(),
       value: parseFloat(value) || 0,
       currency,
-      contact_id: contactId,
+      contact_id: resolvedContactId,
       pipeline_id: pipelineId,
       stage_id: stageId,
       assigned_to: assignedTo || null,
       notes: notes.trim() || null,
       expected_close_date: expectedCloseDate || null,
+      source: source || null,
     };
 
     if (deal) {
@@ -181,20 +292,6 @@ export function DealForm({
         return;
       }
     } else {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const user = session?.user;
-      if (!user) {
-        toast.error(t("toastNotSignedIn"));
-        setSaving(false);
-        return;
-      }
-      if (!accountId) {
-        toast.error(t("toastNotLinked"));
-        setSaving(false);
-        return;
-      }
       const { error } = await supabase
         .from("deals")
         .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" });
@@ -271,27 +368,84 @@ export function DealForm({
 
             <div className="grid gap-2">
               <Label className="text-muted-foreground">{t("contact")}</Label>
-              <select
-                value={contactId}
-                onChange={(e) => setContactId(e.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-              >
-                <option value="">{t("selectContact")}</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name || c.phone}
-                  </option>
-                ))}
-              </select>
 
-              {linkedConversation && (
-                <Link
-                  href="/inbox"
-                  className="mt-1 inline-flex items-center gap-1.5 self-start rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20"
-                >
-                  <MessageSquare className="h-3 w-3" />
-                  {t("linkToConversation")}
-                </Link>
+              {creatingContact ? (
+                <div className="space-y-2 rounded-lg border border-border bg-muted/50 p-3">
+                  <Input
+                    value={newContactName}
+                    onChange={(e) => setNewContactName(e.target.value)}
+                    placeholder={t("newContactNamePlaceholder")}
+                    className="border-border bg-muted text-foreground"
+                  />
+                  <Input
+                    value={newContactPhone}
+                    onChange={(e) => {
+                      setNewContactPhone(e.target.value);
+                      if (dupMatch) setDupMatch(null);
+                    }}
+                    onBlur={checkDuplicate}
+                    placeholder={t("newContactPhonePlaceholder")}
+                    className="border-border bg-muted text-foreground"
+                  />
+                  {dupMatch && (
+                    <div
+                      className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs ${
+                        dupMatch.exact
+                          ? "border-red-500/40 bg-red-500/10 text-red-300"
+                          : "border-amber-500/40 bg-amber-500/10 text-amber-300"
+                      }`}
+                    >
+                      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                      <p>{dupMatch.exact ? t("dupExact") : t("dupSimilar")}</p>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreatingContact(false);
+                      setNewContactName("");
+                      setNewContactPhone("");
+                      setDupMatch(null);
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowLeft className="h-3 w-3" />
+                    {t("useExistingContact")}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={contactId}
+                    onChange={(e) => setContactId(e.target.value)}
+                    className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">{t("selectContact")}</option>
+                    {contacts.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name || c.phone}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setCreatingContact(true)}
+                    className="inline-flex items-center gap-1.5 self-start text-xs text-primary hover:underline"
+                  >
+                    <UserPlus className="h-3 w-3" />
+                    {t("newContact")}
+                  </button>
+
+                  {linkedConversation && (
+                    <Link
+                      href="/inbox"
+                      className="mt-1 inline-flex items-center gap-1.5 self-start rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20"
+                    >
+                      <MessageSquare className="h-3 w-3" />
+                      {t("linkToConversation")}
+                    </Link>
+                  )}
+                </>
               )}
             </div>
 
@@ -345,6 +499,22 @@ export function DealForm({
                 {stages.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label className="text-muted-foreground">{t("source")}</Label>
+              <select
+                value={source}
+                onChange={(e) => setSource(e.target.value)}
+                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary"
+              >
+                <option value="">{t("selectSource")}</option>
+                {DEAL_SOURCES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
                   </option>
                 ))}
               </select>
@@ -439,7 +609,13 @@ export function DealForm({
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={saving || !title.trim() || !contactId || !stageId}
+                disabled={
+                  saving ||
+                  checkingDup ||
+                  !title.trim() ||
+                  !stageId ||
+                  (creatingContact ? !newContactPhone.trim() : !contactId)
+                }
                 className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 {saving ? t("saving") : deal ? t("saveChanges") : t("createDeal")}

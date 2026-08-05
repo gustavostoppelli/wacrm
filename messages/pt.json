@@ -377,9 +377,9 @@
         "custom": "Campos personalizados",
         "deals": "Negócios",
         "tags": "Etiquetas",
-      "noTags": "Sem etiquetas",
-      "noDeals": "Sem negócios",
-      "addNotePlaceholder": "Adicionar anotação..."
+        "noTags": "Sem etiquetas",
+        "noDeals": "Sem negócios",
+        "addNotePlaceholder": "Adicionar anotação..."
       },
       "actions": {
         "edit": "Editar",
@@ -564,7 +564,18 @@
       "toastMarkedLost": "Marcado como perdido",
       "toastReopened": "Negócio reaberto",
       "toastFailedDelete": "Falha ao excluir negócio",
-      "toastDeleted": "Negócio excluído"
+      "toastDeleted": "Negócio excluído",
+      "newContact": "Novo contato",
+      "useExistingContact": "Usar contato já cadastrado",
+      "newContactNamePlaceholder": "Nome (opcional)",
+      "newContactPhonePlaceholder": "Telefone",
+      "dupExact": "Já existe um contato com esse número de telefone.",
+      "dupSimilar": "Já existe um contato com um número muito parecido.",
+      "toastPhoneRequired": "Telefone é obrigatório",
+      "toastContactConflict": "Já existe um contato com esse número de telefone",
+      "toastFailedCreateContact": "Falha ao criar contato",
+      "source": "Origem",
+      "selectSource": "Não especificado"
     },
     "settings": {
       "managePipeline": "Gerenciar funil",

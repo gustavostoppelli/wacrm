@@ -402,6 +402,7 @@ export interface Deal {
   notes?: string;
   expected_close_date?: string;
   status?: DealStatus;
+  source?: string;
   created_at: string;
   updated_at?: string;
   contact?: Contact;
