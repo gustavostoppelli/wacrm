@@ -1592,7 +1592,10 @@
       "useMode": "{mode} 모드 사용",
       "active": "사용 중",
       "accentColor": "강조 색상",
-      "useTheme": "{name} 테마 사용"
+      "useTheme": "{name} 테마 사용",
+      "languageTitle": "언어",
+      "languageDesc": "앱의 모든 메뉴, 버튼, 메시지에 사용되는 언어입니다. 수동으로 새로고침할 필요 없이 즉시 전환됩니다.",
+      "useLanguage": "{language} 사용"
     },
     "security": {
       "title": "로그인 & 보안",

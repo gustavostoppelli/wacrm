@@ -1,12 +1,22 @@
 "use client";
 
-import { Check, Moon, Palette, SunMoon, Sun } from "lucide-react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Check, Globe, Moon, Palette, SunMoon, Sun } from "lucide-react";
+import { toast } from "sonner";
 
 import { useTheme } from "@/hooks/use-theme";
 import { MODES, THEMES, type Mode, type ThemeId } from "@/lib/themes";
 import { cn } from "@/lib/utils";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { SUPPORTED_LOCALES, type SupportedLocale } from "@/i18n/locales";
 import { SettingsPanelHead } from "./settings-panel-head";
+
+const LOCALE_LABELS: Record<SupportedLocale, string> = {
+  en: "English",
+  pt: "Português",
+  ko: "한국어",
+};
 
 /**
  * Appearance panel — light/dark mode + accent-color picker.
@@ -23,6 +33,30 @@ import { SettingsPanelHead } from "./settings-panel-head";
 export function AppearancePanel() {
   const { theme, setTheme, mode, setMode } = useTheme();
   const t = useTranslations("Settings.appearance");
+  const locale = useLocale() as SupportedLocale;
+  const router = useRouter();
+  const [pendingLocale, setPendingLocale] = useState<SupportedLocale | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  async function handlePickLocale(next: SupportedLocale) {
+    if (next === locale) return;
+    setPendingLocale(next);
+    try {
+      const res = await fetch("/api/account/locale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ locale: next }),
+      });
+      if (!res.ok) throw new Error("Failed to save language");
+      // The cookie set here is read server-side on the next request —
+      // router.refresh() re-fetches the RSC tree (including the layout
+      // that resolves the locale) without a full page reload.
+      startTransition(() => router.refresh());
+    } catch {
+      toast.error("Failed to change language");
+      setPendingLocale(null);
+    }
+  }
 
   return (
     <section className="max-w-3xl animate-in fade-in-50 duration-200">
@@ -69,6 +103,33 @@ export function AppearancePanel() {
               swatch={tObj.swatch}
               isActive={tObj.id === theme}
               onPick={() => setTheme(tObj.id)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-8 space-y-4">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Globe className="size-4 text-muted-foreground" />
+          {t("languageTitle")}
+        </h3>
+        <p className="max-w-md text-sm text-muted-foreground">
+          {t("languageDesc")}
+        </p>
+
+        <div
+          role="radiogroup"
+          aria-label="Language"
+          className="grid max-w-md grid-cols-2 gap-3 sm:grid-cols-3"
+        >
+          {SUPPORTED_LOCALES.map((code) => (
+            <LanguageCard
+              key={code}
+              label={LOCALE_LABELS[code]}
+              isActive={code === locale}
+              isLoading={isPending && pendingLocale === code}
+              disabled={isPending}
+              onPick={() => handlePickLocale(code)}
             />
           ))}
         </div>
@@ -183,6 +244,48 @@ function ThemeCard({
         <span className="w-3 bg-card" />
       </div>
       <span className="sr-only">Theme id: {id}</span>
+    </button>
+  );
+}
+
+function LanguageCard({
+  label,
+  isActive,
+  isLoading,
+  disabled,
+  onPick,
+}: {
+  label: string;
+  isActive: boolean;
+  isLoading: boolean;
+  disabled: boolean;
+  onPick: () => void;
+}) {
+  const t = useTranslations("Settings.appearance");
+  return (
+    <button
+      type="button"
+      role="radio"
+      onClick={onPick}
+      aria-checked={isActive}
+      aria-label={t("useLanguage", { language: label })}
+      disabled={disabled}
+      className={cn(
+        "flex items-center gap-2 rounded-lg border bg-card px-3 py-2.5 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        isActive
+          ? "border-primary/60 ring-2 ring-primary/40 text-foreground"
+          : "border-border text-muted-foreground hover:border-border hover:bg-muted/40 hover:text-foreground",
+      )}
+    >
+      <span className="flex-1 truncate">{label}</span>
+      {isLoading ? (
+        <span
+          aria-hidden
+          className="size-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent"
+        />
+      ) : isActive ? (
+        <Check className="size-3.5 shrink-0 text-primary" />
+      ) : null}
     </button>
   );
 }

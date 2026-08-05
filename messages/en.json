@@ -1592,7 +1592,10 @@
       "useMode": "Use {mode} mode",
       "active": "Active",
       "accentColor": "Accent color",
-      "useTheme": "Use {name} theme"
+      "useTheme": "Use {name} theme",
+      "languageTitle": "Language",
+      "languageDesc": "Language used across every menu, button, and message in the app. Switches instantly — no manual reload needed.",
+      "useLanguage": "Use {language}"
     },
     "security": {
       "title": "Login & security",
