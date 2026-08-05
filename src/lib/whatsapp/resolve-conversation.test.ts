@@ -48,7 +48,7 @@ function makeDb(script: Script): SupabaseClient {
     eq: () => builder,
     order: () => builder,
     limit: () => {
-      // Only the conversation lookup terminates on `.limit(1)`.
+      // The conversation lookup terminates on `.limit(1)` directly.
       if (table === 'conversations' && mode === 'select') {
         const row = script.existingConversationByCall
           ? (script.existingConversationByCall[convLookupCalls] ?? null)
@@ -56,7 +56,24 @@ function makeDb(script: Script): SupabaseClient {
         convLookupCalls++;
         return Promise.resolve({ data: row ? [row] : [], error: null });
       }
-      return Promise.resolve({ data: [], error: null });
+      // whatsapp_config has two different callers chaining off
+      // `.limit(1)`: `resolveAuditUserId` (lib/api/v1/contacts.ts) awaits
+      // it directly expecting `{ data: [...] }`, while
+      // `resolveDefaultChannelForAccount` (resolve-channel.ts) chains
+      // `.maybeSingle()` after it. Return an object that satisfies both:
+      // thenable (array shape) AND exposes `.maybeSingle()` (single-row
+      // shape, with the `id`/`provider` fields toChannel() needs).
+      if (table === 'whatsapp_config' && mode === 'select') {
+        const single = script.config
+          ? { id: 'cfg-1', provider: 'meta' as const, ...script.config }
+          : null;
+        return {
+          then: (resolve: (v: { data: unknown; error: null }) => void) =>
+            resolve({ data: single ? [single] : [], error: null }),
+          maybeSingle: () => Promise.resolve({ data: single, error: null }),
+        };
+      }
+      return builder;
     },
     like: () => {
       const data = script.contactCandidatesByCall
@@ -65,11 +82,7 @@ function makeDb(script: Script): SupabaseClient {
       likeCalls++;
       return Promise.resolve({ data, error: null });
     },
-    maybeSingle: () => {
-      if (table === 'whatsapp_config')
-        return Promise.resolve({ data: script.config ?? null, error: null });
-      return Promise.resolve({ data: null, error: null });
-    },
+    maybeSingle: () => Promise.resolve({ data: null, error: null }),
     single: () => {
       if (table === 'contacts' && mode === 'insert') {
         if (script.insertContactError)

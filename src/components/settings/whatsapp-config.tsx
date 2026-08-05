@@ -103,10 +103,14 @@ export function WhatsAppConfig() {
       // account sees the same saved configuration. UNIQUE(account_id)
       // on the table guarantees the .maybeSingle() return type
       // remains accurate.
+      // Scoped to provider='meta' — an account may also have UAZAPI
+      // channels (migration 037; see UazapiChannelsPanel), which this
+      // Meta-specific form must ignore rather than error on.
       const { data, error } = await supabase
         .from('whatsapp_config')
         .select('*')
         .eq('account_id', acctId)
+        .eq('provider', 'meta')
         .maybeSingle();
 
       if (error) {

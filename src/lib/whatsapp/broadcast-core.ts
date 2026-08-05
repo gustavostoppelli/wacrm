@@ -18,8 +18,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { sendTemplateMessage } from '@/lib/whatsapp/meta-api';
-import { decrypt } from '@/lib/whatsapp/encryption';
+import { resolveDefaultChannelForAccount } from '@/lib/whatsapp/resolve-channel';
+import { getProviderForChannel, type WhatsAppChannel } from '@/lib/whatsapp/provider';
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -66,8 +66,7 @@ export interface BroadcastPlan {
   broadcastId: string;
   templateName: string;
   templateLanguage: string;
-  phoneNumberId: string;
-  accessToken: string;
+  channel: WhatsAppChannel;
   templateRow: MessageTemplate | null;
   planned: PlannedRecipient[];
   /** Phones rejected up front (invalid E.164) — counted as failed. */
@@ -109,21 +108,25 @@ export async function createBroadcast(
     );
   }
 
-  // Config (fail fast + provides the audit trail owner already resolved
-  // by the caller). Meta send needs phone_number_id + decrypted token.
-  const { data: config, error: configError } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', accountId)
-    .single();
-  if (configError || !config) {
+  // Resolve the account's default channel (fail fast). Broadcasts send
+  // via a pre-approved template, which is a Meta-only concept — a
+  // UAZAPI channel has no template-approval flow (Templates UI is
+  // hidden for it), so reject rather than silently degrading.
+  const channel = await resolveDefaultChannelForAccount(db, accountId);
+  if (!channel) {
     throw new BroadcastError(
       'whatsapp_not_configured',
       'WhatsApp not configured. Please set up your WhatsApp integration first.',
       400
     );
   }
-  const accessToken = decrypt(config.access_token);
+  if (channel.provider !== 'meta') {
+    throw new BroadcastError(
+      'unsupported_provider',
+      'Broadcasts require a Meta WhatsApp channel — approved templates are not supported on this provider.',
+      400
+    );
+  }
 
   // Template row (once) for header/button components; guard a
   // malformed local row rather than N identical opaque failures.
@@ -238,8 +241,7 @@ export async function createBroadcast(
     broadcastId: broadcast.id,
     templateName,
     templateLanguage,
-    phoneNumberId: config.phone_number_id,
-    accessToken,
+    channel,
     templateRow,
     planned,
     rejected,
@@ -264,6 +266,7 @@ export async function deliverBroadcast(
   plan: BroadcastPlan
 ): Promise<void> {
   let sentCount = 0;
+  const provider = getProviderForChannel(plan.channel);
 
   for (const recipient of plan.planned) {
     const variants = phoneVariants(recipient.phone);
@@ -272,9 +275,7 @@ export async function deliverBroadcast(
 
     for (const variant of variants) {
       try {
-        const result = await sendTemplateMessage({
-          phoneNumberId: plan.phoneNumberId,
-          accessToken: plan.accessToken,
+        const result = await provider.sendTemplate({
           to: variant,
           templateName: plan.templateName,
           language: plan.templateLanguage,

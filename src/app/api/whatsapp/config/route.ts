@@ -85,10 +85,15 @@ export async function GET() {
       )
     }
 
+    // Scoped to provider='meta' — an account may also have UAZAPI
+    // channels (migration 037), which this Meta-specific endpoint
+    // must ignore rather than error on (`.maybeSingle()` throws on 2+
+    // rows).
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
       .select('phone_number_id, access_token, status')
       .eq('account_id', accountId)
+      .eq('provider', 'meta')
       .maybeSingle()
 
     if (configError) {
@@ -276,6 +281,7 @@ export async function POST(request: Request) {
       .from('whatsapp_config')
       .select('id, registered_at, phone_number_id')
       .eq('account_id', accountId)
+      .eq('provider', 'meta')
       .maybeSingle()
 
     const sameNumber =
@@ -371,6 +377,7 @@ export async function POST(request: Request) {
         .from('whatsapp_config')
         .update(baseRow)
         .eq('account_id', accountId)
+        .eq('provider', 'meta')
 
       if (updateError) {
         console.error('Error updating whatsapp_config:', updateError)
@@ -463,6 +470,7 @@ export async function DELETE() {
       .from('whatsapp_config')
       .delete()
       .eq('account_id', accountId)
+      .eq('provider', 'meta')
 
     if (deleteError) {
       console.error('Error deleting whatsapp_config:', deleteError)

@@ -11,6 +11,7 @@ import {
   validateSendMessageParams,
   SendMessageError,
 } from '@/lib/whatsapp/send-message'
+import { resolveDefaultChannelForAccount } from '@/lib/whatsapp/resolve-channel'
 
 // The dashboard's outbound-send endpoint. It owns auth, per-user rate
 // limiting, and the two ways the UI targets a thread — an existing
@@ -197,6 +198,12 @@ type SendSupabase = Awaited<ReturnType<typeof createClient>>
  * inbound-then-outbound (or outbound-first) sequence converges on a single
  * thread per contact. Runs under the caller's RLS — the conversations_insert
  * policy requires account agent membership, which the caller already is.
+ *
+ * Resolves the account's default channel (migration 037) to stamp
+ * `whatsapp_config_id` on a newly-created conversation — there's no
+ * inbound message to inherit a channel from here, unlike the webhook
+ * path. Once a channel picker ships in the UI (Fase 4), this will take
+ * an explicit `channelId` instead.
  */
 async function findOrCreateConversation(
   supabase: SendSupabase,
@@ -204,11 +211,18 @@ async function findOrCreateConversation(
   userId: string,
   contactId: string,
 ): Promise<string | null> {
+  const channel = await resolveDefaultChannelForAccount(supabase, accountId)
+  if (!channel) {
+    console.error('No WhatsApp channel configured for account:', accountId)
+    return null
+  }
+
   const { data: existing } = await supabase
     .from('conversations')
     .select('id')
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
+    .eq('whatsapp_config_id', channel.id)
     .maybeSingle()
 
   if (existing) return existing.id
@@ -219,6 +233,7 @@ async function findOrCreateConversation(
       account_id: accountId,
       user_id: userId,
       contact_id: contactId,
+      whatsapp_config_id: channel.id,
     })
     .select('id')
     .single()

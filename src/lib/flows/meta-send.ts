@@ -1,14 +1,11 @@
 import {
-  sendInteractiveButtons,
-  sendInteractiveList,
-  sendMediaMessage,
-  sendTextMessage,
   type InteractiveButton,
   type InteractiveListSection,
   type MediaKind,
 } from '@/lib/whatsapp/meta-api'
 import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive'
-import { decrypt } from '@/lib/whatsapp/encryption'
+import { resolveChannelForConversation } from '@/lib/whatsapp/resolve-channel'
+import { getProviderForChannel } from '@/lib/whatsapp/provider'
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -82,21 +79,14 @@ export async function engineSendText(
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', args.accountId)
-    .single()
-  if (configErr || !config) {
+  const channel = await resolveChannelForConversation(db, args.accountId, args.conversationId)
+  if (!channel) {
     throw new Error('WhatsApp not configured for this account')
   }
-
-  const accessToken = decrypt(config.access_token)
+  const provider = getProviderForChannel(channel)
 
   const attempt = async (phone: string): Promise<string> => {
-    const r = await sendTextMessage({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
+    const r = await provider.sendText({
       to: phone,
       text: args.text,
     })
@@ -192,21 +182,14 @@ export async function engineSendMedia(
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', args.accountId)
-    .single()
-  if (configErr || !config) {
+  const channel = await resolveChannelForConversation(db, args.accountId, args.conversationId)
+  if (!channel) {
     throw new Error('WhatsApp not configured for this account')
   }
-
-  const accessToken = decrypt(config.access_token)
+  const provider = getProviderForChannel(channel)
 
   const attempt = async (phone: string): Promise<string> => {
-    const r = await sendMediaMessage({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
+    const r = await provider.sendMedia({
       to: phone,
       kind: args.kind,
       link: args.link,
@@ -344,22 +327,15 @@ async function sendInteractiveViaMeta(
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('*')
-    .eq('account_id', input.accountId)
-    .single()
-  if (configErr || !config) {
+  const channel = await resolveChannelForConversation(db, input.accountId, input.conversationId)
+  if (!channel) {
     throw new Error('WhatsApp not configured for this account')
   }
-
-  const accessToken = decrypt(config.access_token)
+  const provider = getProviderForChannel(channel)
 
   const attempt = async (phone: string): Promise<string> => {
     if (input.kind === 'buttons') {
-      const r = await sendInteractiveButtons({
-        phoneNumberId: config.phone_number_id,
-        accessToken,
+      const r = await provider.sendInteractiveButtons({
         to: phone,
         bodyText: input.bodyText,
         buttons: input.buttons,
@@ -368,9 +344,7 @@ async function sendInteractiveViaMeta(
       })
       return r.messageId
     }
-    const r = await sendInteractiveList({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
+    const r = await provider.sendInteractiveList({
       to: phone,
       bodyText: input.bodyText,
       buttonLabel: input.buttonLabel,

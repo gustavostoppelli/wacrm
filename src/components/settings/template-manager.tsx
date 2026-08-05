@@ -127,9 +127,14 @@ function emptyButton(type: TemplateButton['type']): TemplateButton {
 export function TemplateManager() {
   const t = useTranslations('Settings.templates');
   const supabase = createClient();
-  const { user, loading: authLoading } = useAuth();
+  const { user, accountId, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
+  // Approved templates are a Meta Cloud API concept — UAZAPI channels
+  // (migration 037) have no template-approval flow. null while
+  // unchecked; false hides the manager behind an explanatory card so a
+  // UAZAPI-only account doesn't hit confusing Meta-shaped errors here.
+  const [hasMetaChannel, setHasMetaChannel] = useState<boolean | null>(null);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -186,6 +191,18 @@ export function TemplateManager() {
     fetchTemplates(user.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user?.id]);
+
+  useEffect(() => {
+    if (authLoading || !accountId) return;
+    supabase
+      .from('whatsapp_config')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('provider', 'meta')
+      .maybeSingle()
+      .then(({ data }) => setHasMetaChannel(!!data));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, accountId]);
 
   async function fetchTemplates(userId: string) {
     try {
@@ -452,6 +469,30 @@ export function TemplateManager() {
       <div className="flex items-center justify-center py-12">
         <Loader2 className="size-6 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  if (hasMetaChannel === false) {
+    return (
+      <section className="animate-in fade-in-50 duration-200">
+        <SettingsPanelHead
+          title={t('title')}
+          description={t('description')}
+        />
+        <Card>
+          <CardContent className="py-8 text-center space-y-2">
+            <p className="text-sm text-foreground font-medium">
+              Templates require a Meta WhatsApp channel
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Approved message templates are a Meta Cloud API feature.
+              Connect a Meta channel under Settings → WhatsApp to manage
+              templates — your UAZAPI channel(s) send free-form messages
+              instead.
+            </p>
+          </CardContent>
+        </Card>
+      </section>
     );
   }
 

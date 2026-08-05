@@ -161,6 +161,13 @@ export interface Conversation {
   id: string;
   user_id: string;
   contact_id: string;
+  /**
+   * Which WhatsApp channel this thread belongs to (migration 037).
+   * Null on rows created before multi-channel support and not yet
+   * backfilled by a resolver — `resolve-channel.ts` falls back to the
+   * account's sole channel in that case.
+   */
+  whatsapp_config_id?: string | null;
   status: ConversationStatus;
   assigned_agent_id?: string;
   last_message_text?: string;
@@ -266,24 +273,48 @@ export interface MessageReaction {
   created_at: string;
 }
 
+export type WhatsAppProviderName = 'meta' | 'uazapi';
+
 export interface WhatsAppConfig {
   id: string;
   user_id: string;
-  phone_number_id: string;
+  /** Tenancy key. NOT NULL since migration 017. */
+  account_id: string;
+  /**
+   * Which transport this channel uses. Defaults to 'meta' for every
+   * pre-existing row (migration 037). A UAZAPI row carries the
+   * `uazapi_*` fields instead of `phone_number_id`/`access_token`.
+   */
+  provider: WhatsAppProviderName;
+  /** User-facing label, e.g. "Vendas". Only meaningful once an account
+   *  has more than one channel — optional otherwise. */
+  name?: string;
+  /** Required when provider === 'meta'. */
+  phone_number_id?: string;
   waba_id?: string;
-  access_token: string;
+  /** Required when provider === 'meta'. Encrypted at rest. */
+  access_token?: string;
   verify_token?: string;
+  /** Required when provider === 'uazapi'. */
+  uazapi_base_url?: string;
+  /** Required when provider === 'uazapi'. Encrypted at rest. */
+  uazapi_instance_token?: string;
+  uazapi_instance_id?: string;
+  /** Query-param secret on the registered webhook URL. Meta-only channels
+   *  don't need this (HMAC signature already verifies inbound requests). */
+  uazapi_webhook_secret?: string;
   status: 'connected' | 'disconnected';
   connected_at?: string;
   /**
    * Set when POST /{phone_number_id}/register last succeeded. NULL
    * means the number was saved but never actually subscribed for
    * webhooks on Meta's side — inbound events will be silently lost.
+   * Meta-only.
    */
   registered_at?: string;
-  /** Set when POST /{waba_id}/subscribed_apps last succeeded. */
+  /** Set when POST /{waba_id}/subscribed_apps last succeeded. Meta-only. */
   subscribed_apps_at?: string;
-  /** Last error from /register; cleared on success. */
+  /** Last error from /register; cleared on success. Meta-only. */
   last_registration_error?: string;
 }
 

@@ -74,12 +74,17 @@ export async function resolveAuditUserId(
   db: SupabaseClient,
   accountId: string
 ): Promise<string> {
-  const { data: config } = await db
+  // `.limit(1)` rather than `.maybeSingle()` — an account can now have
+  // more than one whatsapp_config row (migration 037), and
+  // `.maybeSingle()` errors on 2+ matches. Any admin owner is an
+  // equally valid audit attribution here, so the first is fine.
+  const { data: configs } = await db
     .from('whatsapp_config')
     .select('user_id')
     .eq('account_id', accountId)
-    .maybeSingle();
-  const configOwner = config?.user_id as string | undefined;
+    .order('created_at', { ascending: true })
+    .limit(1);
+  const configOwner = configs?.[0]?.user_id as string | undefined;
   if (configOwner) return configOwner;
 
   const { data: account } = await db

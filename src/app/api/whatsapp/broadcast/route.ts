@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
-import { sendTemplateMessage } from '@/lib/whatsapp/meta-api'
-import { decrypt } from '@/lib/whatsapp/encryption'
+import { resolveDefaultChannelForAccount } from '@/lib/whatsapp/resolve-channel'
+import { getProviderForChannel } from '@/lib/whatsapp/provider'
 import type { SendTimeParams } from '@/lib/whatsapp/template-send-builder'
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard'
 import {
@@ -120,13 +120,8 @@ export async function POST(request: Request) {
       )
     }
 
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('*')
-      .eq('account_id', accountId)
-      .single()
-
-    if (configError || !config) {
+    const channel = await resolveDefaultChannelForAccount(supabase, accountId)
+    if (!channel) {
       return NextResponse.json(
         {
           error:
@@ -135,8 +130,17 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
-
-    const accessToken = decrypt(config.access_token)
+    // Broadcasts send via a pre-approved template — a Meta-only concept.
+    if (channel.provider !== 'meta') {
+      return NextResponse.json(
+        {
+          error:
+            'Broadcasts require a Meta WhatsApp channel — approved templates are not supported on this provider.',
+        },
+        { status: 400 }
+      )
+    }
+    const provider = getProviderForChannel(channel)
 
     // Load the template row once so sendTemplateMessage can build
     // header + button components on each iteration. Loading inside
@@ -186,9 +190,7 @@ export async function POST(request: Request) {
 
       for (const variant of variants) {
         try {
-          const result = await sendTemplateMessage({
-            phoneNumberId: config.phone_number_id,
-            accessToken,
+          const result = await provider.sendTemplate({
             to: variant,
             templateName: template_name,
             language: template_language || 'en_US',
