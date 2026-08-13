@@ -1,3 +1,10 @@
+# Single-instance topology only. `src/lib/rate-limit.ts` keeps every
+# rate-limit bucket (including the public API's per-key budget) in this
+# process's memory — running more than one `app` replica (or moving to
+# a platform that fans requests out across instances) silently splits
+# each budget across replicas instead of enforcing it, with no error or
+# log. If you ever need horizontal scale, swap `checkRateLimit` for a
+# shared store first (see that file's header comment).
 name: wacrm
 
 services:

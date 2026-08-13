@@ -148,7 +148,6 @@ vi.mock('@/lib/flows/admin-client', () => ({
 vi.mock('@/lib/whatsapp/encryption', () => ({
   decrypt: vi.fn(() => 'plaintext-token'),
   encrypt: vi.fn(() => 'enc-token'),
-  isLegacyFormat: vi.fn(() => false),
 }))
 
 const { sendTemplateMessage } = vi.hoisted(() => ({

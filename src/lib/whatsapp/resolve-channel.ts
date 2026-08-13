@@ -21,7 +21,7 @@
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
+import { decrypt } from '@/lib/whatsapp/encryption'
 import type { WhatsAppChannel } from '@/lib/whatsapp/provider'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,54 +30,28 @@ type ConfigRow = any
 /**
  * Decrypt the provider-specific credentials on a `whatsapp_config` row
  * and shape it into the transport-agnostic `WhatsAppChannel` the
- * provider layer expects. Self-heals legacy CBC ciphertexts to GCM on
- * read, mirroring the fire-and-forget upgrade that used to live inline
- * in `send-message.ts`.
+ * provider layer expects.
  */
-function toChannel(db: SupabaseClient, row: ConfigRow): WhatsAppChannel {
+function toChannel(_db: SupabaseClient, row: ConfigRow): WhatsAppChannel {
   if (row.provider === 'uazapi') {
-    const uazapiInstanceToken = row.uazapi_instance_token
-      ? decrypt(row.uazapi_instance_token)
-      : undefined
-    if (row.uazapi_instance_token && isLegacyFormat(row.uazapi_instance_token)) {
-      void db
-        .from('whatsapp_config')
-        .update({ uazapi_instance_token: encrypt(uazapiInstanceToken!) })
-        .eq('id', row.id)
-        .then(({ error }: { error: { message: string } | null }) => {
-          if (error) {
-            console.warn('[resolve-channel] uazapi_instance_token GCM upgrade failed:', error.message)
-          }
-        })
-    }
     return {
       id: row.id,
       accountId: row.account_id,
       provider: 'uazapi',
       uazapiBaseUrl: row.uazapi_base_url,
-      uazapiInstanceToken,
+      uazapiInstanceToken: row.uazapi_instance_token
+        ? decrypt(row.uazapi_instance_token)
+        : undefined,
     }
   }
 
   // Meta (default).
-  const metaAccessToken = row.access_token ? decrypt(row.access_token) : undefined
-  if (row.access_token && isLegacyFormat(row.access_token)) {
-    void db
-      .from('whatsapp_config')
-      .update({ access_token: encrypt(metaAccessToken!) })
-      .eq('id', row.id)
-      .then(({ error }: { error: { message: string } | null }) => {
-        if (error) {
-          console.warn('[resolve-channel] access_token GCM upgrade failed:', error.message)
-        }
-      })
-  }
   return {
     id: row.id,
     accountId: row.account_id,
     provider: 'meta',
     metaPhoneNumberId: row.phone_number_id,
-    metaAccessToken,
+    metaAccessToken: row.access_token ? decrypt(row.access_token) : undefined,
   }
 }
 

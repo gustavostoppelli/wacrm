@@ -3,11 +3,8 @@ import crypto from 'crypto'
 /**
  * WhatsApp token encryption.
  *
- * Format — GCM (current):
+ * Format — GCM (the only format; there is no legacy fallback):
  *   `<iv-hex>:<ciphertext-hex>:<authTag-hex>`      (three colons)
- *
- * Format — CBC (legacy, decrypt-only):
- *   `<iv-hex>:<ciphertext-hex>`                    (one colon)
  *
  * Why GCM instead of CBC:
  *   CBC without a MAC is unauthenticated — an attacker who can write
@@ -18,12 +15,11 @@ import crypto from 'crypto'
  *   token, messages go out under a spoofed account. GCM appends a
  *   16-byte authentication tag; any tampering fails the decrypt hard.
  *
- * Backward compatibility:
- *   `decrypt()` auto-detects the format by counting parts, so legacy
- *   rows keep working. New `encrypt()` output is always GCM.
- *   Existing rows can be upgraded in place by call sites that hold a
- *   Supabase client — see the `isLegacyFormat` / `encrypt` pattern in
- *   `src/app/api/whatsapp/send/route.ts`.
+ * This codebase briefly supported reading an older unauthenticated
+ * CBC format for backward compatibility. It was removed (2026-08) once
+ * confirmed no production `whatsapp_config` rows still used it — don't
+ * reintroduce a CBC read path without re-auditing for live legacy rows
+ * first.
  */
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY!
@@ -31,7 +27,6 @@ const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY!
 // counter block well below 2^32 and matches the default web-crypto
 // behaviour, so any future port is straightforward.
 const GCM_IV_LENGTH = 12
-const CBC_IV_LENGTH = 16
 const AUTH_TAG_LENGTH = 16
 
 export function encrypt(text: string): string {
@@ -50,64 +45,34 @@ export function encrypt(text: string): string {
 export function decrypt(encryptedText: string): string {
   const parts = encryptedText.split(':')
 
-  if (parts.length === 3) {
-    // GCM — current format.
-    const [ivHex, ctHex, tagHex] = parts
-    const iv = Buffer.from(ivHex, 'hex')
-    if (iv.length !== GCM_IV_LENGTH) {
-      throw new Error(
-        `Encrypted token has unexpected GCM IV length ${iv.length}`,
-      )
-    }
-    const authTag = Buffer.from(tagHex, 'hex')
-    if (authTag.length !== AUTH_TAG_LENGTH) {
-      throw new Error(
-        `Encrypted token has unexpected GCM auth-tag length ${authTag.length}`,
-      )
-    }
-    const decipher = crypto.createDecipheriv(
-      'aes-256-gcm',
-      Buffer.from(ENCRYPTION_KEY, 'hex'),
-      iv,
+  if (parts.length !== 3) {
+    throw new Error(
+      `Encrypted token has unrecognised format (expected GCM's 3 colon-separated parts, got ${
+        parts.length - 1
+      })`,
     )
-    decipher.setAuthTag(authTag)
-    let decrypted = decipher.update(ctHex, 'hex', 'utf8')
-    decrypted += decipher.final('utf8')
-    return decrypted
   }
 
-  if (parts.length === 2) {
-    // CBC — legacy. Read-only; `encrypt()` never produces this shape.
-    const [ivHex, ctHex] = parts
-    const iv = Buffer.from(ivHex, 'hex')
-    if (iv.length !== CBC_IV_LENGTH) {
-      throw new Error(
-        `Encrypted token has unexpected CBC IV length ${iv.length}`,
-      )
-    }
-    const decipher = crypto.createDecipheriv(
-      'aes-256-cbc',
-      Buffer.from(ENCRYPTION_KEY, 'hex'),
-      iv,
+  const [ivHex, ctHex, tagHex] = parts
+  const iv = Buffer.from(ivHex, 'hex')
+  if (iv.length !== GCM_IV_LENGTH) {
+    throw new Error(
+      `Encrypted token has unexpected GCM IV length ${iv.length}`,
     )
-    let decrypted = decipher.update(ctHex, 'hex', 'utf8')
-    decrypted += decipher.final('utf8')
-    return decrypted
   }
-
-  throw new Error(
-    `Encrypted token has unrecognised format (expected 1 or 2 colons, got ${
-      parts.length - 1
-    })`,
+  const authTag = Buffer.from(tagHex, 'hex')
+  if (authTag.length !== AUTH_TAG_LENGTH) {
+    throw new Error(
+      `Encrypted token has unexpected GCM auth-tag length ${authTag.length}`,
+    )
+  }
+  const decipher = crypto.createDecipheriv(
+    'aes-256-gcm',
+    Buffer.from(ENCRYPTION_KEY, 'hex'),
+    iv,
   )
-}
-
-/**
- * Cheap format detector — call sites use this to decide whether to
- * write a refreshed GCM ciphertext back to the database after a
- * successful legacy decrypt. Does not attempt decryption; purely a
- * structural check.
- */
-export function isLegacyFormat(encryptedText: string): boolean {
-  return encryptedText.split(':').length === 2
+  decipher.setAuthTag(authTag)
+  let decrypted = decipher.update(ctHex, 'hex', 'utf8')
+  decrypted += decipher.final('utf8')
+  return decrypted
 }

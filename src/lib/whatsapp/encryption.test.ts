@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { decrypt, encrypt, isLegacyFormat } from "./encryption";
+import { decrypt, encrypt } from "./encryption";
 
 const KEY_HEX = process.env.ENCRYPTION_KEY!;
 
@@ -86,28 +86,10 @@ describe("encryption", () => {
     });
   });
 
-  describe("legacy CBC compatibility (read-only)", () => {
-    it("decrypts a CBC blob produced by the previous codepath", () => {
+  describe("legacy CBC format is no longer accepted", () => {
+    it("rejects a CBC blob that would have decrypted under the old codepath", () => {
       const legacy = cbcEncryptLegacy("old-token");
-      expect(decrypt(legacy)).toBe("old-token");
-    });
-
-    it("rejects a CBC blob with the wrong IV length", () => {
-      // 8-byte IV (16 hex chars) instead of 16 bytes.
-      const bogus = "00".repeat(8) + ":" + "00".repeat(16);
-      expect(() => decrypt(bogus)).toThrow(/CBC IV length/);
-    });
-  });
-
-  describe("format detection", () => {
-    it("isLegacyFormat returns true for two-part CBC strings", () => {
-      const legacy = cbcEncryptLegacy("anything");
-      expect(isLegacyFormat(legacy)).toBe(true);
-    });
-
-    it("isLegacyFormat returns false for three-part GCM strings", () => {
-      const modern = encrypt("anything");
-      expect(isLegacyFormat(modern)).toBe(false);
+      expect(() => decrypt(legacy)).toThrow(/unrecognised format/);
     });
   });
 

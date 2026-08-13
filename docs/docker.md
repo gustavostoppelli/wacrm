@@ -55,6 +55,13 @@ docker run -d --env-file .env.local -e PORT=3000 -p 3000:3000 wacrm
 
 ## Notes
 
+- **Single instance only.** Rate limiting (`src/lib/rate-limit.ts`) —
+  including the public API's per-key budget — is enforced in this
+  process's memory. Running more than one `app` container/replica (or
+  deploying to a platform that fans requests across instances) silently
+  defeats every rate limit instead of erroring. If you need horizontal
+  scale, swap `checkRateLimit`'s implementation for a shared store
+  (Redis/Upstash) first — the call sites don't change.
 - Database migrations under `supabase/` are **not** run by the
   container — apply them with the Supabase CLI as described in the
   README.
