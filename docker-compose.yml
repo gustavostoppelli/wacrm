@@ -22,9 +22,15 @@ services:
     # healthcheck below.
     environment:
       PORT: 3000
-    # Host side only — HOST_PORT=8080 publishes the app on :8080.
+    # Bound to loopback only — the app is reached through a reverse proxy
+    # (nginx/OpenLiteSpeed/etc.) terminating TLS on the real domain, not
+    # directly from the internet. Docker's own iptables rules for
+    # published ports bypass host firewalls (a well-known gotcha), so
+    # binding 0.0.0.0 here would expose plain-HTTP access on the host's
+    # public IP regardless of firewalld/ufw rules. HOST_PORT=8080 still
+    # works, just stays localhost-only.
     ports:
-      - '${HOST_PORT:-3000}:3000'
+      - '127.0.0.1:${HOST_PORT:-3000}:3000'
     restart: unless-stopped
     healthcheck:
       test:
