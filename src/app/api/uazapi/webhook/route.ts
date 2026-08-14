@@ -133,6 +133,13 @@ async function processWebhookEvent(body: UazapiWebhookEvent, config: any) {
   // (e.g. a message sent manually from the connected phone).
   if (message.fromMe) return
 
+  // Skip group messages entirely — never create a contact/conversation
+  // for them. `isGroup` is UAZAPI's own flag; the `chatid` suffix is a
+  // second, protocol-level check (group chat ids end `@g.us`, direct
+  // chats end `@s.whatsapp.net`) so this still holds even if `isGroup`
+  // is ever missing or wrong on a given payload.
+  if (message.isGroup || message.chatid?.endsWith('@g.us')) return
+
   // `sender` is a `<digits>@lid` privacy ID, not a phone number, since
   // WhatsApp's LID rollout — `sender_pn` (`<digits>@s.whatsapp.net`) is
   // the real number and must be preferred. Confirmed against a live
