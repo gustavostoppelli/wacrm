@@ -32,7 +32,13 @@ interface UazapiMessage {
   messageid?: string
   id?: string
   chatid?: string
+  /** WhatsApp's privacy "linked ID" (`<digits>@lid`) — NOT a phone
+   *  number. Never parse this as one; use `sender_pn` instead. */
   sender?: string
+  /** The actual phone number, as `<digits>@s.whatsapp.net`. This is
+   *  what `sender` looked like before WhatsApp's LID rollout — real
+   *  UAZAPI payloads (confirmed 2026-08-14) send both. */
+  sender_pn?: string
   senderName?: string
   fromMe?: boolean
   isGroup?: boolean
@@ -45,9 +51,14 @@ interface UazapiMessage {
 }
 
 interface UazapiWebhookEvent {
-  event?: string
-  instance?: string
-  data?: UazapiMessage | { message?: UazapiMessage }
+  /** Confirmed real field name (2026-08-14) — UAZAPI does not send a
+   *  lowercase `event` key despite what earlier docs/comments assumed. */
+  EventType?: string
+  instanceName?: string
+  /** The message is a top-level sibling of `EventType`/`instanceName`,
+   *  not nested under a `data` wrapper — despite what earlier
+   *  docs/comments assumed. */
+  message?: UazapiMessage
 }
 
 function mapContentType(messageType: string | undefined, hasFile: boolean): ContentType {
@@ -110,12 +121,9 @@ export async function POST(request: Request) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function processWebhookEvent(body: UazapiWebhookEvent, config: any) {
-  if (body.event !== 'messages') return
+  if (body.EventType !== 'messages') return
 
-  const message: UazapiMessage | undefined =
-    body.data && 'message' in body.data && body.data.message
-      ? body.data.message
-      : (body.data as UazapiMessage | undefined)
+  const message = body.message
   if (!message) return
 
   // We only send messages ourselves through the provider layer, never
@@ -124,7 +132,15 @@ async function processWebhookEvent(body: UazapiWebhookEvent, config: any) {
   // `fromMe` is a belt-and-braces guard against echoing our own sends
   // (e.g. a message sent manually from the connected phone).
   if (message.fromMe) return
-  if (!message.sender) return
+
+  // `sender` is a `<digits>@lid` privacy ID, not a phone number, since
+  // WhatsApp's LID rollout — `sender_pn` (`<digits>@s.whatsapp.net`) is
+  // the real number and must be preferred. Confirmed against a live
+  // payload 2026-08-14; falling back to `sender` only covers UAZAPI
+  // deployments/protocol states that predate LIDs.
+  const rawSender = message.sender_pn || message.sender
+  if (!rawSender) return
+  const senderPhone = normalizePhone(rawSender.split('@')[0])
 
   const externalMessageId = message.messageid || message.id
   if (!externalMessageId) return
@@ -138,8 +154,8 @@ async function processWebhookEvent(body: UazapiWebhookEvent, config: any) {
     accountId: config.account_id,
     configOwnerUserId: config.user_id,
     channelId: config.id,
-    senderPhone: normalizePhone(message.sender),
-    senderName: message.senderName || normalizePhone(message.sender),
+    senderPhone,
+    senderName: message.senderName || senderPhone,
     externalMessageId,
     timestamp: message.messageTimestamp ? new Date(message.messageTimestamp) : new Date(),
     contentType,
