@@ -130,3 +130,32 @@ export const AUTOMATION_TEMPLATES: Record<TemplateSlug, AutomationTemplateDefini
 export function getTemplate(slug: string): AutomationTemplateDefinition | null {
   return AUTOMATION_TEMPLATES[slug as TemplateSlug] ?? null
 }
+
+/**
+ * A template's `name`/`description` and the copy inside its
+ * `send_message` steps are user-facing content, not UI chrome — they
+ * need the same locale as everything else, or a PT-BR user setting up
+ * "Fora do Expediente" gets an English auto-reply pre-filled to send
+ * to their own customers. `t` is a `next-intl` translator scoped to
+ * `Automations.templates` (`useTranslations("Automations.templates")`
+ * at the call site); this only replaces `send_message` text — steps
+ * without user-facing text (add_tag, wait, condition, ...) pass
+ * through unchanged.
+ */
+export function getLocalizedTemplate(
+  slug: TemplateSlug,
+  t: (key: string) => string,
+): AutomationTemplateDefinition {
+  const base = AUTOMATION_TEMPLATES[slug]
+  const steps = base.steps.map((step, index) => {
+    if (step.step_type !== 'send_message') return step
+    const text = t(`${slug}.steps.${index}`)
+    return { ...step, step_config: { ...step.step_config, text } }
+  })
+  return {
+    ...base,
+    name: t(`${slug}.name`),
+    description: t(`${slug}.description`),
+    steps,
+  }
+}

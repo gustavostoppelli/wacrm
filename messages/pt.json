@@ -1006,6 +1006,36 @@
         "matchExact": "Exato",
         "closeConversationHint": "Define o status da conversa como \"fechada\". Não precisa de configuração."
       }
+    },
+    "templates": {
+      "welcome_message": {
+        "name": "Mensagem de Boas-vindas",
+        "description": "Responde automaticamente a contatos novos com uma saudação.",
+        "steps": {
+          "0": "Oi! 👋 Obrigado por entrar em contato. Já retornamos em breve."
+        }
+      },
+      "out_of_office": {
+        "name": "Fora do Expediente",
+        "description": "Responde automaticamente fora do horário comercial, pra ninguém ficar esperando.",
+        "steps": {
+          "1": "Obrigado pela mensagem! Nossa equipe está offline agora (9h–18h) e responde a partir de amanhã cedo."
+        }
+      },
+      "lead_qualifier": {
+        "name": "Qualificador de Leads",
+        "description": "Faz perguntas de qualificação pra filtrar leads recebidos.",
+        "steps": {
+          "0": "Ótimo — posso te ajudar com os valores! Uma pergunta rápida: mais ou menos quantas licenças você está buscando?"
+        }
+      },
+      "follow_up_reminder": {
+        "name": "Lembrete de Follow-up",
+        "description": "Manda um lembrete se o contato não responder em 24 horas.",
+        "steps": {
+          "1": "Só retomando o contato — ficou alguma dúvida? Fico à disposição!"
+        }
+      }
     }
   },
   "Flows": {
