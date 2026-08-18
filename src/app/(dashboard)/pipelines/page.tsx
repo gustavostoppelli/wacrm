@@ -42,9 +42,10 @@ const SPEC_DEFAULT_STAGES = [
   { name: "Primeiro Contato", color: "#6366f1", position: 1 }, // indigo
   { name: "Segundo Contato", color: "#06b6d4", position: 2 }, // cyan
   { name: "Qualificado", color: "#eab308", position: 3 }, // yellow
-  { name: "Proposta Enviada", color: "#f97316", position: 4 }, // orange
-  { name: "Negociação", color: "#8b5cf6", position: 5 }, // purple
-  { name: "Ganho", color: "#22c55e", position: 6 }, // green
+  { name: "Reunião Agendada", color: "#ec4899", position: 4 }, // pink
+  { name: "Proposta Enviada", color: "#f97316", position: 5 }, // orange
+  { name: "Negociação", color: "#8b5cf6", position: 6 }, // purple
+  { name: "Ganho", color: "#22c55e", position: 7 }, // green
 ];
 
 export default function PipelinesPage() {
