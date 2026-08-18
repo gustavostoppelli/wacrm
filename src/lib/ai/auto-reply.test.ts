@@ -36,6 +36,17 @@ vi.mock('./admin-client', () => ({
         }
         return chain
       }
+      if (table === 'conversation_followups') {
+        // dispatchInboundToAiReply unconditionally cancels any pending
+        // nudge on every call, then (on a normal send) schedules a
+        // fresh one -- not under test here, just needs to not throw.
+        const chain = {
+          delete: () => chain,
+          insert: () => Promise.resolve({ data: null, error: null }),
+          eq: () => Promise.resolve({ data: null, error: null }),
+        }
+        return chain
+      }
       // conversations
       return {
         select: () => ({
@@ -86,6 +97,9 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     businessHoursTimezone: 'UTC',
     offHoursMessage: null,
     meetingRemindersEnabled: false,
+    // Off by default -- the followup-scheduling tests set this
+    // explicitly via overrides.
+    followupEnabled: false,
     ...overrides,
   }
 }

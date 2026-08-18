@@ -3,7 +3,12 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { resumePendingExecution } from '@/lib/automations/engine'
 import type { AutomationContext } from '@/lib/automations/engine'
-import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
+import {
+  dispatchInboundToAiReply,
+  scheduleFollowup,
+  clampToBusinessHours,
+} from '@/lib/ai/auto-reply'
+import { loadAiConfig } from '@/lib/ai/config'
 import { engineSendText } from '@/lib/flows/meta-send'
 
 /**
@@ -74,11 +79,13 @@ export async function GET(request: Request) {
 
   const aiProcessed = await drainDueAiReplies(admin)
   const remindersProcessed = await drainDueMeetingReminders(admin)
+  const followupsProcessed = await drainDueFollowups(admin)
 
   return NextResponse.json({
     processed,
     ai_processed: aiProcessed,
     reminders_processed: remindersProcessed,
+    followups_processed: followupsProcessed,
   })
 }
 
@@ -213,6 +220,106 @@ async function drainDueMeetingReminders(
       })
     } catch (err) {
       console.error('[meeting reminder] send failed:', err)
+    }
+    processed++
+  }
+  return processed
+}
+
+const FOLLOWUP_TEMPLATE_1 = (name: string) =>
+  `Oi${name ? `, ${name}` : ''}! Só passando pra saber se você viu minha última mensagem. Quando puder, me conta.`
+
+const FOLLOWUP_TEMPLATE_2 = (name: string) =>
+  `Oi de novo${name ? `, ${name}` : ''}! Ainda dá tempo de continuar nossa conversa, é só responder por aqui quando puder.`
+
+/**
+ * Drains due `conversation_followups` rows (migration 044): a lead
+ * who went quiet mid-qualification gets a nudge. Any real inbound
+ * message deletes the pending row outright (see the top of
+ * dispatchInboundToAiReply), so this mostly just double-checks
+ * eligibility hasn't changed via some other path (a human taking the
+ * thread) before sending — belt and suspenders against races with the
+ * inbound webhook, not the primary cancellation mechanism.
+ */
+async function drainDueFollowups(
+  admin: ReturnType<typeof supabaseAdmin>,
+): Promise<number> {
+  const { data: due } = await admin
+    .from('conversation_followups')
+    .select('*, contact:contacts(name)')
+    .is('sent_at', null)
+    .lte('send_at', new Date().toISOString())
+    .order('send_at', { ascending: true })
+    .limit(50)
+
+  if (!due || due.length === 0) return 0
+
+  let processed = 0
+  for (const row of due) {
+    const { data: claim } = await admin
+      .from('conversation_followups')
+      .update({ sent_at: new Date().toISOString() })
+      .eq('id', row.id)
+      .is('sent_at', null)
+      .select('id')
+      .maybeSingle()
+    if (!claim) continue
+
+    try {
+      const { data: conv } = await admin
+        .from('conversations')
+        .select('assigned_agent_id, ai_autoreply_disabled')
+        .eq('id', row.conversation_id)
+        .maybeSingle()
+      if (!conv || conv.assigned_agent_id || conv.ai_autoreply_disabled) {
+        processed++
+        continue
+      }
+
+      const { count: repliedSince } = await admin
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', row.conversation_id)
+        .eq('sender_type', 'customer')
+        .gt('created_at', row.last_outbound_at as string)
+      if ((repliedSince ?? 0) > 0) {
+        processed++
+        continue
+      }
+
+      const name = (row.contact as { name?: string } | null)?.name ?? ''
+      const text = row.attempt === 1 ? FOLLOWUP_TEMPLATE_1(name) : FOLLOWUP_TEMPLATE_2(name)
+
+      await engineSendText({
+        accountId: row.account_id as string,
+        userId: row.config_owner_user_id as string,
+        conversationId: row.conversation_id as string,
+        contactId: row.contact_id as string,
+        text,
+        aiGenerated: true,
+      })
+
+      if (row.attempt === 1) {
+        const config = await loadAiConfig(admin, row.account_id as string, {
+          requireActive: false,
+        })
+        const nextSendAt = config
+          ? clampToBusinessHours(new Date(Date.now() + 24 * 60 * 60_000), config)
+          : new Date(Date.now() + 24 * 60 * 60_000)
+        await scheduleFollowup(admin, {
+          accountId: row.account_id as string,
+          conversationId: row.conversation_id as string,
+          contactId: row.contact_id as string,
+          configOwnerUserId: row.config_owner_user_id as string,
+          attempt: 2,
+          sendAt: nextSendAt,
+          lastOutboundAt: new Date(),
+        })
+      }
+      // attempt 2 with still no reply: no reschedule -- the system
+      // stops trying on its own, per spec.
+    } catch (err) {
+      console.error('[conversation followup] send failed:', err)
     }
     processed++
   }

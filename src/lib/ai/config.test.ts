@@ -33,6 +33,7 @@ const ROW = {
   business_hours_timezone: 'America/Sao_Paulo',
   off_hours_message: null,
   meeting_reminders_enabled: true,
+  followup_enabled: true,
 }
 
 describe('loadAiConfig requireActive', () => {

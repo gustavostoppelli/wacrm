@@ -80,6 +80,7 @@ export function AiConfig() {
   );
   const [offHoursMessage, setOffHoursMessage] = useState('');
   const [meetingRemindersEnabled, setMeetingRemindersEnabled] = useState(true);
+  const [followupEnabled, setFollowupEnabled] = useState(true);
   // Empty string = leave unassigned (shared queue).
   const [handoffAgentId, setHandoffAgentId] = useState('');
   const [members, setMembers] = useState<AccountMember[]>([]);
@@ -115,6 +116,7 @@ export function AiConfig() {
         );
         setOffHoursMessage(data.off_hours_message ?? '');
         setMeetingRemindersEnabled(data.meeting_reminders_enabled ?? true);
+        setFollowupEnabled(data.followup_enabled ?? true);
         setHandoffAgentId(data.handoff_agent_id ?? '');
         setHasStoredKey(Boolean(data.has_key));
         setApiKey(data.has_key ? MASKED_KEY : '');
@@ -172,6 +174,7 @@ export function AiConfig() {
     business_hours_timezone: businessHoursTimezone.trim() || 'America/Sao_Paulo',
     off_hours_message: offHoursMessage.trim() || null,
     meeting_reminders_enabled: meetingRemindersEnabled,
+    followup_enabled: followupEnabled,
     handoff_agent_id: handoffAgentId || null,
   });
 
@@ -568,6 +571,22 @@ export function AiConfig() {
               <Switch
                 checked={meetingRemindersEnabled}
                 onCheckedChange={setMeetingRemindersEnabled}
+                disabled={disabled || !autoReplyEnabled}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {t('followup')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('followupDesc')}
+                </p>
+              </div>
+              <Switch
+                checked={followupEnabled}
+                onCheckedChange={setFollowupEnabled}
                 disabled={disabled || !autoReplyEnabled}
               />
             </div>

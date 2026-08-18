@@ -79,6 +79,7 @@ export async function POST(request: Request) {
         businessHoursTimezone: 'UTC',
         offHoursMessage: null,
         meetingRemindersEnabled: false,
+        followupEnabled: false,
       })
     } catch (err) {
       if (err instanceof AiError) {

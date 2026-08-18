@@ -1718,6 +1718,8 @@
       "offHoursMessagePlaceholder": "Recebemos seu contato! Vamos te responder assim que abrirmos, no próximo horário comercial.",
       "meetingReminders": "Lembretes de reunião agendada",
       "meetingRemindersDesc": "Quando uma reunião é confirmada, envia lembrete automático 1 dia antes e 1 hora antes, pedindo confirmação de presença.",
+      "followup": "Retomar contato se o lead ficar em silêncio",
+      "followupDesc": "Se o lead parar de responder no meio da qualificação, o agente tenta reengajar 1 vez em ~4h e, se ainda nada, 1 vez no próximo dia útil. Depois disso, para de tentar sozinho.",
       "handoffTo": "Transferir para",
       "handoffToDesc": "Quando o bot não consegue ajudar — ou atinge o limite de respostas — ele pausa e encaminha a conversa para cá, com uma breve anotação sobre o ocorrido.",
       "handoffQueue": "Fila sem atribuição (qualquer atendente pode assumir)",

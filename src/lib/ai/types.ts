@@ -46,6 +46,9 @@ export interface AiConfig {
    *  also schedules day-before/hour-before attendance-confirmation
    *  reminders (migration 042). */
   meetingRemindersEnabled: boolean
+  /** When true (default), a lead who goes quiet mid-qualification
+   *  gets up to 2 automatic re-engagement nudges (migration 044). */
+  followupEnabled: boolean
 }
 
 /** A single conversation turn in the shape both providers accept. */

@@ -19,6 +19,7 @@ function config(overrides: Partial<AiConfig> = {}): AiConfig {
     businessHoursTimezone: 'UTC',
     offHoursMessage: null,
     meetingRemindersEnabled: false,
+    followupEnabled: false,
     ...overrides,
   }
 }

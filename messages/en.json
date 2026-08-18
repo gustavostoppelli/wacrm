@@ -1718,6 +1718,8 @@
       "offHoursMessagePlaceholder": "Thanks for reaching out! We'll reply as soon as we're back, during business hours.",
       "meetingReminders": "Meeting reminders",
       "meetingRemindersDesc": "Once a meeting is confirmed, automatically sends a reminder 1 day before and 1 hour before, asking to confirm attendance.",
+      "followup": "Re-engage a lead who goes quiet",
+      "followupDesc": "If a lead stops replying mid-qualification, the agent nudges them once after ~4h, and once more the next business day if still no reply. It stops trying on its own after that.",
       "handoffTo": "Hand off to",
       "handoffToDesc": "When the bot can’t help — or hits the reply cap — it pauses and routes the chat here, with a short note on what happened.",
       "handoffQueue": "Unassigned queue (any agent can pick it up)",

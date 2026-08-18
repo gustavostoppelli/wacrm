@@ -51,6 +51,13 @@ export async function dispatchInboundToAiReply(
   try {
     const db = supabaseAdmin()
 
+    // Any real inbound message means the lead is no longer silent --
+    // cancel whatever re-engagement nudge might be pending for this
+    // conversation, regardless of what happens next in this dispatch
+    // (a fresh one is scheduled below only if this turn ends in a
+    // normal, non-handoff auto-reply).
+    await db.from('conversation_followups').delete().eq('conversation_id', conversationId)
+
     const config = await loadAiConfig(db, accountId)
     if (!config || !config.autoReplyEnabled) return
 
@@ -244,6 +251,23 @@ export async function dispatchInboundToAiReply(
       text,
       aiGenerated: true,
     })
+
+    // A normal (non-handoff) reply just went out -- if the lead goes
+    // quiet from here, nudge them once in ~4 business hours. Any
+    // inbound message (including their reply) cancels this via the
+    // delete at the top of this function; the cron reschedules a 2nd
+    // attempt for the next business day if the 1st also goes unanswered.
+    if (config.followupEnabled) {
+      await scheduleFollowup(db, {
+        accountId,
+        conversationId,
+        contactId,
+        configOwnerUserId,
+        attempt: 1,
+        sendAt: clampToBusinessHours(new Date(Date.now() + 4 * 60 * 60_000), config),
+        lastOutboundAt: new Date(),
+      })
+    }
   } catch (err) {
     console.error('[ai auto-reply] dispatch failed:', err)
   }
@@ -314,17 +338,18 @@ async function recordMeetingScheduled(
   }
 
   if (meetingAt && meetingEmail) {
-    // "Reunião <conta>: <cliente/clínica>" -- generic (any account's
-    // own name goes here, not hardcoded), so the event title is
-    // recognizable in Google Calendar regardless of who's using it.
+    // "Diagnóstico <conta> - <cliente/clínica>" -- generic (any
+    // account's own name goes here, not hardcoded), so the event
+    // title is recognizable in Google Calendar regardless of who's
+    // using it.
     const { data: account } = await db
       .from('accounts')
       .select('name')
       .eq('id', accountId)
       .maybeSingle()
     const summary = account?.name
-      ? `Reunião ${account.name}: ${deal.title}`
-      : `Reunião: ${deal.title}`
+      ? `Diagnóstico ${account.name} - ${deal.title}`
+      : `Diagnóstico - ${deal.title}`
 
     const event = await createEventForAccount(db, accountId, {
       summary,
@@ -445,7 +470,7 @@ async function findOpenDealForContact(
  * reminder, which literally computed as "meeting time minus 24h" can
  * land at any hour).
  */
-function clampToBusinessHours(
+export function clampToBusinessHours(
   at: Date,
   config: AiConfig,
 ): Date {
@@ -513,6 +538,39 @@ async function scheduleMeetingReminders(
   if (rows.length > 0) {
     await db.from('deal_meeting_reminders').insert(rows)
   }
+}
+
+/**
+ * Schedules (or replaces) the pending re-engagement nudge for this
+ * conversation. `UNIQUE(conversation_id)` means only one can be
+ * outstanding at a time -- delete-then-insert rather than upsert
+ * because `attempt` and `last_outbound_at` both need to move together
+ * whenever this is called again.
+ */
+export async function scheduleFollowup(
+  db: SupabaseClient,
+  args: {
+    accountId: string
+    conversationId: string
+    contactId: string
+    configOwnerUserId: string
+    attempt: 1 | 2
+    sendAt: Date
+    lastOutboundAt: Date
+  },
+): Promise<void> {
+  const { accountId, conversationId, contactId, configOwnerUserId, attempt, sendAt, lastOutboundAt } =
+    args
+  await db.from('conversation_followups').delete().eq('conversation_id', conversationId)
+  await db.from('conversation_followups').insert({
+    account_id: accountId,
+    conversation_id: conversationId,
+    contact_id: contactId,
+    config_owner_user_id: configOwnerUserId,
+    attempt,
+    send_at: sendAt.toISOString(),
+    last_outbound_at: lastOutboundAt.toISOString(),
+  })
 }
 
 const DEFAULT_OFF_HOURS_MESSAGE =
