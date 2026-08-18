@@ -27,6 +27,11 @@ const ROW = {
   auto_reply_enabled: false,
   auto_reply_max_per_conversation: 3,
   embeddings_api_key: null,
+  business_hours_enabled: false,
+  business_hours_start: 8,
+  business_hours_end: 20,
+  business_hours_timezone: 'America/Sao_Paulo',
+  off_hours_message: null,
 }
 
 describe('loadAiConfig requireActive', () => {

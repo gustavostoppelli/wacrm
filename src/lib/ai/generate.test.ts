@@ -13,6 +13,11 @@ function config(overrides: Partial<AiConfig> = {}): AiConfig {
     autoReplyMaxPerConversation: 3,
     handoffAgentId: null,
     embeddingsApiKey: null,
+    businessHoursEnabled: false,
+    businessHoursStart: 0,
+    businessHoursEnd: 24,
+    businessHoursTimezone: 'UTC',
+    offHoursMessage: null,
     ...overrides,
   }
 }

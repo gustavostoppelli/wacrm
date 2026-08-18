@@ -9,6 +9,9 @@ import { logAiUsage } from './usage'
 import { latestUserMessage } from './query'
 import { engineSendText } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
+import { isWithinBusinessHours, nextBusinessHourStart } from './business-hours'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { AiConfig } from './types'
 
 interface DispatchArgs {
   /** Tenancy key — drives config, contact, and whatsapp_config lookups. */
@@ -78,6 +81,32 @@ export async function dispatchInboundToAiReply(
     // Cheap early-out; the authoritative cap check is the atomic claim
     // below (this read can race a concurrent inbound).
     if (conv.ai_reply_count >= config.autoReplyMaxPerConversation) return
+
+    // Business hours: the model has no way to "hold" a reply and send
+    // it later on its own — it only runs reactively, once, per
+    // inbound. So this is enforced here, deterministically, instead
+    // of trusting prompt text the model can't actually act on. An
+    // off-hours inbound gets an immediate canned ack (not from the
+    // LLM) and the real reply is deferred to the next window via
+    // ai_pending_replies, drained by /api/automations/cron.
+    if (
+      config.businessHoursEnabled &&
+      !isWithinBusinessHours({
+        enabled: true,
+        startHour: config.businessHoursStart,
+        endHour: config.businessHoursEnd,
+        timezone: config.businessHoursTimezone,
+      })
+    ) {
+      await scheduleOffHoursReply(db, {
+        accountId,
+        conversationId,
+        contactId,
+        configOwnerUserId,
+        config,
+      })
+      return
+    }
 
     const messages = await buildConversationContext(db, conversationId)
     if (messages.length === 0) return
@@ -190,4 +219,63 @@ export async function dispatchInboundToAiReply(
   } catch (err) {
     console.error('[ai auto-reply] dispatch failed:', err)
   }
+}
+
+const DEFAULT_OFF_HOURS_MESSAGE =
+  'Recebemos seu contato! Vamos te responder assim que abrirmos, no próximo horário comercial.'
+
+/**
+ * Sends the off-hours ack (once per "wave" -- not on every message the
+ * lead sends while we're closed) and queues a wake-up row so the real
+ * AI reply fires automatically once business hours open, without a
+ * human having to do anything.
+ */
+async function scheduleOffHoursReply(
+  db: SupabaseClient,
+  args: {
+    accountId: string
+    conversationId: string
+    contactId: string
+    configOwnerUserId: string
+    config: AiConfig
+  },
+): Promise<void> {
+  const { accountId, conversationId, contactId, configOwnerUserId, config } = args
+
+  const { data: existingPending } = await db
+    .from('ai_pending_replies')
+    .select('id')
+    .eq('conversation_id', conversationId)
+    .eq('status', 'pending')
+    .maybeSingle()
+  if (existingPending) return // already acked and queued for this off-hours wave
+
+  const scheduledFor = nextBusinessHourStart({
+    enabled: true,
+    startHour: config.businessHoursStart,
+    endHour: config.businessHoursEnd,
+    timezone: config.businessHoursTimezone,
+  })
+
+  // Best-effort insert-first: if this races another inbound for the
+  // same conversation, the UNIQUE(conversation_id) constraint makes
+  // the loser's insert fail harmlessly -- and the loser then also
+  // skips the ack send below, so we still never double-ack.
+  const { error: insertErr } = await db.from('ai_pending_replies').insert({
+    account_id: accountId,
+    conversation_id: conversationId,
+    contact_id: contactId,
+    config_owner_user_id: configOwnerUserId,
+    scheduled_for: scheduledFor.toISOString(),
+  })
+  if (insertErr) return // lost the race, or a real error -- either way, don't double-ack
+
+  await engineSendText({
+    accountId,
+    userId: configOwnerUserId,
+    conversationId,
+    contactId,
+    text: config.offHoursMessage?.trim() || DEFAULT_OFF_HOURS_MESSAGE,
+    aiGenerated: true,
+  })
 }

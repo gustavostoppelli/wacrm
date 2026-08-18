@@ -29,6 +29,19 @@ export interface AiConfig {
    *  knowledge base is embedded and semantic retrieval turns on; when
    *  null, retrieval falls back to lexical full-text search. */
   embeddingsApiKey: string | null
+  /** When true, auto-reply only sends live within the window below —
+   *  an off-hours inbound gets an immediate ack instead, and the real
+   *  reply is deferred to the next window (see business-hours.ts). */
+  businessHoursEnabled: boolean
+  /** 0-23 inclusive. */
+  businessHoursStart: number
+  /** 1-24 exclusive (24 = "until midnight"). */
+  businessHoursEnd: number
+  /** IANA timezone the window above is evaluated in. */
+  businessHoursTimezone: string
+  /** Custom off-hours acknowledgement text; null uses the built-in
+   *  default (see auto-reply.ts). */
+  offHoursMessage: string | null
 }
 
 /** A single conversation turn in the shape both providers accept. */

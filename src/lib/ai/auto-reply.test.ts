@@ -77,6 +77,14 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     autoReplyMaxPerConversation: 3,
     handoffAgentId: null,
     embeddingsApiKey: null,
+    // Off by default so the existing generate+send tests below aren't
+    // affected by the business-hours gate; it has its own describe
+    // block further down with enabled:true.
+    businessHoursEnabled: false,
+    businessHoursStart: 0,
+    businessHoursEnd: 24,
+    businessHoursTimezone: 'UTC',
+    offHoursMessage: null,
     ...overrides,
   }
 }

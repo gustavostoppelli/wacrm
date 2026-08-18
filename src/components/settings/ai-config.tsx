@@ -72,6 +72,13 @@ export function AiConfig() {
   const [isActive, setIsActive] = useState(false);
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
   const [maxPerConversation, setMaxPerConversation] = useState(3);
+  const [businessHoursEnabled, setBusinessHoursEnabled] = useState(true);
+  const [businessHoursStart, setBusinessHoursStart] = useState(8);
+  const [businessHoursEnd, setBusinessHoursEnd] = useState(20);
+  const [businessHoursTimezone, setBusinessHoursTimezone] = useState(
+    'America/Sao_Paulo',
+  );
+  const [offHoursMessage, setOffHoursMessage] = useState('');
   // Empty string = leave unassigned (shared queue).
   const [handoffAgentId, setHandoffAgentId] = useState('');
   const [members, setMembers] = useState<AccountMember[]>([]);
@@ -99,6 +106,13 @@ export function AiConfig() {
         setIsActive(data.is_active);
         setAutoReplyEnabled(data.auto_reply_enabled);
         setMaxPerConversation(data.auto_reply_max_per_conversation ?? 3);
+        setBusinessHoursEnabled(data.business_hours_enabled ?? true);
+        setBusinessHoursStart(data.business_hours_start ?? 8);
+        setBusinessHoursEnd(data.business_hours_end ?? 20);
+        setBusinessHoursTimezone(
+          data.business_hours_timezone ?? 'America/Sao_Paulo',
+        );
+        setOffHoursMessage(data.off_hours_message ?? '');
         setHandoffAgentId(data.handoff_agent_id ?? '');
         setHasStoredKey(Boolean(data.has_key));
         setApiKey(data.has_key ? MASKED_KEY : '');
@@ -150,6 +164,11 @@ export function AiConfig() {
     is_active: isActive,
     auto_reply_enabled: autoReplyEnabled,
     auto_reply_max_per_conversation: maxPerConversation,
+    business_hours_enabled: businessHoursEnabled,
+    business_hours_start: businessHoursStart,
+    business_hours_end: businessHoursEnd,
+    business_hours_timezone: businessHoursTimezone.trim() || 'America/Sao_Paulo',
+    off_hours_message: offHoursMessage.trim() || null,
     handoff_agent_id: handoffAgentId || null,
   });
 
@@ -454,6 +473,84 @@ export function AiConfig() {
                 disabled={disabled || !autoReplyEnabled}
                 className="w-20"
               />
+            </div>
+
+            <div className="space-y-3 rounded-md border border-border p-3">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {t('businessHours')}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t('businessHoursDesc')}
+                  </p>
+                </div>
+                <Switch
+                  checked={businessHoursEnabled}
+                  onCheckedChange={setBusinessHoursEnabled}
+                  disabled={disabled || !autoReplyEnabled}
+                />
+              </div>
+
+              {businessHoursEnabled && (
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="ai-hours-start">{t('businessHoursStart')}</Label>
+                    <Input
+                      id="ai-hours-start"
+                      type="number"
+                      min={0}
+                      max={23}
+                      value={businessHoursStart}
+                      onChange={(e) =>
+                        setBusinessHoursStart(
+                          Math.min(23, Math.max(0, Number(e.target.value) || 0)),
+                        )
+                      }
+                      disabled={disabled || !autoReplyEnabled}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="ai-hours-end">{t('businessHoursEnd')}</Label>
+                    <Input
+                      id="ai-hours-end"
+                      type="number"
+                      min={1}
+                      max={24}
+                      value={businessHoursEnd}
+                      onChange={(e) =>
+                        setBusinessHoursEnd(
+                          Math.min(24, Math.max(1, Number(e.target.value) || 1)),
+                        )
+                      }
+                      disabled={disabled || !autoReplyEnabled}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="ai-hours-tz">{t('businessHoursTimezone')}</Label>
+                    <Input
+                      id="ai-hours-tz"
+                      value={businessHoursTimezone}
+                      onChange={(e) => setBusinessHoursTimezone(e.target.value)}
+                      placeholder="America/Sao_Paulo"
+                      disabled={disabled || !autoReplyEnabled}
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-3">
+                    <Label htmlFor="ai-off-hours-message">
+                      {t('offHoursMessage')}
+                    </Label>
+                    <Textarea
+                      id="ai-off-hours-message"
+                      value={offHoursMessage}
+                      onChange={(e) => setOffHoursMessage(e.target.value)}
+                      placeholder={t('offHoursMessagePlaceholder')}
+                      rows={2}
+                      disabled={disabled || !autoReplyEnabled}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">

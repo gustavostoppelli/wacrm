@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { resumePendingExecution } from '@/lib/automations/engine'
 import type { AutomationContext } from '@/lib/automations/engine'
+import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 
 /**
  * Drain due `automation_pending_executions` rows. Meant to be hit
@@ -70,5 +71,59 @@ export async function GET(request: Request) {
     processed++
   }
 
-  return NextResponse.json({ processed })
+  const aiProcessed = await drainDueAiReplies(admin)
+
+  return NextResponse.json({ processed, ai_processed: aiProcessed })
+}
+
+/**
+ * Drains due `ai_pending_replies` rows (see migration 040) — leads who
+ * messaged outside business hours and are waiting for the window to
+ * open. Re-runs the normal dispatch path for each; since we're now
+ * inside business hours by construction, the gate in auto-reply.ts
+ * passes through and it generates + sends for real, picking up
+ * whatever the lead said in the meantime (buildConversationContext
+ * reads live).
+ */
+async function drainDueAiReplies(
+  admin: ReturnType<typeof supabaseAdmin>,
+): Promise<number> {
+  const { data: due } = await admin
+    .from('ai_pending_replies')
+    .select('*')
+    .eq('status', 'pending')
+    .lte('scheduled_for', new Date().toISOString())
+    .order('scheduled_for', { ascending: true })
+    .limit(50)
+
+  if (!due || due.length === 0) return 0
+
+  let processed = 0
+  for (const row of due) {
+    const { data: claim } = await admin
+      .from('ai_pending_replies')
+      .update({ status: 'running' })
+      .eq('id', row.id)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle()
+    if (!claim) continue
+
+    try {
+      await dispatchInboundToAiReply({
+        accountId: row.account_id as string,
+        conversationId: row.conversation_id as string,
+        contactId: row.contact_id as string,
+        configOwnerUserId: row.config_owner_user_id as string,
+      })
+    } finally {
+      // Always mark done, even on failure -- dispatchInboundToAiReply
+      // never throws (it owns its own try/catch), but this table's
+      // job is just "did we act on the wake-up", not "did it succeed".
+      // Delete rather than keep 'done' rows around indefinitely.
+      await admin.from('ai_pending_replies').delete().eq('id', row.id)
+    }
+    processed++
+  }
+  return processed
 }

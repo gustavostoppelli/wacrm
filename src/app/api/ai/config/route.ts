@@ -30,7 +30,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key',
+        'provider, model, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key, business_hours_enabled, business_hours_start, business_hours_end, business_hours_timezone, off_hours_message',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -94,6 +94,26 @@ export async function POST(request: Request) {
     let maxPer = Number(body.auto_reply_max_per_conversation)
     if (!Number.isFinite(maxPer)) maxPer = 3
     maxPer = Math.min(20, Math.max(1, Math.floor(maxPer)))
+
+    const businessHoursEnabled = body.business_hours_enabled !== false
+    let businessHoursStart = Number(body.business_hours_start)
+    if (!Number.isFinite(businessHoursStart)) businessHoursStart = 8
+    businessHoursStart = Math.min(23, Math.max(0, Math.floor(businessHoursStart)))
+    let businessHoursEnd = Number(body.business_hours_end)
+    if (!Number.isFinite(businessHoursEnd)) businessHoursEnd = 20
+    businessHoursEnd = Math.min(24, Math.max(1, Math.floor(businessHoursEnd)))
+    if (businessHoursEnd <= businessHoursStart) {
+      return bad('business_hours_end must be after business_hours_start')
+    }
+    const businessHoursTimezone =
+      typeof body.business_hours_timezone === 'string' &&
+      body.business_hours_timezone.trim()
+        ? body.business_hours_timezone.trim()
+        : 'America/Sao_Paulo'
+    const offHoursMessage =
+      typeof body.off_hours_message === 'string' && body.off_hours_message.trim()
+        ? body.off_hours_message.trim()
+        : null
 
     // Handoff routing target for auto-reply. A non-empty string must be a
     // member of this account (else the conversation would be assigned to a
@@ -167,6 +187,13 @@ export async function POST(request: Request) {
           autoReplyMaxPerConversation: maxPer,
           handoffAgentId: null,
           embeddingsApiKey: null,
+          // Irrelevant to a connectivity ping -- generateReply doesn't
+          // consult business hours, only auto-reply.ts's caller does.
+          businessHoursEnabled: false,
+          businessHoursStart: 0,
+          businessHoursEnd: 24,
+          businessHoursTimezone: 'UTC',
+          offHoursMessage: null,
         })
       } catch (err) {
         if (err instanceof AiError) {
@@ -205,6 +232,11 @@ export async function POST(request: Request) {
       is_active: isActive,
       auto_reply_enabled: autoReplyEnabled,
       auto_reply_max_per_conversation: maxPer,
+      business_hours_enabled: businessHoursEnabled,
+      business_hours_start: businessHoursStart,
+      business_hours_end: businessHoursEnd,
+      business_hours_timezone: businessHoursTimezone,
+      off_hours_message: offHoursMessage,
     }
     // Only touch the handoff target when the form actually sent the field,
     // so a partial save (e.g. flipping a toggle) doesn't wipe it.
