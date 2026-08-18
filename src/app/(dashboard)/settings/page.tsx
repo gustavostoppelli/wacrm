@@ -13,6 +13,7 @@ import { SecurityPanel } from '@/components/settings/security-panel';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { UazapiChannelsPanel } from '@/components/settings/uazapi-channels-panel';
+import { CalendarConfig } from '@/components/settings/calendar-config';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
@@ -81,6 +82,7 @@ function SettingsPageInner() {
         <UazapiChannelsPanel />
       </div>
     ),
+    calendar: <CalendarConfig />,
     templates: <TemplateManager />,
     'quick-replies': <QuickRepliesManager />,
     fields: <FieldsAndTagsPanel />,
