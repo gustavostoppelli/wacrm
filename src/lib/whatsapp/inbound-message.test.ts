@@ -29,7 +29,23 @@ vi.mock('@/lib/contacts/dedupe', () => ({
 // straight-line "contact doesn't exist, conversation doesn't exist,
 // insert both, then insert the message" path plus the reaction path.
 // ------------------------------------------------------------
-const inserted: Record<string, unknown[]> = { contacts: [], conversations: [], messages: [], message_reactions: [] };
+const inserted: Record<string, unknown[]> = {
+  contacts: [],
+  conversations: [],
+  messages: [],
+  message_reactions: [],
+  deals: [],
+};
+
+// Overridable per-table `maybeSingle`/`limit` results for the deal-
+// auto-creation path (ensureDealForContact -> resolvePipelineAndStage
+// -> accounts.default_currency). Defaults to "nothing exists" so most
+// tests exercise the DealError("no pipelines yet") no-op branch;
+// individual tests override these to exercise the happy path.
+let pipelinesResult: { data: unknown[] | null; error: null } = { data: null, error: null };
+let stagesResult: { data: unknown[] | null; error: null } = { data: null, error: null };
+let accountResult: { data: unknown | null; error: null } = { data: null, error: null };
+let existingOpenDeal: { data: unknown | null; error: null } = { data: null, error: null };
 
 function makeDb() {
   const builder = (table: string) => {
@@ -47,8 +63,21 @@ function makeDb() {
       delete: () => api,
       eq: () => api,
       order: () => api,
-      limit: () => Promise.resolve({ data: [], error: null }),
-      maybeSingle: () => Promise.resolve({ data: null, error: null }),
+      ilike: () => api,
+      // Chainable (real Supabase builders stay chainable through
+      // `.limit()`, e.g. `.limit(1).maybeSingle()` in
+      // ensureDealForContact) but also directly awaitable via `.then`
+      // below, for call sites that terminate right at `.limit()`.
+      limit: () => {
+        if (table === 'pipelines') return { ...api, then: (r: (v: unknown) => void) => r(pipelinesResult) };
+        if (table === 'pipeline_stages') return { ...api, then: (r: (v: unknown) => void) => r(stagesResult) };
+        return api;
+      },
+      maybeSingle: () => {
+        if (table === 'deals') return Promise.resolve(existingOpenDeal);
+        if (table === 'accounts') return Promise.resolve(accountResult);
+        return Promise.resolve({ data: null, error: null });
+      },
       single: () =>
         Promise.resolve({
           data: { id: `${table}-1`, unread_count: 0 },
@@ -75,6 +104,11 @@ describe('processInboundMessage', () => {
     inserted.conversations = [];
     inserted.messages = [];
     inserted.message_reactions = [];
+    inserted.deals = [];
+    pipelinesResult = { data: null, error: null };
+    stagesResult = { data: null, error: null };
+    accountResult = { data: null, error: null };
+    existingOpenDeal = { data: null, error: null };
     vi.clearAllMocks();
   });
 
@@ -142,5 +176,45 @@ describe('processInboundMessage', () => {
       reaction: { emoji: '👍', targetExternalMessageId: 'wamid.original' },
     });
     expect(inserted.messages).toHaveLength(0);
+  });
+
+  it('auto-creates an open deal in the default pipeline for a contact with none yet', async () => {
+    pipelinesResult = { data: [{ id: 'pipe-1', name: 'Sales' }], error: null };
+    stagesResult = { data: [{ id: 'stage-1', name: 'Novo Lead' }], error: null };
+    accountResult = { data: { default_currency: 'BRL' }, error: null };
+
+    await processInboundMessage({
+      ...base,
+      contentType: 'text',
+      contentText: 'hello',
+      mediaUrl: null,
+      interactiveReplyId: null,
+    });
+
+    expect(inserted.deals).toHaveLength(1);
+    expect(inserted.deals[0]).toMatchObject({
+      account_id: 'acct-1',
+      contact_id: 'contacts-1',
+      conversation_id: 'conversations-1',
+      pipeline_id: 'pipe-1',
+      stage_id: 'stage-1',
+      source: 'WhatsApp Direto',
+      currency: 'BRL',
+      status: 'open',
+    });
+  });
+
+  it('does not create a second deal when the contact already has an open one', async () => {
+    existingOpenDeal = { data: { id: 'deal-existing' }, error: null };
+
+    await processInboundMessage({
+      ...base,
+      contentType: 'text',
+      contentText: 'hello',
+      mediaUrl: null,
+      interactiveReplyId: null,
+    });
+
+    expect(inserted.deals).toHaveLength(0);
   });
 });

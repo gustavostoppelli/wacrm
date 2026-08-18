@@ -23,6 +23,7 @@ import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
+import { resolvePipelineAndStage, DealError } from '@/lib/api/v1/deals'
 import type { ContentType } from '@/types'
 
 export interface NormalizedInboundMessage {
@@ -94,6 +95,21 @@ export async function processInboundMessage(
       contact_id: contactRecord.id,
     })
   }
+
+  // Any contact who messages in and doesn't already have an open deal
+  // gets one, native regardless of how they arrived (organic WhatsApp,
+  // an Instagram bio link, a saved number) -- the Apify/Meta/site-form
+  // bridge (POST /api/v1/deals) already creates deals for leads that
+  // come through it with a specific source; this is the fallback for
+  // everyone else, so every conversation has pipeline visibility, not
+  // just leads from the automated bridges.
+  await ensureDealForContact(
+    msg.accountId,
+    msg.configOwnerUserId,
+    contactRecord.id,
+    conversation.id,
+    contactRecord.name || msg.senderPhone,
+  )
 
   // Reactions short-circuit here — they aren't messages, never bump
   // unread_count, never update last_message_text.
@@ -228,6 +244,68 @@ export async function processInboundMessage(
   })
 
   return { conversationId: conversation.id, contactId: contactRecord.id }
+}
+
+/**
+ * Ensures the contact has an open deal, creating one in the account's
+ * default pipeline (oldest pipeline, first stage by position -- same
+ * default POST /api/v1/deals uses) if it doesn't. Best-effort: a
+ * fresh account with no pipeline yet just skips this rather than
+ * blocking message ingestion.
+ */
+async function ensureDealForContact(
+  accountId: string,
+  configOwnerUserId: string,
+  contactId: string,
+  conversationId: string,
+  title: string,
+): Promise<void> {
+  const db = supabaseAdmin()
+
+  const { data: existing } = await db
+    .from('deals')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .eq('status', 'open')
+    .limit(1)
+    .maybeSingle()
+  if (existing) return
+
+  try {
+    const { pipelineId, stageId } = await resolvePipelineAndStage(db, accountId)
+
+    const { data: account } = await db
+      .from('accounts')
+      .select('default_currency')
+      .eq('id', accountId)
+      .maybeSingle()
+
+    const { error } = await db.from('deals').insert({
+      user_id: configOwnerUserId,
+      account_id: accountId,
+      pipeline_id: pipelineId,
+      stage_id: stageId,
+      contact_id: contactId,
+      conversation_id: conversationId,
+      title,
+      value: 0,
+      currency: account?.default_currency ?? null,
+      source: 'WhatsApp Direto',
+      status: 'open',
+    })
+    if (error) {
+      console.error('[inbound-message] ensureDealForContact insert failed:', error)
+    }
+  } catch (err) {
+    if (err instanceof DealError) {
+      // Expected on a brand-new account with no pipeline configured
+      // yet -- not worth an error-level log.
+      console.warn('[inbound-message] ensureDealForContact skipped:', err.message)
+      return
+    }
+    console.error('[inbound-message] ensureDealForContact failed:', err)
+  }
 }
 
 /**
