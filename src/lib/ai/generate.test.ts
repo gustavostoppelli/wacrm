@@ -48,6 +48,7 @@ describe('parseGeneration', () => {
     expect(parseGeneration('Hello there')).toEqual({
       text: 'Hello there',
       handoff: false,
+      meetingNote: null,
       usage: null,
     })
   })
@@ -56,11 +57,13 @@ describe('parseGeneration', () => {
     expect(parseGeneration('[[HANDOFF]]')).toEqual({
       text: '',
       handoff: true,
+      meetingNote: null,
       usage: null,
     })
     expect(parseGeneration('Let me get a human [[HANDOFF]]')).toEqual({
       text: 'Let me get a human',
       handoff: true,
+      meetingNote: null,
       usage: null,
     })
   })
@@ -70,7 +73,30 @@ describe('parseGeneration', () => {
     expect(parseGeneration('Hi', usage)).toEqual({
       text: 'Hi',
       handoff: false,
+      meetingNote: null,
       usage,
+    })
+  })
+
+  it('detects + strips the meeting sentinel', () => {
+    expect(
+      parseGeneration('Perfeito, te vejo lá! [[MEETING: Tomorrow at 10am]]'),
+    ).toEqual({
+      text: 'Perfeito, te vejo lá!',
+      handoff: false,
+      meetingNote: 'Tomorrow at 10am',
+      usage: null,
+    })
+  })
+
+  it('meeting and handoff sentinels can both be present', () => {
+    expect(
+      parseGeneration('Vou confirmar! [[MEETING: Thursday 2pm]] [[HANDOFF]]'),
+    ).toEqual({
+      text: 'Vou confirmar!',
+      handoff: true,
+      meetingNote: 'Thursday 2pm',
+      usage: null,
     })
   })
 })
@@ -94,6 +120,7 @@ describe('generateReply — OpenAI', () => {
     expect(res).toEqual({
       text: 'Sure — happy to help!',
       handoff: false,
+      meetingNote: null,
       usage: { promptTokens: 42, completionTokens: 8, totalTokens: 50 },
     })
     const [url, opts] = fetchMock.mock.calls[0]
@@ -153,6 +180,7 @@ describe('generateReply — Anthropic', () => {
     expect(res).toEqual({
       text: 'Hi there!',
       handoff: false,
+      meetingNote: null,
       usage: { promptTokens: 30, completionTokens: 6, totalTokens: 36 },
     })
     const [url, opts] = fetchMock.mock.calls[0]

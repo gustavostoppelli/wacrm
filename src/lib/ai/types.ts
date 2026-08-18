@@ -73,6 +73,11 @@ export interface GenerateResult {
   text: string
   /** True when the model asked to hand off to a human (auto-reply mode). */
   handoff: boolean
+  /** Free-text description of a meeting time the model says was just
+   *  confirmed with the customer (e.g. "Tomorrow at 10am"), parsed
+   *  from an inline [[MEETING: ...]] tag, or null when none was
+   *  present this turn. */
+  meetingNote: string | null
   /** Provider token usage for this call, or null when unavailable. */
   usage: AiUsage | null
 }

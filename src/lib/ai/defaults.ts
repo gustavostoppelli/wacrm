@@ -22,6 +22,15 @@ export const AI_PROVIDER_DEFAULT_MODEL: Record<AiProvider, string> = {
  */
 export const HANDOFF_SENTINEL = '[[HANDOFF]]'
 
+/**
+ * Sentinel the model may emit (in auto-reply mode) when the customer
+ * just confirmed a specific meeting/call time, so the deal can move
+ * to the pipeline's "meeting scheduled" stage automatically instead
+ * of a human dragging the card. Parsed and stripped by
+ * `parseGeneration`; capture group is the free-text time description.
+ */
+export const MEETING_SENTINEL_RE = /\[\[MEETING:\s*([^\]]*)\]\]/i
+
 /** Cap on generated reply length — keeps WhatsApp replies short and
  *  bounds token spend on the caller's own key. */
 export const MAX_OUTPUT_TOKENS = 1024
@@ -69,6 +78,9 @@ export function buildSystemPrompt(args: {
   if (mode === 'auto_reply') {
     parts.push(
       `You are replying automatically with no human in the loop. If you cannot confidently and safely help — the customer explicitly asks for a human, is upset or complaining, or the request needs information you do not have — reply with exactly ${HANDOFF_SENTINEL} and nothing else. A human agent will then take over. Prefer handing off over guessing.`,
+    )
+    parts.push(
+      'If, during this reply, the customer agrees to a specific meeting or call time, end your reply (after your normal message text) with the tag [[MEETING: <short description of the agreed date/time>]], e.g. [[MEETING: Tomorrow at 10am]] or [[MEETING: Thursday 2pm]]. Only add this tag once a specific time is actually confirmed — never speculatively, and never just because you offered times. This tag is stripped before the customer sees it.',
     )
   }
 

@@ -379,6 +379,10 @@ export interface PipelineStage {
   name: string;
   position: number;
   color: string;
+  /** 'meeting_scheduled' marks the stage a deal moves to once the AI
+   *  Agent (or anyone) confirms a real meeting time; null otherwise.
+   *  At most one such stage per pipeline. */
+  stage_role?: 'meeting_scheduled' | null;
   created_at: string;
 }
 
@@ -403,6 +407,12 @@ export interface Deal {
   expected_close_date?: string;
   status?: DealStatus;
   source?: string;
+  /** Parsed meeting time, when known — currently always null until a
+   *  real calendar integration writes it. */
+  meeting_scheduled_at?: string | null;
+  /** Free-text description of the confirmed meeting time (e.g. "Amanhã
+   *  às 10h"), written by the AI Agent when a lead agrees on a time. */
+  meeting_note?: string | null;
   created_at: string;
   updated_at?: string;
   contact?: Contact;

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Deal, PipelineStage } from "@/types";
-import { Calendar, Check, X } from "lucide-react";
+import { Calendar, CalendarClock, Check, X } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { useTranslations } from "next-intl";
 
@@ -84,6 +84,22 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         <div className="mt-2">
           <span className="inline-flex max-w-full items-center truncate rounded-full bg-muted-foreground/10 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
             {deal.source}
+          </span>
+        </div>
+      )}
+
+      {(deal.meeting_note || deal.meeting_scheduled_at) && (
+        <div className="mt-2 flex items-center gap-1.5 rounded-md bg-pink-500/15 px-2 py-1 text-[11px] font-semibold text-pink-400">
+          <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">
+            {deal.meeting_scheduled_at
+              ? new Date(deal.meeting_scheduled_at).toLocaleString("pt-BR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : deal.meeting_note}
           </span>
         </div>
       )}

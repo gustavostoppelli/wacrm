@@ -141,11 +141,21 @@ export async function dispatchInboundToAiReply(
       knowledge,
     })
 
-    const { text, handoff, usage } = await generateReply({
+    const { text, handoff, meetingNote, usage } = await generateReply({
       config,
       systemPrompt,
       messages,
     })
+
+    // A meeting time was just confirmed this turn -- move the deal to
+    // the pipeline's designated stage (if the account has one) and
+    // record what was agreed, regardless of whether this turn also
+    // hands off to a human. Best-effort: a missing deal/stage (no deal
+    // linked to this conversation, or the pipeline has no
+    // meeting_scheduled stage configured) just means nothing moves.
+    if (meetingNote) {
+      await recordMeetingScheduled(db, { accountId, conversationId, meetingNote })
+    }
 
     // Record token spend on the account's BYO key. Fire-and-forget so it
     // never adds latency to the customer-facing send: `logAiUsage`
@@ -219,6 +229,43 @@ export async function dispatchInboundToAiReply(
   } catch (err) {
     console.error('[ai auto-reply] dispatch failed:', err)
   }
+}
+
+/**
+ * Moves the deal linked to this conversation to the pipeline's
+ * "meeting scheduled" stage (see migration 041) and stamps what was
+ * agreed. Silently does nothing if there's no deal on this
+ * conversation, or the deal's pipeline has no stage tagged for this --
+ * native to any account, but only active once one is configured.
+ */
+async function recordMeetingScheduled(
+  db: SupabaseClient,
+  args: { accountId: string; conversationId: string; meetingNote: string },
+): Promise<void> {
+  const { accountId, conversationId, meetingNote } = args
+
+  const { data: deal } = await db
+    .from('deals')
+    .select('id, pipeline_id')
+    .eq('account_id', accountId)
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!deal) return
+
+  const { data: stage } = await db
+    .from('pipeline_stages')
+    .select('id')
+    .eq('pipeline_id', deal.pipeline_id)
+    .eq('stage_role', 'meeting_scheduled')
+    .maybeSingle()
+  if (!stage) return
+
+  await db
+    .from('deals')
+    .update({ stage_id: stage.id, meeting_note: meetingNote })
+    .eq('id', deal.id)
 }
 
 const DEFAULT_OFF_HOURS_MESSAGE =
