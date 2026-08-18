@@ -30,7 +30,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key, business_hours_enabled, business_hours_start, business_hours_end, business_hours_timezone, off_hours_message',
+        'provider, model, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key, business_hours_enabled, business_hours_start, business_hours_end, business_hours_timezone, off_hours_message, meeting_reminders_enabled',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -114,6 +114,7 @@ export async function POST(request: Request) {
       typeof body.off_hours_message === 'string' && body.off_hours_message.trim()
         ? body.off_hours_message.trim()
         : null
+    const meetingRemindersEnabled = body.meeting_reminders_enabled !== false
 
     // Handoff routing target for auto-reply. A non-empty string must be a
     // member of this account (else the conversation would be assigned to a
@@ -194,6 +195,7 @@ export async function POST(request: Request) {
           businessHoursEnd: 24,
           businessHoursTimezone: 'UTC',
           offHoursMessage: null,
+          meetingRemindersEnabled: false,
         })
       } catch (err) {
         if (err instanceof AiError) {
@@ -237,6 +239,7 @@ export async function POST(request: Request) {
       business_hours_end: businessHoursEnd,
       business_hours_timezone: businessHoursTimezone,
       off_hours_message: offHoursMessage,
+      meeting_reminders_enabled: meetingRemindersEnabled,
     }
     // Only touch the handoff target when the form actually sent the field,
     // so a partial save (e.g. flipping a toggle) doesn't wipe it.

@@ -17,10 +17,11 @@ interface AiConfigRow {
   business_hours_end: number
   business_hours_timezone: string
   off_hours_message: string | null
+  meeting_reminders_enabled: boolean
 }
 
 const CONFIG_COLUMNS =
-  'provider, model, api_key, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, embeddings_api_key, business_hours_enabled, business_hours_start, business_hours_end, business_hours_timezone, off_hours_message'
+  'provider, model, api_key, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, embeddings_api_key, business_hours_enabled, business_hours_start, business_hours_end, business_hours_timezone, off_hours_message, meeting_reminders_enabled'
 
 /**
  * Load and decrypt the account's AI config for *use* (draft or
@@ -89,6 +90,7 @@ export async function loadAiConfig(
     businessHoursEnd: row.business_hours_end,
     businessHoursTimezone: row.business_hours_timezone,
     offHoursMessage: row.off_hours_message,
+    meetingRemindersEnabled: row.meeting_reminders_enabled,
   }
 }
 

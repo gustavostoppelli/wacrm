@@ -66,8 +66,24 @@ export function parseGeneration(
   let text = raw.split(HANDOFF_SENTINEL).join('')
 
   const meetingMatch = text.match(MEETING_SENTINEL_RE)
-  const meetingNote = meetingMatch ? meetingMatch[1].trim() || null : null
-  if (meetingMatch) text = text.replace(MEETING_SENTINEL_RE, '')
+  let meetingNote: string | null = null
+  let meetingAt: string | null = null
+  if (meetingMatch) {
+    const first = meetingMatch[1]?.trim() ?? ''
+    const second = meetingMatch[2]?.trim() ?? ''
+    const parsedFirst = second ? new Date(first) : null
+    if (parsedFirst && !Number.isNaN(parsedFirst.getTime())) {
+      meetingAt = parsedFirst.toISOString()
+      meetingNote = second
+    } else {
+      // Either no `|` (label-only shape) or the ISO part didn't parse
+      // -- fall back to treating the whole capture as the label so a
+      // malformed tag still moves the deal, just without reminders
+      // (nothing to schedule them from).
+      meetingNote = (second ? `${first} ${second}` : first).trim() || null
+    }
+    text = text.replace(MEETING_SENTINEL_RE, '')
+  }
 
-  return { text: text.trim(), handoff, meetingNote, usage }
+  return { text: text.trim(), handoff, meetingNote, meetingAt, usage }
 }

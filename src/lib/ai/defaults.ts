@@ -26,10 +26,19 @@ export const HANDOFF_SENTINEL = '[[HANDOFF]]'
  * Sentinel the model may emit (in auto-reply mode) when the customer
  * just confirmed a specific meeting/call time, so the deal can move
  * to the pipeline's "meeting scheduled" stage automatically instead
- * of a human dragging the card. Parsed and stripped by
- * `parseGeneration`; capture group is the free-text time description.
+ * of a human dragging the card, and reminder messages can be
+ * scheduled. Parsed and stripped by `parseGeneration`.
+ *
+ * Two shapes, both matched by this one pattern:
+ *   [[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h]]  (preferred)
+ *   [[MEETING: Amanhã às 10h]]                              (label only)
+ * Group 1 is the (attempted) ISO date-time; group 2 the human label.
+ * When there's no `|`, group 1 holds the whole label and group 2 is
+ * undefined — parseGeneration treats that as label-only (no reminders
+ * scheduled, since there's nothing to compute them from).
  */
-export const MEETING_SENTINEL_RE = /\[\[MEETING:\s*([^\]]*)\]\]/i
+export const MEETING_SENTINEL_RE =
+  /\[\[MEETING:\s*([^\]|]+?)(?:\s*\|\s*([^\]]*))?\]\]/i
 
 /** Cap on generated reply length — keeps WhatsApp replies short and
  *  bounds token spend on the caller's own key. */
@@ -63,8 +72,15 @@ export function buildSystemPrompt(args: {
   mode: 'draft' | 'auto_reply'
   /** Knowledge-base excerpts retrieved for the current question. */
   knowledge?: string[]
+  /** IANA timezone to render "now" in (auto-reply mode only) — the
+   *  model has no other way to know today's real date, which it needs
+   *  to resolve "tomorrow"/"Thursday" into an actual ISO date-time for
+   *  the [[MEETING: ...]] tag. Defaults to UTC when omitted. */
+  timezone?: string
+  /** Injection point for tests; defaults to `new Date()`. */
+  now?: Date
 }): string {
-  const { userPrompt, mode, knowledge } = args
+  const { userPrompt, mode, knowledge, timezone, now = new Date() } = args
   const parts: string[] = [
     'You are a customer-messaging assistant for a business that uses a WhatsApp CRM. ' +
       'You are shown the recent WhatsApp conversation between the business (assistant) and a customer (user). ' +
@@ -76,11 +92,25 @@ export function buildSystemPrompt(args: {
   ]
 
   if (mode === 'auto_reply') {
+    const tz = timezone || 'UTC'
+    const nowLabel = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      weekday: 'long',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(now)
+    parts.push(
+      `Current date and time where this business operates: ${nowLabel}, timezone ${tz}. Use this — never your training data — to resolve relative dates the customer or you mention (e.g. "tomorrow", "Thursday", "in an hour").`,
+    )
     parts.push(
       `You are replying automatically with no human in the loop. If you cannot confidently and safely help — the customer explicitly asks for a human, is upset or complaining, or the request needs information you do not have — reply with exactly ${HANDOFF_SENTINEL} and nothing else. A human agent will then take over. Prefer handing off over guessing.`,
     )
     parts.push(
-      'If, during this reply, the customer agrees to a specific meeting or call time, end your reply (after your normal message text) with the tag [[MEETING: <short description of the agreed date/time>]], e.g. [[MEETING: Tomorrow at 10am]] or [[MEETING: Thursday 2pm]]. Only add this tag once a specific time is actually confirmed — never speculatively, and never just because you offered times. This tag is stripped before the customer sees it.',
+      `If, during this reply, the customer agrees to (or reschedules to) a specific meeting or call time, end your reply (after your normal message text) with the tag [[MEETING: <ISO 8601 date-time with the timezone offset above> | <short human-readable description>]] — compute the ISO date-time yourself from the current date/time given above and the timezone offset for ${tz}. Example: [[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h]]. Only add this tag once a specific time is actually confirmed — never speculatively, and never just because you offered times. If you can't confidently compute the exact ISO date-time, still add the tag with just the human-readable part after "MEETING:" (no ISO, no "|") rather than skipping it. This tag is stripped before the customer sees it.`,
     )
   }
 

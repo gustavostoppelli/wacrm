@@ -1716,6 +1716,8 @@
       "businessHoursTimezone": "Fuso horário",
       "offHoursMessage": "Mensagem fora do horário (opcional)",
       "offHoursMessagePlaceholder": "Recebemos seu contato! Vamos te responder assim que abrirmos, no próximo horário comercial.",
+      "meetingReminders": "Lembretes de reunião agendada",
+      "meetingRemindersDesc": "Quando uma reunião é confirmada, envia lembrete automático 1 dia antes e 1 hora antes, pedindo confirmação de presença.",
       "handoffTo": "Transferir para",
       "handoffToDesc": "Quando o bot não consegue ajudar — ou atinge o limite de respostas — ele pausa e encaminha a conversa para cá, com uma breve anotação sobre o ocorrido.",
       "handoffQueue": "Fila sem atribuição (qualquer atendente pode assumir)",

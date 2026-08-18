@@ -1716,6 +1716,8 @@
       "businessHoursTimezone": "시간대",
       "offHoursMessage": "영업시간 외 메시지 (선택)",
       "offHoursMessagePlaceholder": "문의 감사합니다! 영업시간에 다시 답변드리겠습니다.",
+      "meetingReminders": "미팅 리마인더",
+      "meetingRemindersDesc": "미팅이 확정되면 하루 전과 1시간 전에 자동으로 참석 확인 메시지를 보냅니다.",
       "handoffTo": "인계 대상",
       "handoffToDesc": "봇이 도움을 줄 수 없거나 응답 한도에 도달하면 일시 중지하고 무슨 일이 있었는지 짧은 메모와 함께 이 대상에게 대화를 넘깁니다.",
       "handoffQueue": "미배정 대기열 (모든 상담원이 처리 가능)",

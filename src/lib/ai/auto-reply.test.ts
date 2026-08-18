@@ -85,6 +85,7 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     businessHoursEnd: 24,
     businessHoursTimezone: 'UTC',
     offHoursMessage: null,
+    meetingRemindersEnabled: false,
     ...overrides,
   }
 }

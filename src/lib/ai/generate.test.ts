@@ -18,6 +18,7 @@ function config(overrides: Partial<AiConfig> = {}): AiConfig {
     businessHoursEnd: 24,
     businessHoursTimezone: 'UTC',
     offHoursMessage: null,
+    meetingRemindersEnabled: false,
     ...overrides,
   }
 }
@@ -49,6 +50,7 @@ describe('parseGeneration', () => {
       text: 'Hello there',
       handoff: false,
       meetingNote: null,
+      meetingAt: null,
       usage: null,
     })
   })
@@ -58,12 +60,14 @@ describe('parseGeneration', () => {
       text: '',
       handoff: true,
       meetingNote: null,
+      meetingAt: null,
       usage: null,
     })
     expect(parseGeneration('Let me get a human [[HANDOFF]]')).toEqual({
       text: 'Let me get a human',
       handoff: true,
       meetingNote: null,
+      meetingAt: null,
       usage: null,
     })
   })
@@ -74,28 +78,47 @@ describe('parseGeneration', () => {
       text: 'Hi',
       handoff: false,
       meetingNote: null,
+      meetingAt: null,
       usage,
     })
   })
 
-  it('detects + strips the meeting sentinel', () => {
+  it('detects + strips a label-only meeting sentinel (no reminders schedulable)', () => {
     expect(
       parseGeneration('Perfeito, te vejo lá! [[MEETING: Tomorrow at 10am]]'),
     ).toEqual({
       text: 'Perfeito, te vejo lá!',
       handoff: false,
       meetingNote: 'Tomorrow at 10am',
+      meetingAt: null,
+      usage: null,
+    })
+  })
+
+  it('parses an ISO + label meeting sentinel into meetingAt/meetingNote', () => {
+    expect(
+      parseGeneration(
+        'Perfeito! [[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h]]',
+      ),
+    ).toEqual({
+      text: 'Perfeito!',
+      handoff: false,
+      meetingNote: 'Amanhã às 10h',
+      meetingAt: new Date('2026-08-19T10:00:00-03:00').toISOString(),
       usage: null,
     })
   })
 
   it('meeting and handoff sentinels can both be present', () => {
     expect(
-      parseGeneration('Vou confirmar! [[MEETING: Thursday 2pm]] [[HANDOFF]]'),
+      parseGeneration(
+        'Vou confirmar! [[MEETING: 2026-08-21T14:00:00-03:00 | Thursday 2pm]] [[HANDOFF]]',
+      ),
     ).toEqual({
       text: 'Vou confirmar!',
       handoff: true,
       meetingNote: 'Thursday 2pm',
+      meetingAt: new Date('2026-08-21T14:00:00-03:00').toISOString(),
       usage: null,
     })
   })
@@ -121,6 +144,7 @@ describe('generateReply — OpenAI', () => {
       text: 'Sure — happy to help!',
       handoff: false,
       meetingNote: null,
+      meetingAt: null,
       usage: { promptTokens: 42, completionTokens: 8, totalTokens: 50 },
     })
     const [url, opts] = fetchMock.mock.calls[0]
@@ -181,6 +205,7 @@ describe('generateReply — Anthropic', () => {
       text: 'Hi there!',
       handoff: false,
       meetingNote: null,
+      meetingAt: null,
       usage: { promptTokens: 30, completionTokens: 6, totalTokens: 36 },
     })
     const [url, opts] = fetchMock.mock.calls[0]

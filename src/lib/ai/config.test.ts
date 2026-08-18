@@ -32,6 +32,7 @@ const ROW = {
   business_hours_end: 20,
   business_hours_timezone: 'America/Sao_Paulo',
   off_hours_message: null,
+  meeting_reminders_enabled: true,
 }
 
 describe('loadAiConfig requireActive', () => {

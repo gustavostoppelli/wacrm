@@ -139,22 +139,32 @@ export async function dispatchInboundToAiReply(
       userPrompt: config.systemPrompt,
       mode: 'auto_reply',
       knowledge,
+      timezone: config.businessHoursTimezone,
     })
 
-    const { text, handoff, meetingNote, usage } = await generateReply({
+    const { text, handoff, meetingNote, meetingAt, usage } = await generateReply({
       config,
       systemPrompt,
       messages,
     })
 
     // A meeting time was just confirmed this turn -- move the deal to
-    // the pipeline's designated stage (if the account has one) and
-    // record what was agreed, regardless of whether this turn also
-    // hands off to a human. Best-effort: a missing deal/stage (no deal
-    // linked to this conversation, or the pipeline has no
-    // meeting_scheduled stage configured) just means nothing moves.
+    // the pipeline's designated stage (if the account has one), record
+    // what was agreed, and (re)schedule attendance-confirmation
+    // reminders. Runs regardless of whether this turn also hands off
+    // to a human. Best-effort: a missing deal/stage (no deal linked to
+    // this conversation, or the pipeline has no meeting_scheduled
+    // stage configured) just means nothing moves.
     if (meetingNote) {
-      await recordMeetingScheduled(db, { accountId, conversationId, meetingNote })
+      await recordMeetingScheduled(db, {
+        accountId,
+        conversationId,
+        contactId,
+        configOwnerUserId,
+        meetingNote,
+        meetingAt,
+        config,
+      })
     }
 
     // Record token spend on the account's BYO key. Fire-and-forget so it
@@ -233,16 +243,30 @@ export async function dispatchInboundToAiReply(
 
 /**
  * Moves the deal linked to this conversation to the pipeline's
- * "meeting scheduled" stage (see migration 041) and stamps what was
- * agreed. Silently does nothing if there's no deal on this
- * conversation, or the deal's pipeline has no stage tagged for this --
- * native to any account, but only active once one is configured.
+ * "meeting scheduled" stage (see migration 041), stamps what was
+ * agreed, and — when a real date-time was parsed — (re)schedules the
+ * day-before/hour-before reminders (migration 042). Silently does
+ * nothing if there's no deal on this conversation, or the deal's
+ * pipeline has no stage tagged for this — native to any account, but
+ * only active once one is configured. Also covers rescheduling: this
+ * runs again whenever the model confirms a new time (e.g. the lead
+ * asked to move it after a reminder), simply overwriting the stage/
+ * note and replacing any not-yet-sent reminders.
  */
 async function recordMeetingScheduled(
   db: SupabaseClient,
-  args: { accountId: string; conversationId: string; meetingNote: string },
+  args: {
+    accountId: string
+    conversationId: string
+    contactId: string
+    configOwnerUserId: string
+    meetingNote: string
+    meetingAt: string | null
+    config: AiConfig
+  },
 ): Promise<void> {
-  const { accountId, conversationId, meetingNote } = args
+  const { accountId, conversationId, contactId, configOwnerUserId, meetingNote, meetingAt, config } =
+    args
 
   const { data: deal } = await db
     .from('deals')
@@ -262,10 +286,100 @@ async function recordMeetingScheduled(
     .maybeSingle()
   if (!stage) return
 
-  await db
-    .from('deals')
-    .update({ stage_id: stage.id, meeting_note: meetingNote })
-    .eq('id', deal.id)
+  const update: Record<string, unknown> = { stage_id: stage.id, meeting_note: meetingNote }
+  if (meetingAt) update.meeting_scheduled_at = meetingAt
+  await db.from('deals').update(update).eq('id', deal.id)
+
+  if (meetingAt && config.meetingRemindersEnabled) {
+    await scheduleMeetingReminders(db, {
+      accountId,
+      dealId: deal.id,
+      conversationId,
+      contactId,
+      configOwnerUserId,
+      meetingAt: new Date(meetingAt),
+      config,
+    })
+  }
+}
+
+/**
+ * Adjusts a candidate reminder moment into business hours: if it
+ * already falls inside the window, it's used as-is (this is how the
+ * hour-before reminder normally lands, since meetings are themselves
+ * booked in business hours); otherwise it's pushed forward to the
+ * next window open (this is the common case for the day-before
+ * reminder, which literally computed as "meeting time minus 24h" can
+ * land at any hour).
+ */
+function clampToBusinessHours(
+  at: Date,
+  config: AiConfig,
+): Date {
+  const bh = {
+    enabled: true,
+    startHour: config.businessHoursStart,
+    endHour: config.businessHoursEnd,
+    timezone: config.businessHoursTimezone,
+  }
+  if (!config.businessHoursEnabled || isWithinBusinessHours(bh, at)) return at
+  return nextBusinessHourStart(bh, at)
+}
+
+/**
+ * Replaces any not-yet-sent reminders for this deal with two fresh
+ * ones: exactly 1 hour before the meeting, and 1 day before adjusted
+ * into business hours (see clampToBusinessHours). Skips a reminder
+ * whose computed time has already passed (e.g. the meeting is being
+ * confirmed less than 24h out).
+ */
+async function scheduleMeetingReminders(
+  db: SupabaseClient,
+  args: {
+    accountId: string
+    dealId: string
+    conversationId: string
+    contactId: string
+    configOwnerUserId: string
+    meetingAt: Date
+    config: AiConfig
+  },
+): Promise<void> {
+  const { accountId, dealId, conversationId, contactId, configOwnerUserId, meetingAt, config } =
+    args
+
+  const hourBefore = clampToBusinessHours(
+    new Date(meetingAt.getTime() - 60 * 60_000),
+    config,
+  )
+  const dayBefore = clampToBusinessHours(
+    new Date(meetingAt.getTime() - 24 * 60 * 60_000),
+    config,
+  )
+
+  // The meeting time may have just changed (reschedule) — drop
+  // whatever wasn't sent yet and recompute from scratch.
+  await db.from('deal_meeting_reminders').delete().eq('deal_id', dealId).is('sent_at', null)
+
+  const now = Date.now()
+  const rows = [
+    { kind: 'day_before', send_at: dayBefore },
+    { kind: 'hour_before', send_at: hourBefore },
+  ]
+    .filter((r) => r.send_at.getTime() > now)
+    .map((r) => ({
+      account_id: accountId,
+      deal_id: dealId,
+      conversation_id: conversationId,
+      contact_id: contactId,
+      config_owner_user_id: configOwnerUserId,
+      kind: r.kind,
+      send_at: r.send_at.toISOString(),
+    }))
+
+  if (rows.length > 0) {
+    await db.from('deal_meeting_reminders').insert(rows)
+  }
 }
 
 const DEFAULT_OFF_HOURS_MESSAGE =

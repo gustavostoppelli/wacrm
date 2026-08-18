@@ -79,6 +79,7 @@ export function AiConfig() {
     'America/Sao_Paulo',
   );
   const [offHoursMessage, setOffHoursMessage] = useState('');
+  const [meetingRemindersEnabled, setMeetingRemindersEnabled] = useState(true);
   // Empty string = leave unassigned (shared queue).
   const [handoffAgentId, setHandoffAgentId] = useState('');
   const [members, setMembers] = useState<AccountMember[]>([]);
@@ -113,6 +114,7 @@ export function AiConfig() {
           data.business_hours_timezone ?? 'America/Sao_Paulo',
         );
         setOffHoursMessage(data.off_hours_message ?? '');
+        setMeetingRemindersEnabled(data.meeting_reminders_enabled ?? true);
         setHandoffAgentId(data.handoff_agent_id ?? '');
         setHasStoredKey(Boolean(data.has_key));
         setApiKey(data.has_key ? MASKED_KEY : '');
@@ -169,6 +171,7 @@ export function AiConfig() {
     business_hours_end: businessHoursEnd,
     business_hours_timezone: businessHoursTimezone.trim() || 'America/Sao_Paulo',
     off_hours_message: offHoursMessage.trim() || null,
+    meeting_reminders_enabled: meetingRemindersEnabled,
     handoff_agent_id: handoffAgentId || null,
   });
 
@@ -551,6 +554,22 @@ export function AiConfig() {
                   </div>
                 </div>
               )}
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {t('meetingReminders')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('meetingRemindersDesc')}
+                </p>
+              </div>
+              <Switch
+                checked={meetingRemindersEnabled}
+                onCheckedChange={setMeetingRemindersEnabled}
+                disabled={disabled || !autoReplyEnabled}
+              />
             </div>
 
             <div className="space-y-2">

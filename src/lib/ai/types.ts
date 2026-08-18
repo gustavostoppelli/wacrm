@@ -42,6 +42,10 @@ export interface AiConfig {
   /** Custom off-hours acknowledgement text; null uses the built-in
    *  default (see auto-reply.ts). */
   offHoursMessage: string | null
+  /** When true (default), confirming a meeting via [[MEETING: ...]]
+   *  also schedules day-before/hour-before attendance-confirmation
+   *  reminders (migration 042). */
+  meetingRemindersEnabled: boolean
 }
 
 /** A single conversation turn in the shape both providers accept. */
@@ -78,6 +82,10 @@ export interface GenerateResult {
    *  from an inline [[MEETING: ...]] tag, or null when none was
    *  present this turn. */
   meetingNote: string | null
+  /** ISO 8601 date-time for the same meeting, when the model could
+   *  compute one; null when only a label was given (or no meeting tag
+   *  was present). Reminders can only be scheduled when this is set. */
+  meetingAt: string | null
   /** Provider token usage for this call, or null when unavailable. */
   usage: AiUsage | null
 }

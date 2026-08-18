@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { resumePendingExecution } from '@/lib/automations/engine'
 import type { AutomationContext } from '@/lib/automations/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
+import { engineSendText } from '@/lib/flows/meta-send'
 
 /**
  * Drain due `automation_pending_executions` rows. Meant to be hit
@@ -72,8 +73,13 @@ export async function GET(request: Request) {
   }
 
   const aiProcessed = await drainDueAiReplies(admin)
+  const remindersProcessed = await drainDueMeetingReminders(admin)
 
-  return NextResponse.json({ processed, ai_processed: aiProcessed })
+  return NextResponse.json({
+    processed,
+    ai_processed: aiProcessed,
+    reminders_processed: remindersProcessed,
+  })
 }
 
 /**
@@ -122,6 +128,90 @@ async function drainDueAiReplies(
       // job is just "did we act on the wake-up", not "did it succeed".
       // Delete rather than keep 'done' rows around indefinitely.
       await admin.from('ai_pending_replies').delete().eq('id', row.id)
+    }
+    processed++
+  }
+  return processed
+}
+
+const DAY_BEFORE_TEMPLATE = (name: string, when: string) =>
+  `Oi${name ? `, ${name}` : ''}! Passando pra confirmar nossa reunião${
+    when ? ` amanhã (${when})` : ' amanhã'
+  }. Consegue comparecer?`
+
+const HOUR_BEFORE_TEMPLATE = (name: string, when: string) =>
+  `Oi${name ? `, ${name}` : ''}! Nossa reunião é daqui a 1 hora${
+    when ? ` (${when})` : ''
+  }. Te vejo já já!`
+
+/**
+ * Drains due `deal_meeting_reminders` rows (migration 042): sends the
+ * day-before/hour-before attendance-confirmation text, and reopens the
+ * conversation for the AI Agent (clears `ai_autoreply_disabled` and
+ * any human assignment) so that if the lead says they can't make it,
+ * the agent itself offers a new time and reschedules — instead of the
+ * message just sitting in a human's queue. A human can always
+ * reassign themselves if they want back in.
+ */
+async function drainDueMeetingReminders(
+  admin: ReturnType<typeof supabaseAdmin>,
+): Promise<number> {
+  const { data: due } = await admin
+    .from('deal_meeting_reminders')
+    .select('*, deal:deals(meeting_scheduled_at), contact:contacts(name)')
+    .is('sent_at', null)
+    .lte('send_at', new Date().toISOString())
+    .order('send_at', { ascending: true })
+    .limit(50)
+
+  if (!due || due.length === 0) return 0
+
+  let processed = 0
+  for (const row of due) {
+    const { data: claim } = await admin
+      .from('deal_meeting_reminders')
+      .update({ sent_at: new Date().toISOString() })
+      .eq('id', row.id)
+      .is('sent_at', null)
+      .select('id')
+      .maybeSingle()
+    if (!claim) continue
+
+    const name = (row.contact as { name?: string } | null)?.name ?? ''
+    const meetingAt = (row.deal as { meeting_scheduled_at?: string } | null)
+      ?.meeting_scheduled_at
+    const when = meetingAt
+      ? new Date(meetingAt).toLocaleString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : ''
+    const text =
+      row.kind === 'day_before'
+        ? DAY_BEFORE_TEMPLATE(name, when)
+        : HOUR_BEFORE_TEMPLATE(name, when)
+
+    try {
+      // Reopen the thread for the AI agent BEFORE sending, so an
+      // immediate reply from the lead (common right after a reminder)
+      // lands while the conversation is already eligible again.
+      await admin
+        .from('conversations')
+        .update({ ai_autoreply_disabled: false, assigned_agent_id: null })
+        .eq('id', row.conversation_id)
+
+      await engineSendText({
+        accountId: row.account_id as string,
+        userId: row.config_owner_user_id as string,
+        conversationId: row.conversation_id as string,
+        contactId: row.contact_id as string,
+        text,
+        aiGenerated: true,
+      })
+    } catch (err) {
+      console.error('[meeting reminder] send failed:', err)
     }
     processed++
   }

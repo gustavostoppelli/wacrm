@@ -1716,6 +1716,8 @@
       "businessHoursTimezone": "Timezone",
       "offHoursMessage": "Off-hours message (optional)",
       "offHoursMessagePlaceholder": "Thanks for reaching out! We'll reply as soon as we're back, during business hours.",
+      "meetingReminders": "Meeting reminders",
+      "meetingRemindersDesc": "Once a meeting is confirmed, automatically sends a reminder 1 day before and 1 hour before, asking to confirm attendance.",
       "handoffTo": "Hand off to",
       "handoffToDesc": "When the bot can’t help — or hits the reply cap — it pauses and routes the chat here, with a short note on what happened.",
       "handoffQueue": "Unassigned queue (any agent can pick it up)",
