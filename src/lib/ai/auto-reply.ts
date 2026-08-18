@@ -314,8 +314,20 @@ async function recordMeetingScheduled(
   }
 
   if (meetingAt && meetingEmail) {
+    // "Reunião <conta>: <cliente/clínica>" -- generic (any account's
+    // own name goes here, not hardcoded), so the event title is
+    // recognizable in Google Calendar regardless of who's using it.
+    const { data: account } = await db
+      .from('accounts')
+      .select('name')
+      .eq('id', accountId)
+      .maybeSingle()
+    const summary = account?.name
+      ? `Reunião ${account.name}: ${deal.title}`
+      : `Reunião: ${deal.title}`
+
     const event = await createEventForAccount(db, accountId, {
-      summary: `Reunião de diagnóstico — ${deal.title}`,
+      summary,
       start: new Date(meetingAt),
       end: new Date(new Date(meetingAt).getTime() + 30 * 60_000),
       attendeeEmail: meetingEmail,
@@ -344,6 +356,17 @@ async function recordMeetingScheduled(
       conversationId,
       contactId,
       text: `Aqui está o link da nossa reunião: ${update.meeting_link}`,
+      aiGenerated: true,
+    })
+
+    // Only asked once the event is actually confirmed -- doesn't block
+    // scheduling, just enriches the deal for whoever preps the meeting.
+    await engineSendText({
+      accountId,
+      userId: configOwnerUserId,
+      conversationId,
+      contactId,
+      text: 'Só mais uma coisa pra fechar: pode me passar o nome da clínica, o site ou o Instagram? Assim já vamos analisar o contexto e preparar um diagnóstico completo pra nossa reunião.',
       aiGenerated: true,
     })
   }
