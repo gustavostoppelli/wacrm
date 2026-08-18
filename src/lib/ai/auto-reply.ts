@@ -268,15 +268,31 @@ async function recordMeetingScheduled(
   const { accountId, conversationId, contactId, configOwnerUserId, meetingNote, meetingAt, config } =
     args
 
+  // Deals created via the public API (the Apify/Meta/site-form bridge
+  // — see POST /api/v1/deals) only ever get `contact_id` set, never
+  // `conversation_id`: the conversation itself is created separately,
+  // whenever the contact's first WhatsApp message actually arrives, so
+  // nothing links the two at creation time. Matching on
+  // `conversation_id` here would silently never find a deal for any
+  // real lead. `status = 'open'` picks the live deal over an already
+  // won/lost one if the contact has history.
   const { data: deal } = await db
     .from('deals')
-    .select('id, pipeline_id')
+    .select('id, pipeline_id, conversation_id')
     .eq('account_id', accountId)
-    .eq('conversation_id', conversationId)
+    .eq('contact_id', contactId)
+    .eq('status', 'open')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
   if (!deal) return
+
+  // Opportunistic backfill so future lookups (and any future UI that
+  // joins conversations -> deals) don't have to repeat this contact-
+  // based fallback.
+  if (!deal.conversation_id) {
+    await db.from('deals').update({ conversation_id: conversationId }).eq('id', deal.id)
+  }
 
   const { data: stage } = await db
     .from('pipeline_stages')
