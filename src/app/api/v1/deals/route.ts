@@ -81,6 +81,22 @@ export async function POST(request: Request) {
         ? body.value
         : 0;
 
+    // A caller that doesn't specify a currency should get the
+    // account's configured one, not the `deals.currency` column's
+    // schema-level default ('USD', migration 001) — that default
+    // predates per-account currency (migration 021) and silently
+    // mislabels every deal a source integration creates without
+    // sending `currency` explicitly.
+    let currency = typeof body.currency === 'string' ? body.currency : null;
+    if (!currency) {
+      const { data: account } = await ctx.supabase
+        .from('accounts')
+        .select('default_currency')
+        .eq('id', ctx.accountId)
+        .maybeSingle();
+      currency = account?.default_currency ?? null;
+    }
+
     const { data: deal, error } = await ctx.supabase
       .from('deals')
       .insert({
@@ -91,7 +107,7 @@ export async function POST(request: Request) {
         contact_id: contactId,
         title,
         value,
-        currency: typeof body.currency === 'string' ? body.currency : null,
+        currency,
         notes: typeof body.notes === 'string' ? body.notes.trim() || null : null,
         source,
         status: 'open',

@@ -14,7 +14,13 @@ import { exchangeCodeForTokens, fetchUserEmail } from '@/lib/calendar/google'
  */
 export async function GET(request: Request) {
   const url = new URL(request.url)
-  const origin = `${url.protocol}//${url.host}`
+  // Must resolve the same way /connect did when it built the
+  // redirect_uri sent to Google (see getBaseUrl there) — `request.url`
+  // alone reflects what Next.js sees *inside* the container behind the
+  // reverse proxy (e.g. 0.0.0.0:3000), not the public domain, which
+  // breaks both the token exchange (redirect_uri mismatch) and the
+  // final redirect back into the app.
+  const origin = getBaseUrl(request)
   const settingsUrl = (params: Record<string, string>) =>
     `${origin}/settings?tab=calendar&${new URLSearchParams(params).toString()}`
 
@@ -91,4 +97,18 @@ export async function GET(request: Request) {
         : 'exchange_failed'
     return NextResponse.redirect(settingsUrl({ calendar_error: code }))
   }
+}
+
+// Same resolution as src/app/api/calendar/google/connect/route.ts and
+// src/app/api/uazapi/channels/route.ts — kept in sync manually, no
+// shared helper exists in this codebase yet for this one function.
+function getBaseUrl(request: Request): string {
+  const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim()
+  if (explicit) return explicit.replace(/\/+$/, '')
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
+  const forwardedProto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim()
+  if (forwardedHost) return `${forwardedProto || 'https'}://${forwardedHost}`
+  const host = request.headers.get('host')?.trim()
+  const proto = new URL(request.url).protocol.replace(':', '')
+  return `${proto}://${host}`
 }
