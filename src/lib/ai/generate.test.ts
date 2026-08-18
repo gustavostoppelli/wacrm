@@ -20,6 +20,7 @@ function config(overrides: Partial<AiConfig> = {}): AiConfig {
     offHoursMessage: null,
     meetingRemindersEnabled: false,
     followupEnabled: false,
+    meetingEventLabel: null,
     ...overrides,
   }
 }

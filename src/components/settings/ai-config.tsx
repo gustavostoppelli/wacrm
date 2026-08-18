@@ -81,6 +81,7 @@ export function AiConfig() {
   const [offHoursMessage, setOffHoursMessage] = useState('');
   const [meetingRemindersEnabled, setMeetingRemindersEnabled] = useState(true);
   const [followupEnabled, setFollowupEnabled] = useState(true);
+  const [meetingEventLabel, setMeetingEventLabel] = useState('');
   // Empty string = leave unassigned (shared queue).
   const [handoffAgentId, setHandoffAgentId] = useState('');
   const [members, setMembers] = useState<AccountMember[]>([]);
@@ -117,6 +118,7 @@ export function AiConfig() {
         setOffHoursMessage(data.off_hours_message ?? '');
         setMeetingRemindersEnabled(data.meeting_reminders_enabled ?? true);
         setFollowupEnabled(data.followup_enabled ?? true);
+        setMeetingEventLabel(data.meeting_event_label ?? '');
         setHandoffAgentId(data.handoff_agent_id ?? '');
         setHasStoredKey(Boolean(data.has_key));
         setApiKey(data.has_key ? MASKED_KEY : '');
@@ -175,6 +177,7 @@ export function AiConfig() {
     off_hours_message: offHoursMessage.trim() || null,
     meeting_reminders_enabled: meetingRemindersEnabled,
     followup_enabled: followupEnabled,
+    meeting_event_label: meetingEventLabel.trim() || null,
     handoff_agent_id: handoffAgentId || null,
   });
 
@@ -587,6 +590,20 @@ export function AiConfig() {
               <Switch
                 checked={followupEnabled}
                 onCheckedChange={setFollowupEnabled}
+                disabled={disabled || !autoReplyEnabled}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ai-meeting-event-label">{t('meetingEventLabel')}</Label>
+              <p className="text-xs text-muted-foreground">
+                {t('meetingEventLabelDesc')}
+              </p>
+              <Input
+                id="ai-meeting-event-label"
+                value={meetingEventLabel}
+                onChange={(e) => setMeetingEventLabel(e.target.value)}
+                placeholder={t('meetingEventLabelPlaceholder')}
                 disabled={disabled || !autoReplyEnabled}
               />
             </div>

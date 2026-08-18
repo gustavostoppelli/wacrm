@@ -34,6 +34,7 @@ const ROW = {
   off_hours_message: null,
   meeting_reminders_enabled: true,
   followup_enabled: true,
+  meeting_event_label: null,
 }
 
 describe('loadAiConfig requireActive', () => {

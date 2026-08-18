@@ -100,6 +100,7 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     // Off by default -- the followup-scheduling tests set this
     // explicitly via overrides.
     followupEnabled: false,
+    meetingEventLabel: null,
     ...overrides,
   }
 }

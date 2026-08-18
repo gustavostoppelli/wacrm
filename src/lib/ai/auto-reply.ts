@@ -338,18 +338,12 @@ async function recordMeetingScheduled(
   }
 
   if (meetingAt && meetingEmail) {
-    // "Diagnóstico <conta> - <cliente/clínica>" -- generic (any
-    // account's own name goes here, not hardcoded), so the event
-    // title is recognizable in Google Calendar regardless of who's
-    // using it.
-    const { data: account } = await db
-      .from('accounts')
-      .select('name')
-      .eq('id', accountId)
-      .maybeSingle()
-    const summary = account?.name
-      ? `Diagnóstico ${account.name} - ${deal.title}`
-      : `Diagnóstico - ${deal.title}`
+    // "<label configurado> - <cliente/clínica>" -- the label comes
+    // from ai_configs.meeting_event_label (Settings -> Agentes de IA),
+    // not accounts.name: that column usually holds the owner's
+    // personal name, not a brand name, so it isn't a reliable source
+    // for this. Falls back to a generic "Diagnóstico" when unset.
+    const summary = `${config.meetingEventLabel || 'Diagnóstico'} - ${deal.title}`
 
     const event = await createEventForAccount(db, accountId, {
       summary,

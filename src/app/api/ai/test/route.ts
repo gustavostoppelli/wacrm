@@ -80,6 +80,7 @@ export async function POST(request: Request) {
         offHoursMessage: null,
         meetingRemindersEnabled: false,
         followupEnabled: false,
+        meetingEventLabel: null,
       })
     } catch (err) {
       if (err instanceof AiError) {

@@ -49,6 +49,9 @@ export interface AiConfig {
   /** When true (default), a lead who goes quiet mid-qualification
    *  gets up to 2 automatic re-engagement nudges (migration 044). */
   followupEnabled: boolean
+  /** Prefix for a Google Calendar event's title (e.g. "Diagnóstico
+   *  Fuse"); null falls back to a generic "Diagnóstico". */
+  meetingEventLabel: string | null
 }
 
 /** A single conversation turn in the shape both providers accept. */
