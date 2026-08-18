@@ -51,6 +51,8 @@ describe('parseGeneration', () => {
       handoff: false,
       meetingNote: null,
       meetingAt: null,
+      meetingEmail: null,
+      notes: null,
       usage: null,
     })
   })
@@ -61,6 +63,8 @@ describe('parseGeneration', () => {
       handoff: true,
       meetingNote: null,
       meetingAt: null,
+      meetingEmail: null,
+      notes: null,
       usage: null,
     })
     expect(parseGeneration('Let me get a human [[HANDOFF]]')).toEqual({
@@ -68,6 +72,8 @@ describe('parseGeneration', () => {
       handoff: true,
       meetingNote: null,
       meetingAt: null,
+      meetingEmail: null,
+      notes: null,
       usage: null,
     })
   })
@@ -79,6 +85,8 @@ describe('parseGeneration', () => {
       handoff: false,
       meetingNote: null,
       meetingAt: null,
+      meetingEmail: null,
+      notes: null,
       usage,
     })
   })
@@ -91,6 +99,8 @@ describe('parseGeneration', () => {
       handoff: false,
       meetingNote: 'Tomorrow at 10am',
       meetingAt: null,
+      meetingEmail: null,
+      notes: null,
       usage: null,
     })
   })
@@ -105,6 +115,8 @@ describe('parseGeneration', () => {
       handoff: false,
       meetingNote: 'Amanhã às 10h',
       meetingAt: new Date('2026-08-19T10:00:00-03:00').toISOString(),
+      meetingEmail: null,
+      notes: null,
       usage: null,
     })
   })
@@ -119,8 +131,34 @@ describe('parseGeneration', () => {
       handoff: true,
       meetingNote: 'Thursday 2pm',
       meetingAt: new Date('2026-08-21T14:00:00-03:00').toISOString(),
+      meetingEmail: null,
+      notes: null,
       usage: null,
     })
+  })
+
+  it('parses the email when the meeting tag has all three parts', () => {
+    const res = parseGeneration(
+      'Confirmado! [[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h | lead@example.com]]',
+    )
+    expect(res.meetingAt).toBe(new Date('2026-08-19T10:00:00-03:00').toISOString())
+    expect(res.meetingNote).toBe('Amanhã às 10h')
+    expect(res.meetingEmail).toBe('lead@example.com')
+  })
+
+  it('ignores a third part that is not a well-formed email', () => {
+    const res = parseGeneration(
+      '[[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h | não sei o email]]',
+    )
+    expect(res.meetingEmail).toBeNull()
+  })
+
+  it('detects + strips a notes sentinel', () => {
+    const res = parseGeneration(
+      'Perfeito! [[NOTES: Função: Sócio\nGargalo: Leads desqualificados]]',
+    )
+    expect(res.text).toBe('Perfeito!')
+    expect(res.notes).toBe('Função: Sócio\nGargalo: Leads desqualificados')
   })
 })
 
@@ -145,6 +183,8 @@ describe('generateReply — OpenAI', () => {
       handoff: false,
       meetingNote: null,
       meetingAt: null,
+      meetingEmail: null,
+      notes: null,
       usage: { promptTokens: 42, completionTokens: 8, totalTokens: 50 },
     })
     const [url, opts] = fetchMock.mock.calls[0]
@@ -206,6 +246,8 @@ describe('generateReply — Anthropic', () => {
       handoff: false,
       meetingNote: null,
       meetingAt: null,
+      meetingEmail: null,
+      notes: null,
       usage: { promptTokens: 30, completionTokens: 6, totalTokens: 36 },
     })
     const [url, opts] = fetchMock.mock.calls[0]

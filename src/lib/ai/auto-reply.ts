@@ -10,6 +10,7 @@ import { latestUserMessage } from './query'
 import { engineSendText } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { isWithinBusinessHours, nextBusinessHourStart } from './business-hours'
+import { createEventForAccount } from '@/lib/calendar/google'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AiConfig } from './types'
 
@@ -142,19 +143,17 @@ export async function dispatchInboundToAiReply(
       timezone: config.businessHoursTimezone,
     })
 
-    const { text, handoff, meetingNote, meetingAt, usage } = await generateReply({
-      config,
-      systemPrompt,
-      messages,
-    })
+    const { text, handoff, meetingNote, meetingAt, meetingEmail, notes, usage } =
+      await generateReply({ config, systemPrompt, messages })
 
     // A meeting time was just confirmed this turn -- move the deal to
     // the pipeline's designated stage (if the account has one), record
-    // what was agreed, and (re)schedule attendance-confirmation
-    // reminders. Runs regardless of whether this turn also hands off
-    // to a human. Best-effort: a missing deal/stage (no deal linked to
-    // this conversation, or the pipeline has no meeting_scheduled
-    // stage configured) just means nothing moves.
+    // what was agreed, (re)schedule attendance-confirmation reminders,
+    // and — with an email and Calendar connected — create a real
+    // event. Runs regardless of whether this turn also hands off to a
+    // human. Best-effort: a missing deal/stage (no deal linked to this
+    // contact, or the pipeline has no meeting_scheduled stage
+    // configured) just means nothing moves.
     if (meetingNote) {
       await recordMeetingScheduled(db, {
         accountId,
@@ -163,8 +162,17 @@ export async function dispatchInboundToAiReply(
         configOwnerUserId,
         meetingNote,
         meetingAt,
+        meetingEmail,
         config,
       })
+    }
+
+    // A structured qualification summary was included this turn --
+    // written into the deal's notes so a human sees a clean field-by-
+    // field summary instead of the raw chat log, matching how leads
+    // from the Apify/Meta/site-form bridge already arrive.
+    if (notes) {
+      await recordQualificationNotes(db, { accountId, contactId, notes })
     }
 
     // Record token spend on the account's BYO key. Fire-and-forget so it
@@ -262,37 +270,23 @@ async function recordMeetingScheduled(
     configOwnerUserId: string
     meetingNote: string
     meetingAt: string | null
+    meetingEmail: string | null
     config: AiConfig
   },
 ): Promise<void> {
-  const { accountId, conversationId, contactId, configOwnerUserId, meetingNote, meetingAt, config } =
-    args
+  const {
+    accountId,
+    conversationId,
+    contactId,
+    configOwnerUserId,
+    meetingNote,
+    meetingAt,
+    meetingEmail,
+    config,
+  } = args
 
-  // Deals created via the public API (the Apify/Meta/site-form bridge
-  // — see POST /api/v1/deals) only ever get `contact_id` set, never
-  // `conversation_id`: the conversation itself is created separately,
-  // whenever the contact's first WhatsApp message actually arrives, so
-  // nothing links the two at creation time. Matching on
-  // `conversation_id` here would silently never find a deal for any
-  // real lead. `status = 'open'` picks the live deal over an already
-  // won/lost one if the contact has history.
-  const { data: deal } = await db
-    .from('deals')
-    .select('id, pipeline_id, conversation_id')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .eq('status', 'open')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const deal = await findOpenDealForContact(db, accountId, contactId, conversationId)
   if (!deal) return
-
-  // Opportunistic backfill so future lookups (and any future UI that
-  // joins conversations -> deals) don't have to repeat this contact-
-  // based fallback.
-  if (!deal.conversation_id) {
-    await db.from('deals').update({ conversation_id: conversationId }).eq('id', deal.id)
-  }
 
   const { data: stage } = await db
     .from('pipeline_stages')
@@ -304,7 +298,55 @@ async function recordMeetingScheduled(
 
   const update: Record<string, unknown> = { stage_id: stage.id, meeting_note: meetingNote }
   if (meetingAt) update.meeting_scheduled_at = meetingAt
+
+  // Save the email onto the contact record too (not just used to
+  // build the calendar invite below) so it shows up on the contact
+  // card even if Calendar isn't connected for this account.
+  if (meetingEmail) {
+    const { data: contact } = await db
+      .from('contacts')
+      .select('email')
+      .eq('id', contactId)
+      .maybeSingle()
+    if (!contact?.email) {
+      await db.from('contacts').update({ email: meetingEmail }).eq('id', contactId)
+    }
+  }
+
+  if (meetingAt && meetingEmail) {
+    const event = await createEventForAccount(db, accountId, {
+      summary: `Reunião de diagnóstico — ${deal.title}`,
+      start: new Date(meetingAt),
+      end: new Date(new Date(meetingAt).getTime() + 30 * 60_000),
+      attendeeEmail: meetingEmail,
+      timeZone: config.businessHoursTimezone,
+    }).catch((err) => {
+      console.error('[ai auto-reply] createEventForAccount failed:', err)
+      return null
+    })
+    if (event) {
+      update.meeting_link = event.meetLink
+      update.calendar_event_id = event.id
+    }
+  }
+
   await db.from('deals').update(update).eq('id', deal.id)
+
+  // The model's own reply (already sent by the caller) can't include
+  // the Meet link -- it doesn't exist yet at generation time, since
+  // creating it depends on this same turn's tag being parsed first.
+  // Send it as a short follow-up instead of trying to inject it into
+  // the model's text after the fact.
+  if (update.meeting_link) {
+    await engineSendText({
+      accountId,
+      userId: configOwnerUserId,
+      conversationId,
+      contactId,
+      text: `Aqui está o link da nossa reunião: ${update.meeting_link}`,
+      aiGenerated: true,
+    })
+  }
 
   if (meetingAt && config.meetingRemindersEnabled) {
     await scheduleMeetingReminders(db, {
@@ -317,6 +359,58 @@ async function recordMeetingScheduled(
       config,
     })
   }
+}
+
+/**
+ * Writes a structured qualification summary into the deal's notes
+ * (overwriting — the model is instructed to send the *cumulative*
+ * summary each time, not a delta, so last-write-wins is correct).
+ * Same best-effort "no open deal yet" no-op as recordMeetingScheduled.
+ */
+async function recordQualificationNotes(
+  db: SupabaseClient,
+  args: { accountId: string; contactId: string; notes: string },
+): Promise<void> {
+  const { accountId, contactId, notes } = args
+  const deal = await findOpenDealForContact(db, accountId, contactId, null)
+  if (!deal) return
+  await db.from('deals').update({ notes }).eq('id', deal.id)
+}
+
+/**
+ * Deals created via the public API (the Apify/Meta/site-form bridge —
+ * see POST /api/v1/deals) only ever get `contact_id` set, never
+ * `conversation_id`: the conversation itself is created separately,
+ * whenever the contact's first WhatsApp message actually arrives, so
+ * nothing links the two at creation time. Matching on
+ * `conversation_id` alone would silently never find a deal for any
+ * real lead, so this always resolves by contact -- `status = 'open'`
+ * picks the live deal over an already won/lost one if the contact has
+ * history. When `conversationId` is given and the found deal doesn't
+ * have one yet, opportunistically backfills it.
+ */
+async function findOpenDealForContact(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  conversationId: string | null,
+): Promise<{ id: string; pipeline_id: string; title: string } | null> {
+  const { data: deal } = await db
+    .from('deals')
+    .select('id, pipeline_id, title, conversation_id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .eq('status', 'open')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!deal) return null
+
+  if (conversationId && !deal.conversation_id) {
+    await db.from('deals').update({ conversation_id: conversationId }).eq('id', deal.id)
+  }
+
+  return deal
 }
 
 /**

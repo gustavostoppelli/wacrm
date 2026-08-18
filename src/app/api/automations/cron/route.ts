@@ -134,15 +134,15 @@ async function drainDueAiReplies(
   return processed
 }
 
-const DAY_BEFORE_TEMPLATE = (name: string, when: string) =>
+const DAY_BEFORE_TEMPLATE = (name: string, when: string, link: string) =>
   `Oi${name ? `, ${name}` : ''}! Passando pra confirmar nossa reunião${
     when ? ` amanhã (${when})` : ' amanhã'
-  }. Consegue comparecer?`
+  }. Consegue comparecer?${link ? `\n\nLink da reunião: ${link}` : ''}`
 
-const HOUR_BEFORE_TEMPLATE = (name: string, when: string) =>
+const HOUR_BEFORE_TEMPLATE = (name: string, when: string, link: string) =>
   `Oi${name ? `, ${name}` : ''}! Nossa reunião é daqui a 1 hora${
     when ? ` (${when})` : ''
-  }. Te vejo já já!`
+  }. Te vejo já já!${link ? `\n\nLink da reunião: ${link}` : ''}`
 
 /**
  * Drains due `deal_meeting_reminders` rows (migration 042): sends the
@@ -158,7 +158,7 @@ async function drainDueMeetingReminders(
 ): Promise<number> {
   const { data: due } = await admin
     .from('deal_meeting_reminders')
-    .select('*, deal:deals(meeting_scheduled_at), contact:contacts(name)')
+    .select('*, deal:deals(meeting_scheduled_at, meeting_link), contact:contacts(name)')
     .is('sent_at', null)
     .lte('send_at', new Date().toISOString())
     .order('send_at', { ascending: true })
@@ -178,8 +178,9 @@ async function drainDueMeetingReminders(
     if (!claim) continue
 
     const name = (row.contact as { name?: string } | null)?.name ?? ''
-    const meetingAt = (row.deal as { meeting_scheduled_at?: string } | null)
-      ?.meeting_scheduled_at
+    const dealRow = row.deal as { meeting_scheduled_at?: string; meeting_link?: string } | null
+    const meetingAt = dealRow?.meeting_scheduled_at
+    const link = dealRow?.meeting_link ?? ''
     const when = meetingAt
       ? new Date(meetingAt).toLocaleString('pt-BR', {
           day: '2-digit',
@@ -190,8 +191,8 @@ async function drainDueMeetingReminders(
       : ''
     const text =
       row.kind === 'day_before'
-        ? DAY_BEFORE_TEMPLATE(name, when)
-        : HOUR_BEFORE_TEMPLATE(name, when)
+        ? DAY_BEFORE_TEMPLATE(name, when, link)
+        : HOUR_BEFORE_TEMPLATE(name, when, link)
 
     try {
       // Reopen the thread for the AI agent BEFORE sending, so an

@@ -86,6 +86,15 @@ export interface GenerateResult {
    *  compute one; null when only a label was given (or no meeting tag
    *  was present). Reminders can only be scheduled when this is set. */
   meetingAt: string | null
+  /** The customer's email, when they'd already given it and the model
+   *  included it in the [[MEETING: ...]] tag. Required to create a
+   *  real Google Calendar event; null skips that (deal still moves
+   *  stage, just no calendar invite/link). */
+  meetingEmail: string | null
+  /** Structured "Field: value" lines from an inline [[NOTES: ...]]
+   *  tag, summarizing what's been learned about the lead so far;
+   *  null when the model didn't include one this turn. */
+  notes: string | null
   /** Provider token usage for this call, or null when unavailable. */
   usage: AiUsage | null
 }

@@ -132,7 +132,7 @@ export async function fetchUserEmail(accessToken: string): Promise<string | null
   return data.email ?? null
 }
 
-interface CalendarConfigRow {
+export interface CalendarConfigRow {
   id: string
   access_token: string
   refresh_token: string
@@ -287,4 +287,26 @@ export async function createEvent(
     htmlLink: data.htmlLink,
     meetLink: data.hangoutLink ?? null,
   }
+}
+
+/**
+ * Convenience wrapper for callers that only have an `accountId` (the
+ * AI Agent's auto-reply flow, in particular) — loads the account's
+ * calendar_configs row and creates the event, or returns `null` if
+ * the account hasn't connected Google Calendar. Never throws for
+ * "not connected"; does throw (via createEvent/getValidAccessToken)
+ * for a real API failure with a connection that exists.
+ */
+export async function createEventForAccount(
+  db: import('@supabase/supabase-js').SupabaseClient,
+  accountId: string,
+  args: CreateEventArgs,
+): Promise<CreatedEvent | null> {
+  const { data: config } = await db
+    .from('calendar_configs')
+    .select('id, access_token, refresh_token, token_expires_at, calendar_id')
+    .eq('account_id', accountId)
+    .maybeSingle()
+  if (!config) return null
+  return createEvent(db, config as CalendarConfigRow, args)
 }

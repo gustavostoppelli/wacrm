@@ -26,19 +26,31 @@ export const HANDOFF_SENTINEL = '[[HANDOFF]]'
  * Sentinel the model may emit (in auto-reply mode) when the customer
  * just confirmed a specific meeting/call time, so the deal can move
  * to the pipeline's "meeting scheduled" stage automatically instead
- * of a human dragging the card, and reminder messages can be
- * scheduled. Parsed and stripped by `parseGeneration`.
+ * of a human dragging the card, reminder messages can be scheduled,
+ * and — when the account has Google Calendar connected and an email
+ * was given — a real calendar event gets created. Parsed and stripped
+ * by `parseGeneration`.
  *
- * Two shapes, both matched by this one pattern:
- *   [[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h]]  (preferred)
- *   [[MEETING: Amanhã às 10h]]                              (label only)
- * Group 1 is the (attempted) ISO date-time; group 2 the human label.
- * When there's no `|`, group 1 holds the whole label and group 2 is
- * undefined — parseGeneration treats that as label-only (no reminders
- * scheduled, since there's nothing to compute them from).
+ * Three shapes, all matched by this one pattern:
+ *   [[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h | lead@x.com]]  (full)
+ *   [[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h]]              (no email yet)
+ *   [[MEETING: Amanhã às 10h]]                                          (label only)
+ * Group 1 is the (attempted) ISO date-time; group 2 the human label;
+ * group 3 the email, when given. Missing groups parse as label-only /
+ * no-email — see generate.ts for exactly how each combination resolves.
  */
 export const MEETING_SENTINEL_RE =
-  /\[\[MEETING:\s*([^\]|]+?)(?:\s*\|\s*([^\]]*))?\]\]/i
+  /\[\[MEETING:\s*([^\]|]+?)(?:\s*\|\s*([^\]|]*))?(?:\s*\|\s*([^\]]*))?\]\]/i
+
+/**
+ * Sentinel the model may emit (in auto-reply mode) carrying a
+ * structured summary of what's been learned about the lead so far —
+ * written into the deal's notes, matching the "Campo: valor" style
+ * every other lead source (the Apify/Meta/site-form bridge) already
+ * uses, so a human reading the deal sees the same shape regardless of
+ * where the lead came from. One field per line inside the tag.
+ */
+export const NOTES_SENTINEL_RE = /\[\[NOTES:\s*([^\]]*)\]\]/i
 
 /** Cap on generated reply length — keeps WhatsApp replies short and
  *  bounds token spend on the caller's own key. */
@@ -110,7 +122,10 @@ export function buildSystemPrompt(args: {
       `You are replying automatically with no human in the loop. If you cannot confidently and safely help — the customer explicitly asks for a human, is upset or complaining, or the request needs information you do not have — reply with exactly ${HANDOFF_SENTINEL} and nothing else. A human agent will then take over. Prefer handing off over guessing.`,
     )
     parts.push(
-      `If, during this reply, the customer agrees to (or reschedules to) a specific meeting or call time, end your reply (after your normal message text) with the tag [[MEETING: <ISO 8601 date-time with the timezone offset above> | <short human-readable description>]] — compute the ISO date-time yourself from the current date/time given above and the timezone offset for ${tz}. Example: [[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h]]. Only add this tag once a specific time is actually confirmed — never speculatively, and never just because you offered times. If you can't confidently compute the exact ISO date-time, still add the tag with just the human-readable part after "MEETING:" (no ISO, no "|") rather than skipping it. This tag is stripped before the customer sees it.`,
+      `If, during this reply, the customer agrees to (or reschedules to) a specific meeting or call time, end your reply (after your normal message text) with the tag [[MEETING: <ISO 8601 date-time with the timezone offset above> | <short human-readable description> | <the customer's email, only if they already gave it in this conversation>]] — compute the ISO date-time yourself from the current date/time given above and the timezone offset for ${tz}. Example with email: [[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h | lead@example.com]]. Example without (email not given yet): [[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h]]. Only add this tag once a specific time is actually confirmed — never speculatively, and never just because you offered times. Never invent an email — only include the third part if the customer literally typed it earlier in this conversation. If you can't confidently compute the exact ISO date-time, still add the tag with just the human-readable part after "MEETING:" (no ISO, no "|") rather than skipping it. This tag is stripped before the customer sees it.`,
+    )
+    parts.push(
+      `Whenever you hand off to a human (${HANDOFF_SENTINEL}) or confirm a meeting ([[MEETING: ...]]), also end your reply with a tag summarizing everything you've learned about this lead in this conversation so far, one field per line: [[NOTES: Field 1: value 1\nField 2: value 2\n...]]. Only include fields actually discussed — never invent one. This lets a human read a clean summary instead of the raw chat log. This tag is stripped before the customer sees it.`,
     )
   }
 
