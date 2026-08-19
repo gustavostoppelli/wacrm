@@ -16,8 +16,10 @@ import type {
   UpdateContactFieldStepConfig,
   WaitStepConfig,
   CreateDealStepConfig,
+  NotifyOwnerStepConfig,
   AssignConversationStepConfig,
 } from '@/types'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from './admin-client'
 import { addContactTagIfAbsent } from '@/lib/contacts/tag-write'
 import { MAX_TAG_CHAIN_DEPTH, getTagChainDepth } from '@/lib/contacts/tag-chain'
@@ -25,6 +27,8 @@ import { engineSendText, engineSendTemplate, engineSendInteractive } from './met
 import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
 import { isDeliverableUrl } from '@/lib/webhooks/ssrf'
 import { isDealSource } from '@/lib/deals/source'
+import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
+import { resolveDefaultChannelForAccount } from '@/lib/whatsapp/resolve-channel'
 
 // ------------------------------------------------------------
 // Public API
@@ -592,6 +596,45 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       return 'deal created'
     }
 
+    case 'notify_owner': {
+      const cfg = step.step_config as NotifyOwnerStepConfig
+      if (!cfg.phone) throw new Error('notify_owner needs a phone number')
+
+      let leadName = ''
+      let leadPhone = ''
+      if (args.contactId) {
+        const { data: c } = await db
+          .from('contacts')
+          .select('name, phone')
+          .eq('id', args.contactId)
+          .maybeSingle()
+        leadName = c?.name ?? ''
+        leadPhone = c?.phone ?? ''
+      }
+
+      const template = cfg.message?.trim() || DEFAULT_NOTIFY_OWNER_TEMPLATE
+      const text = interpolate(template, args)
+        .replace(/\{\{\s*contato\.nome\s*\}\}/gi, leadName)
+        .replace(/\{\{\s*contato\.telefone\s*\}\}/gi, leadPhone)
+
+      const recipient = await findOrCreateInternalRecipient(
+        db,
+        args.automation.account_id,
+        args.automation.user_id,
+        cfg.phone,
+      )
+      if (!recipient) throw new Error('notify_owner: no WhatsApp channel configured for this account')
+
+      await engineSendText({
+        accountId: args.automation.account_id,
+        userId: args.automation.user_id,
+        conversationId: recipient.conversationId,
+        contactId: recipient.contactId,
+        text,
+      })
+      return 'owner notified'
+    }
+
     case 'send_webhook': {
       const cfg = step.step_config as SendWebhookStepConfig
       if (!cfg.url) throw new Error('send_webhook needs url')
@@ -796,6 +839,72 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
 function waitMs(cfg: WaitStepConfig): number {
   const unitMs = cfg.unit === 'days' ? 86_400_000 : cfg.unit === 'hours' ? 3_600_000 : 60_000
   return Math.max(1_000, cfg.amount * unitMs)
+}
+
+const DEFAULT_NOTIFY_OWNER_TEMPLATE =
+  'Novo lead: {{ contato.nome }} ({{ contato.telefone }})'
+
+/**
+ * Find-or-create a contact + conversation for an arbitrary phone number
+ * within the account, so `notify_owner` can reuse the same send path
+ * as every other outbound message (engineSendText, which needs a
+ * conversationId) even for a number that has no inbound history --
+ * typically the account owner's own WhatsApp, used purely as an alert
+ * channel. Mirrors findOrCreateContact/findOrCreateConversation in
+ * inbound-message.ts; not shared with that file because the two
+ * callers' error-handling shapes differ (this one throws, that one
+ * logs-and-returns-null).
+ */
+async function findOrCreateInternalRecipient(
+  db: SupabaseClient,
+  accountId: string,
+  configOwnerUserId: string,
+  phone: string,
+): Promise<{ contactId: string; conversationId: string } | null> {
+  const channel = await resolveDefaultChannelForAccount(db, accountId)
+  if (!channel) return null
+
+  let contact = await findExistingContact(db, accountId, phone)
+  if (!contact) {
+    const { data: newContact, error } = await db
+      .from('contacts')
+      .insert({ account_id: accountId, user_id: configOwnerUserId, phone, name: phone })
+      .select('id, phone')
+      .single()
+    if (error) {
+      if (isUniqueViolation(error)) {
+        contact = await findExistingContact(db, accountId, phone)
+      }
+      if (!contact) throw new Error(`notify_owner: could not create contact for ${phone}`)
+    } else {
+      contact = newContact as { id: string; phone: string }
+    }
+  }
+
+  const { data: existingConv } = await db
+    .from('conversations')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contact.id)
+    .eq('whatsapp_config_id', channel.id)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (existingConv) return { contactId: contact.id, conversationId: existingConv.id as string }
+
+  const { data: newConv, error: convErr } = await db
+    .from('conversations')
+    .insert({
+      account_id: accountId,
+      user_id: configOwnerUserId,
+      contact_id: contact.id,
+      whatsapp_config_id: channel.id,
+    })
+    .select('id')
+    .single()
+  if (convErr || !newConv) throw new Error(`notify_owner: could not create conversation for ${phone}`)
+
+  return { contactId: contact.id, conversationId: newConv.id as string }
 }
 
 function interpolate(s: string, args: ExecuteArgs): string {

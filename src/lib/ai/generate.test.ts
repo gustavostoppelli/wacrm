@@ -21,6 +21,9 @@ function config(overrides: Partial<AiConfig> = {}): AiConfig {
     meetingRemindersEnabled: false,
     followupEnabled: false,
     meetingEventLabel: null,
+    reactivationEnabled: false,
+    reactivationDays: 90,
+    reactivationMessage: null,
     ...overrides,
   }
 }

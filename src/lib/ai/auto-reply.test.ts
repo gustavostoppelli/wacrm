@@ -101,6 +101,9 @@ function aiConfig(overrides: Partial<AiConfig> = {}): AiConfig {
     // explicitly via overrides.
     followupEnabled: false,
     meetingEventLabel: null,
+    reactivationEnabled: false,
+    reactivationDays: 90,
+    reactivationMessage: null,
     ...overrides,
   }
 }

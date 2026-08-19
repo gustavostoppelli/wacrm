@@ -52,6 +52,16 @@ export interface AiConfig {
   /** Prefix for a Google Calendar event's title (e.g. "Diagnóstico
    *  Fuse"); null falls back to a generic "Diagnóstico". */
   meetingEventLabel: string | null
+  /** When true, a deal marked "lost" gets one re-engagement WhatsApp
+   *  message after `reactivationDays` (migration 048). Off by default —
+   *  an account opts in explicitly. Only applies to deals that already
+   *  have a conversation (see drainLostDealReactivation). */
+  reactivationEnabled: boolean
+  /** Days after `deals.closed_at` before a lost deal is re-engaged. */
+  reactivationDays: number
+  /** Free text with an optional `{{nome}}` placeholder; null uses the
+   *  built-in default (see cron route). */
+  reactivationMessage: string | null
 }
 
 /** A single conversation turn in the shape both providers accept. */

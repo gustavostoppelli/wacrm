@@ -81,6 +81,9 @@ export async function POST(request: Request) {
         meetingRemindersEnabled: false,
         followupEnabled: false,
         meetingEventLabel: null,
+        reactivationEnabled: false,
+        reactivationDays: 90,
+        reactivationMessage: null,
       })
     } catch (err) {
       if (err instanceof AiError) {

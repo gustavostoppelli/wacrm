@@ -33,6 +33,7 @@ import {
   ArrowUp,
   MousePointerClick,
   List,
+  Bell,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -108,6 +109,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   assign_conversation: { label: "assign_conversation", icon: UserCheck, border: "border-l-primary" },
   update_contact_field: { label: "update_contact_field", icon: PencilLine, border: "border-l-primary" },
   create_deal: { label: "create_deal", icon: Briefcase, border: "border-l-primary" },
+  notify_owner: { label: "notify_owner", icon: Bell, border: "border-l-primary" },
   wait: { label: "wait", icon: Hourglass, border: "border-l-border" },
   condition: { label: "condition", icon: GitBranch, border: "border-l-amber-500" },
   send_webhook: { label: "send_webhook", icon: Webhook, border: "border-l-primary" },
@@ -124,6 +126,7 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "assign_conversation",
   "update_contact_field",
   "create_deal",
+  "notify_owner",
   "wait",
   "condition",
   "send_webhook",
@@ -181,6 +184,8 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
       return { field: "name", value: "" }
     case "create_deal":
       return { pipeline_id: "", stage_id: "", title: "", value: 0 }
+    case "notify_owner":
+      return { phone: "", message: "" }
     case "wait":
       return { amount: 1, unit: "hours" }
     case "condition":
@@ -1427,6 +1432,28 @@ function StepEditor({
               onChange={(e) => set({ campaign: e.target.value })}
               placeholder={t("config.placeholderValue")}
               className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+        </>
+      )
+    case "notify_owner":
+      return (
+        <>
+          <FieldBlock label={t("config.notifyPhoneLabel")}>
+            <Input
+              value={(cfg.phone as string) ?? ""}
+              onChange={(e) => set({ phone: e.target.value })}
+              placeholder={t("config.notifyPhonePlaceholder")}
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+          <FieldBlock label={t("config.notifyMessageLabel")}>
+            <Textarea
+              value={(cfg.message as string) ?? ""}
+              onChange={(e) => set({ message: e.target.value })}
+              placeholder={t("config.notifyMessagePlaceholder")}
+              className="bg-muted text-foreground"
+              rows={2}
             />
           </FieldBlock>
         </>

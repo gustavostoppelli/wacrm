@@ -493,6 +493,7 @@ export type AutomationStepType =
   | 'assign_conversation'
   | 'update_contact_field'
   | 'create_deal'
+  | 'notify_owner'
   | 'wait'
   | 'condition'
   | 'send_webhook'
@@ -588,6 +589,16 @@ export interface CreateDealStepConfig {
   campaign?: string;
 }
 
+export interface NotifyOwnerStepConfig {
+  /** Phone number to notify (any format -- sanitized the same way an
+   *  inbound contact's number is), e.g. the account owner's own WhatsApp. */
+  phone: string;
+  /** Supports `{{ vars.* }}` / `{{ message.text }}` plus `{{ contato.nome }}`
+   *  / `{{ contato.telefone }}` (the contact that triggered this automation).
+   *  Blank uses a generic built-in default. */
+  message?: string;
+}
+
 export interface WaitStepConfig {
   amount: number;
   unit: 'minutes' | 'hours' | 'days';
@@ -622,6 +633,7 @@ export type AutomationStepConfig =
   | AssignConversationStepConfig
   | UpdateContactFieldStepConfig
   | CreateDealStepConfig
+  | NotifyOwnerStepConfig
   | WaitStepConfig
   | ConditionStepConfig
   | SendWebhookStepConfig

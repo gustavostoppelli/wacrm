@@ -20,10 +20,13 @@ interface AiConfigRow {
   meeting_reminders_enabled: boolean
   followup_enabled: boolean
   meeting_event_label: string | null
+  reactivation_enabled: boolean
+  reactivation_days: number
+  reactivation_message: string | null
 }
 
 const CONFIG_COLUMNS =
-  'provider, model, api_key, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, embeddings_api_key, business_hours_enabled, business_hours_start, business_hours_end, business_hours_timezone, off_hours_message, meeting_reminders_enabled, followup_enabled, meeting_event_label'
+  'provider, model, api_key, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, embeddings_api_key, business_hours_enabled, business_hours_start, business_hours_end, business_hours_timezone, off_hours_message, meeting_reminders_enabled, followup_enabled, meeting_event_label, reactivation_enabled, reactivation_days, reactivation_message'
 
 /**
  * Load and decrypt the account's AI config for *use* (draft or
@@ -95,6 +98,9 @@ export async function loadAiConfig(
     meetingRemindersEnabled: row.meeting_reminders_enabled,
     followupEnabled: row.followup_enabled,
     meetingEventLabel: row.meeting_event_label,
+    reactivationEnabled: row.reactivation_enabled,
+    reactivationDays: row.reactivation_days,
+    reactivationMessage: row.reactivation_message,
   }
 }
 

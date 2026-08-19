@@ -80,12 +80,14 @@ export async function GET(request: Request) {
   const aiProcessed = await drainDueAiReplies(admin)
   const remindersProcessed = await drainDueMeetingReminders(admin)
   const followupsProcessed = await drainDueFollowups(admin)
+  const reactivationsProcessed = await drainLostDealReactivation(admin)
 
   return NextResponse.json({
     processed,
     ai_processed: aiProcessed,
     reminders_processed: remindersProcessed,
     followups_processed: followupsProcessed,
+    reactivations_processed: reactivationsProcessed,
   })
 }
 
@@ -322,6 +324,96 @@ async function drainDueFollowups(
       console.error('[conversation followup] send failed:', err)
     }
     processed++
+  }
+  return processed
+}
+
+const DEFAULT_REACTIVATION_TEMPLATE = (name: string) =>
+  `Oi${name ? `, ${name}` : ''}! Faz um tempo que a gente não conversa. Ainda tem interesse em retomar? Se sim, é só me responder por aqui.`
+
+/**
+ * Re-engages deals marked "lost" a while ago -- one native, opt-in
+ * mechanism any account can turn on (see migration 048), not a
+ * Fuse-specific script.
+ *
+ * Scoped to deals that already have a `conversation_id`: only a
+ * contact who's had a real WhatsApp thread before is eligible. A deal
+ * that arrived via the public API bridge (a form, an ads sync) and
+ * was lost without the lead ever messaging in has no conversation to
+ * resume -- sending a first WhatsApp message to someone who's never
+ * opened a thread is exactly the unsolicited business-initiated
+ * pattern this account's number needs to avoid (see the ban-risk
+ * discussion this session settled on for the site form's WhatsApp
+ * button). This mirrors that same boundary automatically.
+ */
+async function drainLostDealReactivation(
+  admin: ReturnType<typeof supabaseAdmin>,
+): Promise<number> {
+  const { data: configs } = await admin
+    .from('ai_configs')
+    .select('account_id, reactivation_days, reactivation_message')
+    .eq('reactivation_enabled', true)
+
+  if (!configs || configs.length === 0) return 0
+
+  let processed = 0
+  for (const cfg of configs) {
+    const days = (cfg.reactivation_days as number | null) ?? 90
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60_000).toISOString()
+
+    const { data: deals } = await admin
+      .from('deals')
+      .select('id, account_id, user_id, contact_id, conversation_id, contact:contacts(name)')
+      .eq('account_id', cfg.account_id as string)
+      .eq('status', 'lost')
+      .not('conversation_id', 'is', null)
+      .lte('closed_at', cutoff)
+      .is('reactivation_sent_at', null)
+      // Caps how many one account can trigger per cron tick -- a large
+      // backlog the first time this is turned on drains gradually
+      // across ticks instead of firing dozens of messages at once.
+      .limit(20)
+
+    if (!deals || deals.length === 0) continue
+
+    for (const deal of deals) {
+      const { data: claim } = await admin
+        .from('deals')
+        .update({ reactivation_sent_at: new Date().toISOString() })
+        .eq('id', deal.id)
+        .is('reactivation_sent_at', null)
+        .select('id')
+        .maybeSingle()
+      if (!claim) continue
+
+      try {
+        const contact = Array.isArray(deal.contact) ? deal.contact[0] : deal.contact
+        const name = (contact as { name?: string } | null)?.name ?? ''
+        const template = (cfg.reactivation_message as string | null)?.trim()
+        const text = template
+          ? template.replace(/\{\{\s*nome\s*\}\}/gi, name)
+          : DEFAULT_REACTIVATION_TEMPLATE(name)
+
+        // Reopen for the AI agent so a reply picks the conversation
+        // back up automatically, same as meeting reminders/followups.
+        await admin
+          .from('conversations')
+          .update({ ai_autoreply_disabled: false, assigned_agent_id: null })
+          .eq('id', deal.conversation_id as string)
+
+        await engineSendText({
+          accountId: deal.account_id as string,
+          userId: deal.user_id as string,
+          conversationId: deal.conversation_id as string,
+          contactId: deal.contact_id as string,
+          text,
+          aiGenerated: true,
+        })
+      } catch (err) {
+        console.error('[deal reactivation] send failed:', err)
+      }
+      processed++
+    }
   }
   return processed
 }

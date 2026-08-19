@@ -30,7 +30,7 @@ export async function GET() {
       // `api_key` is selected only to derive `has_key` — it is stripped
       // out below and never returned to the client.
       .select(
-        'provider, model, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key, business_hours_enabled, business_hours_start, business_hours_end, business_hours_timezone, off_hours_message, meeting_reminders_enabled, followup_enabled, meeting_event_label',
+        'provider, model, system_prompt, is_active, auto_reply_enabled, auto_reply_max_per_conversation, handoff_agent_id, api_key, embeddings_api_key, business_hours_enabled, business_hours_start, business_hours_end, business_hours_timezone, off_hours_message, meeting_reminders_enabled, followup_enabled, meeting_event_label, reactivation_enabled, reactivation_days, reactivation_message',
       )
       .eq('account_id', accountId)
       .maybeSingle()
@@ -120,6 +120,17 @@ export async function POST(request: Request) {
       typeof body.meeting_event_label === 'string' && body.meeting_event_label.trim()
         ? body.meeting_event_label.trim()
         : null
+    const reactivationEnabled = body.reactivation_enabled === true
+    const reactivationDays =
+      typeof body.reactivation_days === 'number' &&
+      Number.isFinite(body.reactivation_days) &&
+      body.reactivation_days > 0
+        ? Math.floor(body.reactivation_days)
+        : 90
+    const reactivationMessage =
+      typeof body.reactivation_message === 'string' && body.reactivation_message.trim()
+        ? body.reactivation_message.trim()
+        : null
 
     // Handoff routing target for auto-reply. A non-empty string must be a
     // member of this account (else the conversation would be assigned to a
@@ -203,6 +214,9 @@ export async function POST(request: Request) {
           meetingRemindersEnabled: false,
           followupEnabled: false,
           meetingEventLabel: null,
+          reactivationEnabled: false,
+          reactivationDays: 90,
+          reactivationMessage: null,
         })
       } catch (err) {
         if (err instanceof AiError) {
@@ -249,6 +263,9 @@ export async function POST(request: Request) {
       meeting_reminders_enabled: meetingRemindersEnabled,
       followup_enabled: followupEnabled,
       meeting_event_label: meetingEventLabel,
+      reactivation_enabled: reactivationEnabled,
+      reactivation_days: reactivationDays,
+      reactivation_message: reactivationMessage,
     }
     // Only touch the handoff target when the form actually sent the field,
     // so a partial save (e.g. flipping a toggle) doesn't wipe it.

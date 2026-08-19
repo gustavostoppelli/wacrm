@@ -82,6 +82,9 @@ export function AiConfig() {
   const [meetingRemindersEnabled, setMeetingRemindersEnabled] = useState(true);
   const [followupEnabled, setFollowupEnabled] = useState(true);
   const [meetingEventLabel, setMeetingEventLabel] = useState('');
+  const [reactivationEnabled, setReactivationEnabled] = useState(false);
+  const [reactivationDays, setReactivationDays] = useState(90);
+  const [reactivationMessage, setReactivationMessage] = useState('');
   // Empty string = leave unassigned (shared queue).
   const [handoffAgentId, setHandoffAgentId] = useState('');
   const [members, setMembers] = useState<AccountMember[]>([]);
@@ -119,6 +122,9 @@ export function AiConfig() {
         setMeetingRemindersEnabled(data.meeting_reminders_enabled ?? true);
         setFollowupEnabled(data.followup_enabled ?? true);
         setMeetingEventLabel(data.meeting_event_label ?? '');
+        setReactivationEnabled(data.reactivation_enabled ?? false);
+        setReactivationDays(data.reactivation_days ?? 90);
+        setReactivationMessage(data.reactivation_message ?? '');
         setHandoffAgentId(data.handoff_agent_id ?? '');
         setHasStoredKey(Boolean(data.has_key));
         setApiKey(data.has_key ? MASKED_KEY : '');
@@ -178,6 +184,9 @@ export function AiConfig() {
     meeting_reminders_enabled: meetingRemindersEnabled,
     followup_enabled: followupEnabled,
     meeting_event_label: meetingEventLabel.trim() || null,
+    reactivation_enabled: reactivationEnabled,
+    reactivation_days: reactivationDays,
+    reactivation_message: reactivationMessage.trim() || null,
     handoff_agent_id: handoffAgentId || null,
   });
 
@@ -607,6 +616,56 @@ export function AiConfig() {
                 disabled={disabled || !autoReplyEnabled}
               />
             </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {t('reactivation')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('reactivationDesc')}
+                </p>
+              </div>
+              <Switch
+                checked={reactivationEnabled}
+                onCheckedChange={setReactivationEnabled}
+                disabled={disabled || !autoReplyEnabled}
+              />
+            </div>
+
+            {reactivationEnabled && (
+              <div className="space-y-4 rounded-md border border-border p-3">
+                <div className="space-y-2">
+                  <Label htmlFor="ai-reactivation-days">{t('reactivationDays')}</Label>
+                  <Input
+                    id="ai-reactivation-days"
+                    type="number"
+                    min={1}
+                    value={reactivationDays}
+                    onChange={(e) =>
+                      setReactivationDays(Math.max(1, Number(e.target.value) || 90))
+                    }
+                    disabled={disabled || !autoReplyEnabled}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ai-reactivation-message">
+                    {t('reactivationMessage')}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    {t('reactivationMessageDesc')}
+                  </p>
+                  <Textarea
+                    id="ai-reactivation-message"
+                    value={reactivationMessage}
+                    onChange={(e) => setReactivationMessage(e.target.value)}
+                    placeholder={t('reactivationMessagePlaceholder')}
+                    rows={2}
+                    disabled={disabled || !autoReplyEnabled}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="ai-handoff">{t('handoffTo')}</Label>
