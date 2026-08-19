@@ -21,6 +21,7 @@
     "notifications": "Notificações",
     "contacts": "Contatos",
     "pipelines": "Funis",
+    "reports": "Relatórios",
     "broadcasts": "Disparos",
     "automations": "Automações",
     "flows": "Fluxos",
@@ -46,6 +47,7 @@
     "notifications": "Notificações",
     "contacts": "Contatos",
     "pipelines": "Funis",
+    "reports": "Relatórios",
     "broadcasts": "Disparos",
     "automations": "Automações",
     "settings": "Configurações",
@@ -290,6 +292,48 @@
       "resumed": "IA retomada.",
       "updateError": "Não foi possível atualizar o assistente de IA.",
       "networkError": "Não foi possível conectar ao servidor."
+    }
+  },
+  "Reports": {
+    "funnel": {
+      "title": "Funil de qualificação",
+      "description": "Todos os negócios, quantos chegaram a uma reunião e quantos fecharam — atualiza sozinho conforme você move os cards no Kanban.",
+      "total": "Total de negócios",
+      "reachedMeeting": "Chegaram a uma reunião",
+      "won": "Fechados",
+      "meetingToWonRate": "Reunião → Fechado",
+      "overallWinRate": "Taxa de fechamento geral",
+      "openCount": "Em aberto",
+      "lostCount": "Perdidos",
+      "empty": "Nenhum negócio ainda.",
+      "emptyHint": "O funil aparece assim que houver negócios no pipeline."
+    },
+    "insights": {
+      "title": "Tempo e ticket",
+      "description": "Quanto tempo leva pra fechar, ticket médio, e negócios parados demais numa fase.",
+      "avgDaysToClose": "Tempo médio até fechar",
+      "avgValueWon": "Ticket médio (fechados)",
+      "avgValueOpen": "Ticket médio (em aberto)",
+      "stuckInMeeting": "Parados há {days}+ dias em reunião",
+      "avgTimeInStageTitle": "Tempo médio por fase",
+      "days": "{count} {count, plural, =1 {dia} other {dias}}",
+      "empty": "Sem dados suficientes ainda.",
+      "emptyHint": "Essas métricas aparecem conforme negócios avançam e fecham no pipeline."
+    },
+    "page": {
+      "title": "Relatórios",
+      "description": "Negócios agrupados por origem e campanha — veja de onde vêm os leads mais qualificados.",
+      "source": "Origem",
+      "campaign": "Campanha",
+      "totalDeals": "Negócios",
+      "meetingScheduled": "Reunião agendada",
+      "won": "Fechados",
+      "conversionRate": "Taxa de qualificação",
+      "unsetSource": "Sem origem",
+      "unsetCampaign": "Sem campanha",
+      "loading": "Carregando...",
+      "empty": "Nenhum negócio ainda.",
+      "emptyHint": "Assim que negócios começarem a chegar (formulário do site, WhatsApp, automações), eles aparecem aqui agrupados por origem e campanha."
     }
   },
   "Contacts": {
@@ -976,6 +1020,9 @@
         "valueLabel": "Valor",
         "placeholderValue": "Texto ou {{ vars.x }} / {{ message.text }}",
         "titleLabel": "Título",
+        "sourceLabel": "Origem do negócio",
+        "sourceUnset": "Não definir",
+        "campaignLabel": "Campanha",
         "amountLabel": "Quantidade",
         "unitLabel": "Unidade",
         "units": {

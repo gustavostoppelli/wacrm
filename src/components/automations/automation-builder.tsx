@@ -63,6 +63,7 @@ import {
 import { interactivePayloadPreviewText } from "@/lib/whatsapp/interactive"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
+import { DEAL_SOURCES } from "@/lib/deals/source"
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)
@@ -1403,6 +1404,28 @@ function StepEditor({
               type="number"
               value={(cfg.value as number) ?? 0}
               onChange={(e) => set({ value: Number(e.target.value) })}
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+          <FieldBlock label={t("config.sourceLabel")}>
+            <select
+              value={(cfg.source as string) ?? ""}
+              onChange={(e) => set({ source: e.target.value || undefined })}
+              className={SELECT_CLASS}
+            >
+              <option value="">{t("config.sourceUnset")}</option>
+              {DEAL_SOURCES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </FieldBlock>
+          <FieldBlock label={t("config.campaignLabel")}>
+            <Input
+              value={(cfg.campaign as string) ?? ""}
+              onChange={(e) => set({ campaign: e.target.value })}
+              placeholder={t("config.placeholderValue")}
               className="bg-muted text-foreground"
             />
           </FieldBlock>

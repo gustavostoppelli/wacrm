@@ -21,6 +21,7 @@ import {
   serializeDeal,
   resolveSource,
   resolvePipelineAndStage,
+  resolveMeetingScheduledAt,
   DealError,
 } from '@/lib/api/v1/deals';
 
@@ -97,6 +98,8 @@ export async function POST(request: Request) {
       currency = account?.default_currency ?? null;
     }
 
+    const meetingScheduledAt = resolveMeetingScheduledAt(body.meeting_scheduled_at);
+
     const { data: deal, error } = await ctx.supabase
       .from('deals')
       .insert({
@@ -110,7 +113,18 @@ export async function POST(request: Request) {
         currency,
         notes: typeof body.notes === 'string' ? body.notes.trim() || null : null,
         source,
+        campaign:
+          typeof body.campaign === 'string' ? body.campaign.trim() || null : null,
         status: 'open',
+        meeting_scheduled_at: meetingScheduledAt,
+        meeting_note:
+          typeof body.meeting_note === 'string'
+            ? body.meeting_note.trim() || null
+            : null,
+        meeting_link:
+          typeof body.meeting_link === 'string'
+            ? body.meeting_link.trim() || null
+            : null,
       })
       .select('*')
       .single();

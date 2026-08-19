@@ -24,11 +24,15 @@ describe('serializeDeal', () => {
       value: 1500,
       currency: 'USD',
       source: 'Apify',
+      campaign: null,
       notes: null,
       status: 'open',
       pipeline_id: 'p1',
       stage_id: 's1',
       contact_id: 'c1',
+      meeting_scheduled_at: null,
+      meeting_note: null,
+      meeting_link: null,
       created_at: '2026-01-01T00:00:00Z',
     });
   });

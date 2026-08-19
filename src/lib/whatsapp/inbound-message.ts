@@ -96,24 +96,19 @@ export async function processInboundMessage(
     })
   }
 
-  // Any contact who messages in and doesn't already have an open deal
-  // gets one, native regardless of how they arrived (organic WhatsApp,
-  // an Instagram bio link, a saved number) -- the Apify/Meta/site-form
-  // bridge (POST /api/v1/deals) already creates deals for leads that
-  // come through it with a specific source; this is the fallback for
-  // everyone else, so every conversation has pipeline visibility, not
-  // just leads from the automated bridges.
-  await ensureDealForContact(
-    msg.accountId,
-    msg.configOwnerUserId,
-    contactRecord.id,
-    conversation.id,
-    contactRecord.name || msg.senderPhone,
-  )
-
   // Reactions short-circuit here — they aren't messages, never bump
-  // unread_count, never update last_message_text.
+  // unread_count, never update last_message_text. Deal creation still
+  // runs for them (native fallback, see ensureDealForContact below) since
+  // they don't go through the keyword-match automations a real text
+  // message does.
   if (msg.reaction) {
+    await ensureDealForContact(
+      msg.accountId,
+      msg.configOwnerUserId,
+      contactRecord.id,
+      conversation.id,
+      contactRecord.name || msg.senderPhone,
+    )
     await handleReaction(msg.reaction, conversation.id, contactRecord.id)
     return { conversationId: conversation.id, contactId: contactRecord.id }
   }
@@ -225,6 +220,25 @@ export async function processInboundMessage(
       },
     }).catch((err) => console.error('[automations] dispatch failed:', err))
   }
+
+  // Any contact who messages in and doesn't already have an open deal
+  // gets one, native regardless of how they arrived (organic WhatsApp,
+  // an Instagram bio link, a saved number) -- the Apify/Meta/site-form
+  // bridge (POST /api/v1/deals) already creates deals for leads that
+  // come through it with a specific source; this is the fallback for
+  // everyone else, so every conversation has pipeline visibility, not
+  // just leads from the automated bridges. Runs *after* the automation
+  // triggers above so an account-configured keyword-match automation
+  // (e.g. "message contains the phrase from ad campaign X" -> create_deal
+  // with that campaign's source) gets first shot at creating the deal
+  // with the right attribution; this call is then just the no-op check.
+  await ensureDealForContact(
+    msg.accountId,
+    msg.configOwnerUserId,
+    contactRecord.id,
+    conversation.id,
+    contactRecord.name || msg.senderPhone,
+  )
 
   if (!flowConsumed && !msg.interactiveReplyId && inboundText.trim()) {
     await dispatchInboundToAiReply({

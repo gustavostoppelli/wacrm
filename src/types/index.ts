@@ -582,6 +582,10 @@ export interface CreateDealStepConfig {
   stage_id: string;
   title: string;
   value?: number;
+  /** One of `DEAL_SOURCES` (src/lib/deals/source.ts). Omit to leave unset. */
+  source?: string;
+  /** Free text; supports `{{ vars.* }}` / `{{ message.text }}` like `title`. */
+  campaign?: string;
 }
 
 export interface WaitStepConfig {

@@ -24,6 +24,7 @@ import { MAX_TAG_CHAIN_DEPTH, getTagChainDepth } from '@/lib/contacts/tag-chain'
 import { engineSendText, engineSendTemplate, engineSendInteractive } from './meta-send'
 import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
 import { isDeliverableUrl } from '@/lib/webhooks/ssrf'
+import { isDealSource } from '@/lib/deals/source'
 
 // ------------------------------------------------------------
 // Public API
@@ -569,6 +570,11 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .select('default_currency')
         .eq('id', args.automation.account_id)
         .maybeSingle()
+      // Validated the same way the public API validates a caller-supplied
+      // source (resolveSource in lib/api/v1/deals.ts) -- an automation
+      // editor could in principle be misconfigured with a stale/unknown
+      // value after the account's source list changes.
+      const source = cfg.source && isDealSource(cfg.source) ? cfg.source : null
       await db.from('deals').insert({
         // Tenancy + audit, same split as automation_logs above.
         account_id: args.automation.account_id,
@@ -579,6 +585,8 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         title: interpolate(cfg.title, args),
         value: cfg.value ?? 0,
         currency: acct?.default_currency ?? 'USD',
+        source,
+        campaign: cfg.campaign ? interpolate(cfg.campaign, args) : null,
         status: 'open',
       })
       return 'deal created'

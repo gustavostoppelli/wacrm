@@ -28,11 +28,16 @@ export interface ApiDeal {
   value: number;
   currency: string | null;
   source: string | null;
+  /** Free-text campaign/ad/form name — one level more granular than `source`. */
+  campaign: string | null;
   notes: string | null;
   status: string | null;
   pipeline_id: string;
   stage_id: string;
   contact_id: string | null;
+  meeting_scheduled_at: string | null;
+  meeting_note: string | null;
+  meeting_link: string | null;
   created_at: string;
 }
 
@@ -43,13 +48,34 @@ export function serializeDeal(row: Record<string, unknown>): ApiDeal {
     value: Number(row.value ?? 0),
     currency: (row.currency as string | null) ?? null,
     source: (row.source as string | null) ?? null,
+    campaign: (row.campaign as string | null) ?? null,
     notes: (row.notes as string | null) ?? null,
     status: (row.status as string | null) ?? null,
     pipeline_id: row.pipeline_id as string,
     stage_id: row.stage_id as string,
     contact_id: (row.contact_id as string | null) ?? null,
+    meeting_scheduled_at: (row.meeting_scheduled_at as string | null) ?? null,
+    meeting_note: (row.meeting_note as string | null) ?? null,
+    meeting_link: (row.meeting_link as string | null) ?? null,
     created_at: row.created_at as string,
   };
+}
+
+/**
+ * Validate an optional caller-supplied `meeting_scheduled_at`. Mirrors what
+ * the AI-agent flow writes to the same column (`recordMeetingScheduled` in
+ * `src/lib/ai/auto-reply.ts`) so a deal created via this public endpoint
+ * carries the same "meeting scheduled" badge on the dashboard card.
+ */
+export function resolveMeetingScheduledAt(input: unknown): string | null {
+  if (input === undefined || input === null || input === '') return null;
+  if (typeof input !== 'string' || Number.isNaN(Date.parse(input))) {
+    throw new DealError(
+      `'meeting_scheduled_at' must be an ISO 8601 date string`,
+      400
+    );
+  }
+  return new Date(input).toISOString();
 }
 
 /** Validate an optional caller-supplied `source` against the shared enum. */

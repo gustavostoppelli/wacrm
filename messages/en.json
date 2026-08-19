@@ -21,6 +21,7 @@
     "notifications": "Notifications",
     "contacts": "Contacts",
     "pipelines": "Pipelines",
+    "reports": "Reports",
     "broadcasts": "Broadcasts",
     "automations": "Automations",
     "flows": "Flows",
@@ -46,6 +47,7 @@
     "notifications": "Notifications",
     "contacts": "Contacts",
     "pipelines": "Pipelines",
+    "reports": "Reports",
     "broadcasts": "Broadcasts",
     "automations": "Automations",
     "settings": "Settings",
@@ -290,6 +292,48 @@
       "resumed": "AI resumed.",
       "updateError": "Couldn’t update the AI assistant.",
       "networkError": "Couldn’t reach the server."
+    }
+  },
+  "Reports": {
+    "funnel": {
+      "title": "Qualification funnel",
+      "description": "All deals, how many reached a meeting, and how many closed — updates on its own as you move cards on the Kanban.",
+      "total": "Total deals",
+      "reachedMeeting": "Reached a meeting",
+      "won": "Won",
+      "meetingToWonRate": "Meeting → Won",
+      "overallWinRate": "Overall win rate",
+      "openCount": "Open",
+      "lostCount": "Lost",
+      "empty": "No deals yet.",
+      "emptyHint": "The funnel shows up once there are deals in the pipeline."
+    },
+    "insights": {
+      "title": "Time & ticket size",
+      "description": "How long it takes to close, average ticket size, and deals stuck too long in a stage.",
+      "avgDaysToClose": "Avg time to close",
+      "avgValueWon": "Avg ticket (won)",
+      "avgValueOpen": "Avg ticket (open)",
+      "stuckInMeeting": "Stuck {days}+ days in meeting",
+      "avgTimeInStageTitle": "Avg time per stage",
+      "days": "{count} {count, plural, =1 {day} other {days}}",
+      "empty": "Not enough data yet.",
+      "emptyHint": "These metrics show up as deals move through and close in the pipeline."
+    },
+    "page": {
+      "title": "Reports",
+      "description": "Deals grouped by source and campaign — see where your most qualified leads come from.",
+      "source": "Source",
+      "campaign": "Campaign",
+      "totalDeals": "Deals",
+      "meetingScheduled": "Meeting scheduled",
+      "won": "Won",
+      "conversionRate": "Qualification rate",
+      "unsetSource": "No source",
+      "unsetCampaign": "No campaign",
+      "loading": "Loading...",
+      "empty": "No deals yet.",
+      "emptyHint": "Once deals start coming in (site form, WhatsApp, automations), they'll show up here grouped by source and campaign."
     }
   },
   "Contacts": {
@@ -976,6 +1020,9 @@
         "valueLabel": "Value",
         "placeholderValue": "Text or {{ vars.x }} / {{ message.text }}",
         "titleLabel": "Title",
+        "sourceLabel": "Deal source",
+        "sourceUnset": "Leave unset",
+        "campaignLabel": "Campaign",
         "amountLabel": "Amount",
         "unitLabel": "Unit",
         "units": {

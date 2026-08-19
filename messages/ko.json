@@ -21,6 +21,7 @@
     "notifications": "알림",
     "contacts": "연락처",
     "pipelines": "파이프라인",
+    "reports": "리포트",
     "broadcasts": "브로드캐스트",
     "automations": "자동화",
     "flows": "플로우",
@@ -46,6 +47,7 @@
     "notifications": "알림",
     "contacts": "연락처",
     "pipelines": "파이프라인",
+    "reports": "리포트",
     "broadcasts": "브로드캐스트",
     "automations": "자동화",
     "settings": "설정",
@@ -290,6 +292,48 @@
       "resumed": "AI가 재개되었습니다.",
       "updateError": "AI 어시스턴트를 업데이트하지 못했습니다.",
       "networkError": "서버에 연결할 수 없습니다."
+    }
+  },
+  "Reports": {
+    "funnel": {
+      "title": "전환 퍼널",
+      "description": "전체 거래, 상담까지 도달한 수, 성사된 수 — 칸반에서 카드를 옮기면 자동으로 반영됩니다.",
+      "total": "전체 거래",
+      "reachedMeeting": "상담 도달",
+      "won": "성사됨",
+      "meetingToWonRate": "상담 → 성사",
+      "overallWinRate": "전체 성사율",
+      "openCount": "진행 중",
+      "lostCount": "실패",
+      "empty": "아직 거래가 없습니다.",
+      "emptyHint": "파이프라인에 거래가 생기면 퍼널이 표시됩니다."
+    },
+    "insights": {
+      "title": "소요 시간 & 거래 규모",
+      "description": "성사까지 걸리는 시간, 평균 거래 규모, 한 단계에 너무 오래 머문 거래.",
+      "avgDaysToClose": "평균 성사 소요 시간",
+      "avgValueWon": "평균 거래 규모 (성사)",
+      "avgValueOpen": "평균 거래 규모 (진행 중)",
+      "stuckInMeeting": "{days}일+ 상담 단계에 정체",
+      "avgTimeInStageTitle": "단계별 평균 소요 시간",
+      "days": "{count}일",
+      "empty": "아직 데이터가 충분하지 않습니다.",
+      "emptyHint": "거래가 파이프라인을 진행하고 성사되면 이 지표가 표시됩니다."
+    },
+    "page": {
+      "title": "리포트",
+      "description": "출처와 캠페인별로 묶은 거래 — 가장 우수한 리드가 어디서 오는지 확인하세요.",
+      "source": "출처",
+      "campaign": "캠페인",
+      "totalDeals": "거래",
+      "meetingScheduled": "상담 예약됨",
+      "won": "성사됨",
+      "conversionRate": "전환율",
+      "unsetSource": "출처 없음",
+      "unsetCampaign": "캠페인 없음",
+      "loading": "불러오는 중...",
+      "empty": "아직 거래가 없습니다.",
+      "emptyHint": "거래가 들어오기 시작하면(사이트 폼, WhatsApp, 자동화) 출처와 캠페인별로 여기에 표시됩니다."
     }
   },
   "Contacts": {
@@ -976,6 +1020,9 @@
         "valueLabel": "값",
         "placeholderValue": "텍스트 또는 {{ vars.x }} / {{ message.text }}",
         "titleLabel": "제목",
+        "sourceLabel": "거래 출처",
+        "sourceUnset": "설정 안 함",
+        "campaignLabel": "캠페인",
         "amountLabel": "수치",
         "unitLabel": "단위",
         "units": {
