@@ -58,6 +58,20 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         <h4 className="flex-1 text-sm font-semibold leading-snug text-foreground break-words">
           {deal.title}
         </h4>
+        {typeof deal.lead_score === "number" && (
+          <span
+            title={t("leadScore", { score: deal.lead_score })}
+            className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
+              deal.lead_score >= 70
+                ? "bg-primary/15 text-primary"
+                : deal.lead_score >= 40
+                  ? "bg-amber-500/15 text-amber-400"
+                  : "bg-muted-foreground/15 text-muted-foreground"
+            }`}
+          >
+            {deal.lead_score}
+          </span>
+        )}
         {deal.status === "won" && (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
             <Check className="h-3 w-3" />

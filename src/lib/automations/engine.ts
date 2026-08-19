@@ -591,6 +591,10 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         currency: acct?.default_currency ?? 'USD',
         source,
         campaign: cfg.campaign ? interpolate(cfg.campaign, args) : null,
+        lead_score:
+          typeof cfg.lead_score === 'number' && cfg.lead_score >= 0 && cfg.lead_score <= 100
+            ? Math.round(cfg.lead_score)
+            : null,
         status: 'open',
       })
       return 'deal created'

@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
+import { DealTasks } from "./deal-tasks";
 
 interface DealFormProps {
   open: boolean;
@@ -76,6 +77,7 @@ export function DealForm({
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [notes, setNotes] = useState("");
   const [source, setSource] = useState("");
+  const [leadScore, setLeadScore] = useState("");
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -122,6 +124,9 @@ export function DealForm({
       setExpectedCloseDate(deal.expected_close_date ?? "");
       setNotes(deal.notes ?? "");
       setSource(deal.source ?? "");
+      setLeadScore(
+        typeof deal.lead_score === "number" ? String(deal.lead_score) : "",
+      );
     } else {
       setTitle("");
       setValue("");
@@ -132,6 +137,7 @@ export function DealForm({
       setExpectedCloseDate("");
       setNotes("");
       setSource("");
+      setLeadScore("");
     }
   }, [open, deal, defaultStageId, stages, defaultCurrency]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -279,6 +285,7 @@ export function DealForm({
       notes: notes.trim() || null,
       expected_close_date: expectedCloseDate || null,
       source: source || null,
+      lead_score: leadScore.trim() ? Math.max(0, Math.min(100, Math.round(Number(leadScore)))) : null,
     };
 
     if (deal) {
@@ -531,6 +538,18 @@ export function DealForm({
             </div>
 
             <div className="grid gap-2">
+              <Label className="text-muted-foreground">{t("leadScore")}</Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={leadScore}
+                onChange={(e) => setLeadScore(e.target.value)}
+                placeholder={t("leadScorePlaceholder")}
+              />
+            </div>
+
+            <div className="grid gap-2">
               <Label className="text-muted-foreground">{t("assignedTo")}</Label>
               <select
                 value={assignedTo}
@@ -555,6 +574,15 @@ export function DealForm({
                 className="min-h-[100px] border-border bg-muted text-foreground"
               />
             </div>
+
+            {deal && accountId && (
+              <DealTasks
+                dealId={deal.id}
+                accountId={accountId}
+                contactId={deal.contact_id}
+                profiles={profiles}
+              />
+            )}
 
             {deal && (
               <div className="space-y-2 rounded-lg border border-border bg-muted/50 p-3">

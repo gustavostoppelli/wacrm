@@ -22,6 +22,7 @@ import {
   resolveSource,
   resolvePipelineAndStage,
   resolveMeetingScheduledAt,
+  resolveLeadScore,
   DealError,
 } from '@/lib/api/v1/deals';
 
@@ -99,6 +100,7 @@ export async function POST(request: Request) {
     }
 
     const meetingScheduledAt = resolveMeetingScheduledAt(body.meeting_scheduled_at);
+    const leadScore = resolveLeadScore(body.lead_score);
 
     const { data: deal, error } = await ctx.supabase
       .from('deals')
@@ -115,6 +117,7 @@ export async function POST(request: Request) {
         source,
         campaign:
           typeof body.campaign === 'string' ? body.campaign.trim() || null : null,
+        lead_score: leadScore,
         status: 'open',
         meeting_scheduled_at: meetingScheduledAt,
         meeting_note:

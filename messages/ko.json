@@ -563,10 +563,23 @@
       "dropDealHere": "여기에 딜을 놓으세요",
       "addDeal": "딜 추가"
     },
+    "tasks": {
+      "title": "작업",
+      "empty": "아직 작업이 없습니다.",
+      "newTaskPlaceholder": "예: 다시 전화하기",
+      "toggleComplete": "완료로 표시",
+      "delete": "삭제",
+      "unknownAssignee": "—",
+      "toastRequired": "제목, 기한, 담당자를 입력하세요",
+      "toastFailedCreate": "작업 생성 실패",
+      "toastFailedSave": "작업 업데이트 실패",
+      "toastFailedDelete": "작업 삭제 실패"
+    },
     "card": {
       "noContact": "연락처 없음",
       "won": "성사",
-      "lost": "실패"
+      "lost": "실패",
+      "leadScore": "리드 점수: {score}/100"
     },
     "form": {
       "editDeal": "딜 수정",
@@ -619,7 +632,9 @@
       "toastContactConflict": "이 전화번호를 가진 연락처가 이미 있습니다",
       "toastFailedCreateContact": "연락처 생성에 실패했습니다",
       "source": "출처",
-      "selectSource": "지정 안 함"
+      "selectSource": "지정 안 함",
+      "leadScore": "리드 점수 (0-100)",
+      "leadScorePlaceholder": "예: 85"
     },
     "settings": {
       "managePipeline": "파이프라인 관리",
@@ -1024,6 +1039,7 @@
         "sourceLabel": "거래 출처",
         "sourceUnset": "설정 안 함",
         "campaignLabel": "캠페인",
+        "leadScoreLabel": "리드 점수 (0-100)",
         "notifyPhoneLabel": "알림 받을 WhatsApp 번호",
         "notifyPhonePlaceholder": "+82 10-0000-0000",
         "notifyMessageLabel": "메시지",

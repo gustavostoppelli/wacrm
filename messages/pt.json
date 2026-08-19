@@ -563,10 +563,23 @@
       "dropDealHere": "Solte um negócio aqui",
       "addDeal": "Adicionar negócio"
     },
+    "tasks": {
+      "title": "Tarefas",
+      "empty": "Nenhuma tarefa ainda.",
+      "newTaskPlaceholder": "Ex: Ligar de volta",
+      "toggleComplete": "Marcar como concluída",
+      "delete": "Excluir",
+      "unknownAssignee": "—",
+      "toastRequired": "Preencha o título, a data e o responsável",
+      "toastFailedCreate": "Falha ao criar tarefa",
+      "toastFailedSave": "Falha ao atualizar tarefa",
+      "toastFailedDelete": "Falha ao excluir tarefa"
+    },
     "card": {
       "noContact": "Sem contato",
       "won": "Ganho",
-      "lost": "Perdido"
+      "lost": "Perdido",
+      "leadScore": "Pontuação do lead: {score}/100"
     },
     "form": {
       "editDeal": "Editar negócio",
@@ -619,7 +632,9 @@
       "toastContactConflict": "Já existe um contato com esse número de telefone",
       "toastFailedCreateContact": "Falha ao criar contato",
       "source": "Origem",
-      "selectSource": "Não especificado"
+      "selectSource": "Não especificado",
+      "leadScore": "Pontuação do lead (0-100)",
+      "leadScorePlaceholder": "Ex: 85"
     },
     "settings": {
       "managePipeline": "Gerenciar funil",
@@ -1024,6 +1039,7 @@
         "sourceLabel": "Origem do negócio",
         "sourceUnset": "Não definir",
         "campaignLabel": "Campanha",
+        "leadScoreLabel": "Pontuação do lead (0-100)",
         "notifyPhoneLabel": "Número de WhatsApp a avisar",
         "notifyPhonePlaceholder": "+55 21 90000-0000",
         "notifyMessageLabel": "Mensagem",

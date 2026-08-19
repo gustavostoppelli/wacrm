@@ -563,10 +563,23 @@
       "dropDealHere": "Drop a deal here",
       "addDeal": "Add Deal"
     },
+    "tasks": {
+      "title": "Tasks",
+      "empty": "No tasks yet.",
+      "newTaskPlaceholder": "E.g. Call back",
+      "toggleComplete": "Mark complete",
+      "delete": "Delete",
+      "unknownAssignee": "—",
+      "toastRequired": "Fill in the title, due date, and assignee",
+      "toastFailedCreate": "Failed to create task",
+      "toastFailedSave": "Failed to update task",
+      "toastFailedDelete": "Failed to delete task"
+    },
     "card": {
       "noContact": "No contact",
       "won": "Won",
-      "lost": "Lost"
+      "lost": "Lost",
+      "leadScore": "Lead score: {score}/100"
     },
     "form": {
       "editDeal": "Edit Deal",
@@ -619,7 +632,9 @@
       "toastContactConflict": "A contact with this phone number already exists",
       "toastFailedCreateContact": "Failed to create contact",
       "source": "Source",
-      "selectSource": "Not specified"
+      "selectSource": "Not specified",
+      "leadScore": "Lead score (0-100)",
+      "leadScorePlaceholder": "E.g. 85"
     },
     "settings": {
       "managePipeline": "Manage Pipeline",
@@ -1024,6 +1039,7 @@
         "sourceLabel": "Deal source",
         "sourceUnset": "Leave unset",
         "campaignLabel": "Campaign",
+        "leadScoreLabel": "Lead score (0-100)",
         "notifyPhoneLabel": "WhatsApp number to notify",
         "notifyPhonePlaceholder": "+1 555 000-0000",
         "notifyMessageLabel": "Message",

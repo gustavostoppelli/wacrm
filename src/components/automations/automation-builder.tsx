@@ -1434,6 +1434,18 @@ function StepEditor({
               className="bg-muted text-foreground"
             />
           </FieldBlock>
+          <FieldBlock label={t("config.leadScoreLabel")}>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={(cfg.lead_score as number) ?? ""}
+              onChange={(e) =>
+                set({ lead_score: e.target.value === "" ? undefined : Number(e.target.value) })
+              }
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
         </>
       )
     case "notify_owner":

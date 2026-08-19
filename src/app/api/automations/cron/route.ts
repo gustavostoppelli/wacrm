@@ -81,6 +81,7 @@ export async function GET(request: Request) {
   const remindersProcessed = await drainDueMeetingReminders(admin)
   const followupsProcessed = await drainDueFollowups(admin)
   const reactivationsProcessed = await drainLostDealReactivation(admin)
+  const tasksProcessed = await drainDueTasks(admin)
 
   return NextResponse.json({
     processed,
@@ -88,6 +89,7 @@ export async function GET(request: Request) {
     reminders_processed: remindersProcessed,
     followups_processed: followupsProcessed,
     reactivations_processed: reactivationsProcessed,
+    tasks_processed: tasksProcessed,
   })
 }
 
@@ -414,6 +416,58 @@ async function drainLostDealReactivation(
       }
       processed++
     }
+  }
+  return processed
+}
+
+/**
+ * Drains due `tasks` (migration 050) into a `task_due` row on the
+ * existing `notifications` table -- reuses the unread-badge + realtime
+ * subscription already built for conversation-assignment alerts (027)
+ * instead of a new delivery path. A human's reminder, not something
+ * the AI agent or a lead ever sees.
+ */
+async function drainDueTasks(admin: ReturnType<typeof supabaseAdmin>): Promise<number> {
+  const { data: due } = await admin
+    .from('tasks')
+    .select('id, account_id, assigned_to, deal_id, contact_id, title, deal:deals(title)')
+    .is('completed_at', null)
+    .is('reminder_sent_at', null)
+    .lte('due_at', new Date().toISOString())
+    .order('due_at', { ascending: true })
+    .limit(50)
+
+  if (!due || due.length === 0) return 0
+
+  let processed = 0
+  for (const row of due) {
+    const { data: claim } = await admin
+      .from('tasks')
+      .update({ reminder_sent_at: new Date().toISOString() })
+      .eq('id', row.id)
+      .is('reminder_sent_at', null)
+      .select('id')
+      .maybeSingle()
+    if (!claim) continue
+
+    try {
+      const dealRow = Array.isArray(row.deal) ? row.deal[0] : row.deal
+      const dealTitle = (dealRow as { title?: string } | null)?.title
+      const body = dealTitle ? `${row.title as string} — ${dealTitle}` : (row.title as string)
+
+      await admin.from('notifications').insert({
+        account_id: row.account_id,
+        user_id: row.assigned_to,
+        type: 'task_due',
+        deal_id: row.deal_id,
+        contact_id: row.contact_id,
+        title: 'Tarefa vencendo',
+        body,
+      })
+    } catch (err) {
+      console.error('[task reminder] notify failed:', err)
+    }
+    processed++
   }
   return processed
 }

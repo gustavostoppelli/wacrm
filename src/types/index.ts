@@ -194,7 +194,7 @@ export interface Conversation {
 // Notifications (migration 027)
 // ============================================================
 
-export type NotificationType = 'conversation_assigned';
+export type NotificationType = 'conversation_assigned' | 'task_due';
 
 export interface Notification {
   id: string;
@@ -204,6 +204,7 @@ export interface Notification {
   type: NotificationType;
   conversation_id?: string;
   contact_id?: string;
+  deal_id?: string;
   /** Who triggered it. Null when an automation/system assigned it. */
   actor_user_id?: string;
   title: string;
@@ -413,6 +414,11 @@ export interface Deal {
   /** Free-text description of the confirmed meeting time (e.g. "Amanhã
    *  às 10h"), written by the AI Agent when a lead agrees on a time. */
   meeting_note?: string | null;
+  /** Free-text campaign/ad/form name — one level more granular than `source`. */
+  campaign?: string | null;
+  /** 0-100. wacrm never computes this -- set by whatever created the
+   *  deal (public API, an automation, or a human in the form). */
+  lead_score?: number | null;
   created_at: string;
   updated_at?: string;
   contact?: Contact;
@@ -587,6 +593,8 @@ export interface CreateDealStepConfig {
   source?: string;
   /** Free text; supports `{{ vars.* }}` / `{{ message.text }}` like `title`. */
   campaign?: string;
+  /** 0-100. Omit to leave unset. */
+  lead_score?: number;
 }
 
 export interface NotifyOwnerStepConfig {

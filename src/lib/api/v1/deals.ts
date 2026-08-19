@@ -30,6 +30,9 @@ export interface ApiDeal {
   source: string | null;
   /** Free-text campaign/ad/form name — one level more granular than `source`. */
   campaign: string | null;
+  /** 0-100. wacrm never computes this itself -- set by whatever created
+   *  the deal (the public API, an automation, or a human in the form). */
+  lead_score: number | null;
   notes: string | null;
   status: string | null;
   pipeline_id: string;
@@ -49,6 +52,7 @@ export function serializeDeal(row: Record<string, unknown>): ApiDeal {
     currency: (row.currency as string | null) ?? null,
     source: (row.source as string | null) ?? null,
     campaign: (row.campaign as string | null) ?? null,
+    lead_score: (row.lead_score as number | null) ?? null,
     notes: (row.notes as string | null) ?? null,
     status: (row.status as string | null) ?? null,
     pipeline_id: row.pipeline_id as string,
@@ -59,6 +63,16 @@ export function serializeDeal(row: Record<string, unknown>): ApiDeal {
     meeting_link: (row.meeting_link as string | null) ?? null,
     created_at: row.created_at as string,
   };
+}
+
+/** Validate an optional caller-supplied `lead_score`: an integer 0-100. */
+export function resolveLeadScore(input: unknown): number | null {
+  if (input === undefined || input === null || input === '') return null;
+  const n = typeof input === 'number' ? input : Number(input);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || n > 100) {
+    throw new DealError(`'lead_score' must be an integer between 0 and 100`, 400);
+  }
+  return n;
 }
 
 /**
