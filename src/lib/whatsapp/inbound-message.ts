@@ -60,6 +60,11 @@ export interface NormalizedInboundMessage {
     ctwaClid: string | null
     headline: string | null
     sourceUrl: string | null
+    /** Best-effort Graph API lookup (see resolveAdNameCached in the
+     *  Meta webhook route) — human-readable ad name, e.g. "IMG 6".
+     *  `null` when the lookup token lacks `ads_read` or the call
+     *  otherwise failed; every other field above still applies. */
+    resolvedName: string | null
   } | null
 }
 
@@ -299,6 +304,11 @@ async function ensureDealForContact(
     ctwaClid: string | null
     headline: string | null
     sourceUrl: string | null
+    /** Best-effort Graph API lookup (see resolveAdNameCached in the
+     *  Meta webhook route) — human-readable ad name, e.g. "IMG 6".
+     *  `null` when the lookup token lacks `ads_read` or the call
+     *  otherwise failed; every other field above still applies. */
+    resolvedName: string | null
   } | null,
 ): Promise<void> {
   const db = supabaseAdmin()
@@ -320,6 +330,19 @@ async function ensureDealForContact(
   // fallback, and keep the ad id / click id on the deal since nothing
   // else in this pipeline carries them.
   const source = adReferral ? 'Tráfego Pago (Meta/Google Ads)' : 'WhatsApp Direto'
+  // `campaign` is the field the Reports page groups by to compare
+  // performance one level below `source` (see loadCampaignReport).
+  // Prefer the resolved ad name ("IMG 6") when the webhook route
+  // managed to look it up (needs `ads_read` on the token — see
+  // resolveAdNameCached); fall back to the raw ad id, never the
+  // headline: with this account's convention of reusing the same ad
+  // copy across every creative in a test round and varying only the
+  // image (see estrategia-campanha-r2-click-to-whatsapp.md section 5),
+  // the headline is identical across all 10 ads and would collapse
+  // them into one bucket.
+  const campaign = adReferral
+    ? adReferral.resolvedName ?? adReferral.adId ?? adReferral.headline
+    : null
   const notes = adReferral
     ? [
         'Origem: Click-to-WhatsApp',
@@ -354,6 +377,7 @@ async function ensureDealForContact(
         value: 0,
         currency: account?.default_currency ?? null,
         source,
+        campaign,
         notes,
         status: 'open',
       })

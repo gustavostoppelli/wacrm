@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
-import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
+import { getMediaUrl, downloadMedia, getAdName } from '@/lib/whatsapp/meta-api'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
@@ -470,6 +470,9 @@ async function processMessage(
         ctwaClid: message.referral.ctwa_clid ?? null,
         headline: message.referral.headline ?? null,
         sourceUrl: message.referral.source_url ?? null,
+        resolvedName: message.referral.source_id
+          ? await resolveAdNameCached(message.referral.source_id, accessToken)
+          : null,
       }
     : null
 
@@ -677,3 +680,38 @@ async function parseMessageContent(
 // dispatch (Flows/automations/AI/webhook) now live in
 // `lib/whatsapp/inbound-message.ts`, shared with the UAZAPI webhook —
 // see `processMessage` above.
+
+/**
+ * Best-effort ad_id -> ad name lookup, cached in `resolved_ad_names`
+ * (migration 051) so repeat conversations from the same ad (every
+ * contact who messages in from the same creative) only hit the Graph
+ * API once. Returns `null` — never throws — on a cache miss the API
+ * can't resolve either, which is the expected outcome whenever
+ * `accessToken` (the WhatsApp Cloud API token for this number) lacks
+ * `ads_read` on the ad account; callers fall back to the raw ad id.
+ */
+async function resolveAdNameCached(
+  adId: string,
+  accessToken: string
+): Promise<string | null> {
+  const db = supabaseAdmin()
+
+  const { data: cached } = await db
+    .from('resolved_ad_names')
+    .select('name')
+    .eq('ad_id', adId)
+    .maybeSingle()
+  if (cached?.name) return cached.name
+
+  const name = await getAdName({ adId, accessToken })
+  if (!name) return null
+
+  const { error } = await db
+    .from('resolved_ad_names')
+    .upsert({ ad_id: adId, name }, { onConflict: 'ad_id' })
+  if (error) {
+    console.error('[webhook] failed to cache resolved ad name:', error)
+  }
+
+  return name
+}

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table"
 import { PipelineFunnel } from "@/components/dashboard/pipeline-funnel"
 import { FunnelInsights } from "@/components/dashboard/funnel-insights"
+import { LeadsBySourceChart } from "@/components/dashboard/leads-by-source-chart"
 import { BarChart3 } from "lucide-react"
 
 export default function ReportsPage() {
@@ -56,6 +57,8 @@ export default function ReportsPage() {
       <PipelineFunnel data={funnel} loading={funnelLoading} />
 
       <FunnelInsights data={insights} loading={insightsLoading} currency={defaultCurrency} />
+
+      <LeadsBySourceChart rows={rows} loading={loading} />
 
       <div className="rounded-lg border border-border bg-card">
         {loading ? (

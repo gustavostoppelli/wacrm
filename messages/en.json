@@ -334,6 +334,13 @@
       "loading": "Loading...",
       "empty": "No deals yet.",
       "emptyHint": "Once deals start coming in (site form, WhatsApp, automations), they'll show up here grouped by source and campaign."
+    },
+    "sourceChart": {
+      "title": "Leads by source",
+      "description": "Deals per channel — the table below breaks each source down by campaign/ad.",
+      "unsetSource": "No source",
+      "empty": "No deals yet.",
+      "emptyHint": "The chart shows up once there are deals with a recorded source."
     }
   },
   "Contacts": {

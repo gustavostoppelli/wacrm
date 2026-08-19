@@ -334,6 +334,13 @@
       "loading": "Carregando...",
       "empty": "Nenhum negócio ainda.",
       "emptyHint": "Assim que negócios começarem a chegar (formulário do site, WhatsApp, automações), eles aparecem aqui agrupados por origem e campanha."
+    },
+    "sourceChart": {
+      "title": "Origem dos leads",
+      "description": "Negócios por canal — a tabela abaixo detalha por campanha/anúncio dentro de cada origem.",
+      "unsetSource": "Sem origem",
+      "empty": "Nenhum negócio ainda.",
+      "emptyHint": "O gráfico aparece assim que houver negócios com origem registrada."
     }
   },
   "Contacts": {

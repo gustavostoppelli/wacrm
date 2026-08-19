@@ -991,6 +991,41 @@ function validateInteractiveHeaderFooter(
 }
 
 // ============================================================
+// Ads (best-effort name resolution)
+// ============================================================
+
+export interface GetAdNameArgs {
+  adId: string
+  accessToken: string
+}
+
+/**
+ * Resolve a Meta ad id to its human-readable name (e.g. "IMG 6").
+ *
+ * Only works if `accessToken` carries `ads_read` on the ad account
+ * that owns this ad — the WhatsApp Cloud API token used elsewhere in
+ * this file is scoped to messaging and will normally NOT have this,
+ * so callers must treat this as best-effort and fall back to the raw
+ * ad id on any failure (permission error, wrong token, deleted ad).
+ * Not routed through `throwMetaError` for that reason: callers get a
+ * plain `null` instead of an exception to catch.
+ */
+export async function getAdName(args: GetAdNameArgs): Promise<string | null> {
+  const { adId, accessToken } = args
+  try {
+    const response = await fetch(
+      `${META_API_BASE}/${adId}?fields=name`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+    if (!response.ok) return null
+    const data = (await response.json()) as { name?: string }
+    return data.name ?? null
+  } catch {
+    return null
+  }
+}
+
+// ============================================================
 // Media
 // ============================================================
 
