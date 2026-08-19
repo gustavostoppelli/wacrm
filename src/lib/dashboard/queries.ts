@@ -9,12 +9,16 @@ import {
 } from './date-utils'
 import type {
   ActivityItem,
+  CampaignReportRow,
   ConversationsSeriesPoint,
+  FunnelInsightsData,
   MetricsBundle,
   PipelineDonutData,
+  PipelineFunnelData,
   PipelineStageSlice,
   ResponseTimeBucket,
   ResponseTimeSummary,
+  StageDwellTime,
 } from './types'
 
 // ------------------------------------------------------------
@@ -395,4 +399,220 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
   return items
     .sort((a, b) => (a.at > b.at ? -1 : a.at < b.at ? 1 : 0))
     .slice(0, limit)
+}
+
+// --- 6. Campaign report --------------------------------------------------
+
+/**
+ * Every deal grouped by (source, campaign), with how many reached a
+ * meeting-scheduled deal or a won deal — the two "this lead was actually
+ * qualified" proxies already tracked on `deals`. Lets an account see
+ * which specific campaign converts, not just which broad channel.
+ */
+export async function loadCampaignReport(db: DB): Promise<CampaignReportRow[]> {
+  const { data, error } = await db
+    .from('deals')
+    .select('source, campaign, status, meeting_scheduled_at')
+
+  if (error) {
+    console.error('[dashboard] loadCampaignReport failed:', error)
+    return []
+  }
+
+  const buckets = new Map<string, CampaignReportRow>()
+  for (const row of (data ?? []) as Array<{
+    source: string | null
+    campaign: string | null
+    status: string | null
+    meeting_scheduled_at: string | null
+  }>) {
+    const key = `${row.source ?? ''}::${row.campaign ?? ''}`
+    let bucket = buckets.get(key)
+    if (!bucket) {
+      bucket = {
+        source: row.source,
+        campaign: row.campaign,
+        totalDeals: 0,
+        meetingScheduledCount: 0,
+        wonCount: 0,
+      }
+      buckets.set(key, bucket)
+    }
+    bucket.totalDeals += 1
+    if (row.meeting_scheduled_at) bucket.meetingScheduledCount += 1
+    if (row.status === 'won') bucket.wonCount += 1
+  }
+
+  return Array.from(buckets.values()).sort((a, b) => b.totalDeals - a.totalDeals)
+}
+
+// --- 7. Pipeline funnel ---------------------------------------------------
+
+/**
+ * "Reached a meeting" combines the two ways a deal ends up there: the
+ * AI-agent/site-form flows that set `meeting_scheduled_at` directly, and
+ * a card dragged by hand into whichever stage is tagged
+ * `stage_role = 'meeting_scheduled'` on the Kanban. A deal dragged
+ * straight past that stage without ever pausing there (and without the
+ * timestamp set some other way) won't be counted -- same edge case the
+ * "Reunião Agendada" badge on the kanban card already has.
+ */
+export async function loadPipelineFunnel(db: DB): Promise<PipelineFunnelData> {
+  const [stagesRes, dealsRes] = await Promise.all([
+    db.from('pipeline_stages').select('id, stage_role'),
+    db.from('deals').select('stage_id, status, meeting_scheduled_at'),
+  ])
+
+  const meetingStageIds = new Set(
+    ((stagesRes.data ?? []) as { id: string; stage_role: string | null }[])
+      .filter((s) => s.stage_role === 'meeting_scheduled')
+      .map((s) => s.id)
+  )
+
+  const deals = (dealsRes.data ?? []) as {
+    stage_id: string
+    status: string | null
+    meeting_scheduled_at: string | null
+  }[]
+
+  let reachedMeetingCount = 0
+  let wonCount = 0
+  let wonFromMeetingCount = 0
+  let lostCount = 0
+  let openCount = 0
+
+  for (const d of deals) {
+    const reachedMeeting = Boolean(d.meeting_scheduled_at) || meetingStageIds.has(d.stage_id)
+    if (reachedMeeting) reachedMeetingCount += 1
+    if (d.status === 'won') {
+      wonCount += 1
+      if (reachedMeeting) wonFromMeetingCount += 1
+    } else if (d.status === 'lost') {
+      lostCount += 1
+    } else {
+      openCount += 1
+    }
+  }
+
+  return {
+    totalDeals: deals.length,
+    reachedMeetingCount,
+    wonCount,
+    wonFromMeetingCount,
+    lostCount,
+    openCount,
+  }
+}
+
+// --- 8. Funnel insights (time-to-close, ticket size, stalled deals) ------
+
+/** Open deal sitting this long in the meeting-scheduled stage counts as stalled. */
+const STALL_THRESHOLD_DAYS = 7
+
+export async function loadFunnelInsights(db: DB): Promise<FunnelInsightsData> {
+  const [stagesRes, dealsRes, historyRes] = await Promise.all([
+    db.from('pipeline_stages').select('id, name, stage_role, position').order('position'),
+    db.from('deals').select('id, stage_id, status, value, created_at, closed_at'),
+    // Ascending so each deal's own entries land in visit order once
+    // grouped below — no extra per-group sort needed.
+    db.from('deal_stage_history').select('deal_id, stage_id, entered_at').order('entered_at', { ascending: true }),
+  ])
+
+  const stages = (stagesRes.data ?? []) as {
+    id: string
+    name: string
+    stage_role: string | null
+  }[]
+  const meetingStageIds = new Set(
+    stages.filter((s) => s.stage_role === 'meeting_scheduled').map((s) => s.id)
+  )
+
+  const deals = (dealsRes.data ?? []) as {
+    id: string
+    stage_id: string
+    status: string | null
+    value: number | null
+    created_at: string
+    closed_at: string | null
+  }[]
+  const dealById = new Map(deals.map((d) => [d.id, d]))
+
+  const closedDurationsDays: number[] = []
+  for (const d of deals) {
+    if (d.status === 'won' && d.closed_at) {
+      closedDurationsDays.push(
+        (new Date(d.closed_at).getTime() - new Date(d.created_at).getTime()) / 86400000
+      )
+    }
+  }
+
+  const wonValues = deals.filter((d) => d.status === 'won').map((d) => d.value ?? 0)
+  const openValues = deals.filter((d) => d.status === 'open').map((d) => d.value ?? 0)
+
+  const historyByDeal = new Map<string, { stage_id: string; entered_at: string }[]>()
+  for (const h of (historyRes.data ?? []) as {
+    deal_id: string
+    stage_id: string
+    entered_at: string
+  }[]) {
+    const list = historyByDeal.get(h.deal_id) ?? []
+    list.push(h)
+    historyByDeal.set(h.deal_id, list)
+  }
+
+  const now = Date.now()
+  const stageDurationsDays = new Map<string, number[]>()
+  let stuckInMeetingCount = 0
+
+  for (const [dealId, entries] of historyByDeal) {
+    const deal = dealById.get(dealId)
+    if (!deal) continue
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i]
+      const next = entries[i + 1]
+      const start = new Date(entry.entered_at).getTime()
+      const end = next ? new Date(next.entered_at).getTime() : now
+      const days = (end - start) / 86400000
+
+      const list = stageDurationsDays.get(entry.stage_id) ?? []
+      list.push(days)
+      stageDurationsDays.set(entry.stage_id, list)
+
+      const isCurrentEntry = !next
+      if (
+        isCurrentEntry &&
+        deal.status === 'open' &&
+        meetingStageIds.has(entry.stage_id) &&
+        days >= STALL_THRESHOLD_DAYS
+      ) {
+        stuckInMeetingCount += 1
+      }
+    }
+  }
+
+  const avgTimeInStage: StageDwellTime[] = stages
+    .map((s) => {
+      const durations = stageDurationsDays.get(s.id) ?? []
+      return {
+        stageId: s.id,
+        stageName: s.name,
+        avgDays: average(durations) ?? 0,
+        samples: durations.length,
+      }
+    })
+    .filter((s) => s.samples > 0)
+
+  return {
+    avgDaysToClose: average(closedDurationsDays),
+    avgValueWon: average(wonValues),
+    avgValueOpen: average(openValues),
+    stuckInMeetingCount,
+    stallThresholdDays: STALL_THRESHOLD_DAYS,
+    avgTimeInStage,
+  }
+}
+
+function average(nums: number[]): number | null {
+  if (nums.length === 0) return null
+  return nums.reduce((a, b) => a + b, 0) / nums.length
 }
