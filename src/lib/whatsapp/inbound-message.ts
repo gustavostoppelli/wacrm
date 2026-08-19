@@ -108,6 +108,7 @@ export async function processInboundMessage(
       contactRecord.id,
       conversation.id,
       contactRecord.name || msg.senderPhone,
+      msg.senderPhone,
     )
     await handleReaction(msg.reaction, conversation.id, contactRecord.id)
     return { conversationId: conversation.id, contactId: contactRecord.id }
@@ -238,6 +239,7 @@ export async function processInboundMessage(
     contactRecord.id,
     conversation.id,
     contactRecord.name || msg.senderPhone,
+    msg.senderPhone,
   )
 
   if (!flowConsumed && !msg.interactiveReplyId && inboundText.trim()) {
@@ -273,6 +275,7 @@ async function ensureDealForContact(
   contactId: string,
   conversationId: string,
   title: string,
+  contactPhone: string,
 ): Promise<void> {
   const db = supabaseAdmin()
 
@@ -295,21 +298,39 @@ async function ensureDealForContact(
       .eq('id', accountId)
       .maybeSingle()
 
-    const { error } = await db.from('deals').insert({
-      user_id: configOwnerUserId,
-      account_id: accountId,
-      pipeline_id: pipelineId,
-      stage_id: stageId,
-      contact_id: contactId,
-      conversation_id: conversationId,
-      title,
-      value: 0,
-      currency: account?.default_currency ?? null,
-      source: 'WhatsApp Direto',
-      status: 'open',
-    })
-    if (error) {
+    const { data: deal, error } = await db
+      .from('deals')
+      .insert({
+        user_id: configOwnerUserId,
+        account_id: accountId,
+        pipeline_id: pipelineId,
+        stage_id: stageId,
+        contact_id: contactId,
+        conversation_id: conversationId,
+        title,
+        value: 0,
+        currency: account?.default_currency ?? null,
+        source: 'WhatsApp Direto',
+        status: 'open',
+      })
+      .select('id')
+      .single()
+    if (error || !deal) {
       console.error('[inbound-message] ensureDealForContact insert failed:', error)
+    } else {
+      // Not dispatched for deals created via POST /api/v1/deals (site
+      // form, Meta Lead Ads sync, Apify) -- those callers already wrote
+      // their own record of the lead (spreadsheet row, etc.) before
+      // calling the API, so firing this here would double it up. This
+      // is specifically the "nobody else logged this lead" fallback
+      // path (organic/direct WhatsApp contact), so it's always safe to
+      // notify subscribers here.
+      await dispatchWebhookEvent(db, accountId, 'deal.created', {
+        deal_id: deal.id,
+        title,
+        source: 'WhatsApp Direto',
+        contact: { id: contactId, name: title, phone: contactPhone },
+      })
     }
   } catch (err) {
     if (err instanceof DealError) {

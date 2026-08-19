@@ -292,14 +292,24 @@ export function DealForm({
         return;
       }
     } else {
-      const { error } = await supabase
+      const { data: newDeal, error } = await supabase
         .from("deals")
-        .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" });
-      if (error) {
+        .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" })
+        .select("id")
+        .single();
+      if (error || !newDeal) {
         toast.error(t("toastFailedCreate"));
         setSaving(false);
         return;
       }
+      // Best-effort: lets any account-configured `deal.created` webhook
+      // (e.g. syncing this lead into an external spreadsheet) fire for
+      // manually-created deals too. Never blocks the save on failure.
+      fetch("/api/deals/notify-created", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deal_id: newDeal.id }),
+      }).catch(() => {});
     }
 
     setSaving(false);
