@@ -45,6 +45,22 @@ export interface NormalizedInboundMessage {
   replyToExternalMessageId: string | null
   /** Set only for reaction events — every other content field is ignored. */
   reaction: { emoji: string; targetExternalMessageId: string } | null
+  /**
+   * Set when this message carries Meta's `referral` object — i.e. it's
+   * the opening message of a Click-to-WhatsApp (or ad "Send message")
+   * conversation. `null`/omitted for everything else, including every
+   * message from providers (UAZAPI) that don't relay this. Only ever
+   * used on the *first* inbound message of a conversation — Meta only
+   * attaches it there, and `ensureDealForContact` only fires once per
+   * contact (no existing open deal), so a later message with no
+   * referral never overwrites an attribution already recorded.
+   */
+  adReferral?: {
+    adId: string | null
+    ctwaClid: string | null
+    headline: string | null
+    sourceUrl: string | null
+  } | null
 }
 
 export interface InboundDispatchResult {
@@ -109,6 +125,7 @@ export async function processInboundMessage(
       conversation.id,
       contactRecord.name || msg.senderPhone,
       msg.senderPhone,
+      msg.adReferral ?? null,
     )
     await handleReaction(msg.reaction, conversation.id, contactRecord.id)
     return { conversationId: conversation.id, contactId: contactRecord.id }
@@ -240,6 +257,7 @@ export async function processInboundMessage(
     conversation.id,
     contactRecord.name || msg.senderPhone,
     msg.senderPhone,
+    msg.adReferral ?? null,
   )
 
   if (!flowConsumed && !msg.interactiveReplyId && inboundText.trim()) {
@@ -276,6 +294,12 @@ async function ensureDealForContact(
   conversationId: string,
   title: string,
   contactPhone: string,
+  adReferral?: {
+    adId: string | null
+    ctwaClid: string | null
+    headline: string | null
+    sourceUrl: string | null
+  } | null,
 ): Promise<void> {
   const db = supabaseAdmin()
 
@@ -288,6 +312,25 @@ async function ensureDealForContact(
     .limit(1)
     .maybeSingle()
   if (existing) return
+
+  // A `referral` object means this contact's first message came from
+  // tapping a Click-to-WhatsApp ad (or an ad's "Send message" CTA) —
+  // attribute it the same way as the other paid-traffic bridges
+  // (see [[project_meta_leads_sync]]) instead of the generic organic
+  // fallback, and keep the ad id / click id on the deal since nothing
+  // else in this pipeline carries them.
+  const source = adReferral ? 'Tráfego Pago (Meta/Google Ads)' : 'WhatsApp Direto'
+  const notes = adReferral
+    ? [
+        'Origem: Click-to-WhatsApp',
+        adReferral.headline ? `Anúncio: ${adReferral.headline}` : null,
+        adReferral.adId ? `Ad ID: ${adReferral.adId}` : null,
+        adReferral.ctwaClid ? `CTWA Click ID: ${adReferral.ctwaClid}` : null,
+        adReferral.sourceUrl ? `Origem do clique: ${adReferral.sourceUrl}` : null,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    : null
 
   try {
     const { pipelineId, stageId } = await resolvePipelineAndStage(db, accountId)
@@ -310,7 +353,8 @@ async function ensureDealForContact(
         title,
         value: 0,
         currency: account?.default_currency ?? null,
-        source: 'WhatsApp Direto',
+        source,
+        notes,
         status: 'open',
       })
       .select('id')
@@ -323,12 +367,13 @@ async function ensureDealForContact(
       // their own record of the lead (spreadsheet row, etc.) before
       // calling the API, so firing this here would double it up. This
       // is specifically the "nobody else logged this lead" fallback
-      // path (organic/direct WhatsApp contact), so it's always safe to
-      // notify subscribers here.
+      // path (organic/direct WhatsApp contact, or now Click-to-WhatsApp
+      // via the referral object), so it's always safe to notify
+      // subscribers here.
       await dispatchWebhookEvent(db, accountId, 'deal.created', {
         deal_id: deal.id,
         title,
-        source: 'WhatsApp Direto',
+        source,
         contact: { id: contactId, name: title, phone: contactPhone },
       })
     }

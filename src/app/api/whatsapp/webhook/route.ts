@@ -57,6 +57,25 @@ interface WhatsAppMessage {
   }
   /** Present when the customer swipe-replies to one of our messages. */
   context?: { id: string }
+  /**
+   * Present only on the FIRST inbound message of a conversation that
+   * started from a Click-to-WhatsApp ad (or an Instagram/Facebook ad
+   * with a "Send message" CTA). `source_id` is the ad id, `ctwa_clid`
+   * is Meta's click id for that ad click — together they're the only
+   * way to attribute a WhatsApp conversation back to the ad/creative
+   * that drove it, since nothing else in the payload carries this.
+   */
+  referral?: {
+    source_url?: string
+    source_type?: string
+    source_id?: string
+    headline?: string
+    body?: string
+    media_type?: string
+    image_url?: string
+    video_url?: string
+    ctwa_clid?: string
+  }
 }
 
 interface WhatsAppWebhookEntry {
@@ -445,6 +464,15 @@ async function processMessage(
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
 
+  const adReferral = message.referral
+    ? {
+        adId: message.referral.source_id ?? null,
+        ctwaClid: message.referral.ctwa_clid ?? null,
+        headline: message.referral.headline ?? null,
+        sourceUrl: message.referral.source_url ?? null,
+      }
+    : null
+
   if (message.type === 'reaction') {
     if (!message.reaction?.message_id) return
     await processInboundMessage({
@@ -464,6 +492,7 @@ async function processMessage(
         emoji: message.reaction.emoji || '',
         targetExternalMessageId: message.reaction.message_id,
       },
+      adReferral,
     })
     return
   }
@@ -495,6 +524,7 @@ async function processMessage(
     interactiveReplyId,
     replyToExternalMessageId: message.context?.id ?? null,
     reaction: null,
+    adReferral,
   })
 }
 
