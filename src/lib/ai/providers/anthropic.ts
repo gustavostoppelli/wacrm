@@ -13,7 +13,12 @@ const ANTHROPIC_VERSION = '2023-06-01'
 
 interface AnthropicResponse {
   content?: { type?: string; text?: string }[]
-  usage?: { input_tokens?: number; output_tokens?: number }
+  usage?: {
+    input_tokens?: number
+    output_tokens?: number
+    cache_creation_input_tokens?: number
+    cache_read_input_tokens?: number
+  }
 }
 
 /**
@@ -53,7 +58,17 @@ export async function generateAnthropic(args: ProviderArgs): Promise<ProviderRes
       },
       body: JSON.stringify({
         model,
-        system: systemPrompt,
+        // The system prompt (roteiro, ICP, regras) is large and identical
+        // on every single turn of every conversation for this account --
+        // exactly what prompt caching is for. The cache_control breakpoint
+        // tells Anthropic to cache this block (5min TTL, refreshed on each
+        // hit) so only the first message of a burst pays full input-token
+        // price for it; every reply after that within the window reads it
+        // from cache at a fraction of the cost. No behavior change, no new
+        // account needed -- same API key, just a cheaper request shape.
+        system: systemPrompt
+          ? [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }]
+          : undefined,
         max_tokens: MAX_OUTPUT_TOKENS,
         messages: normalizeForAnthropic(messages),
       }),
