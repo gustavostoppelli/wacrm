@@ -47,10 +47,18 @@ export async function GET(request: Request) {
     .limit(50)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!due || due.length === 0) return NextResponse.json({ processed: 0 })
 
+  // BUG (fixed 2026-08-20): this used to `return` here when there were
+  // no due automation_pending_executions rows -- which is the common
+  // case, since that table only holds paused/waiting automation steps.
+  // That early return skipped every drain call below (AI off-hours
+  // replies, meeting reminders, followups, reactivation, tasks) on
+  // every cron tick where nothing happened to be mid-automation, which
+  // in practice meant they almost never actually ran. Confirmed live:
+  // a meeting's hour_before reminder sat with sent_at still null well
+  // past its send_at.
   let processed = 0
-  for (const row of due) {
+  for (const row of due ?? []) {
     const { data: claim } = await admin
       .from('automation_pending_executions')
       .update({ status: 'running' })
