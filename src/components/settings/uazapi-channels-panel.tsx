@@ -71,6 +71,28 @@ export function UazapiChannelsPanel() {
     if (error) console.error('Failed to load UAZAPI channels:', error);
     setChannels(data || []);
     setLoading(false);
+
+    // The `status` column above is a snapshot from whenever it was last
+    // written (channel creation, or a previous live check) -- it does NOT
+    // track a session getting logged out on the WhatsApp side in between.
+    // Confirmed live once (issue found 2026-08-23): a channel sat marked
+    // "connected" in the DB for over a week after WhatsApp had actually
+    // logged it out, and because the "Connect" button below is only shown
+    // for non-connected channels, the stale flag hid the one control that
+    // would have let the user reconnect. Re-check every channel's real
+    // status right after loading so the badge (and the Connect button's
+    // visibility) reflect reality, not a cached column.
+    for (const ch of data || []) {
+      fetch(`/api/uazapi/channels/${ch.id}/status`)
+        .then((res) => res.json())
+        .then((result) => {
+          if (typeof result?.status !== 'string') return
+          setChannels((prev) =>
+            prev.map((c) => (c.id === ch.id ? { ...c, status: result.status } : c))
+          )
+        })
+        .catch((err) => console.error('UAZAPI live status check failed:', err))
+    }
   }, [supabase]);
 
   useEffect(() => {
