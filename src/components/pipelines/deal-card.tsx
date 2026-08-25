@@ -26,6 +26,30 @@ function initials(name?: string, fallback?: string) {
   return source.charAt(0).toUpperCase();
 }
 
+/**
+ * Formats a stored phone (digits only, e.g. "5521970060194") as a
+ * Brazilian number with DDD: "(21) 97006-0194". Falls back to the raw
+ * digits with a leading "+" for anything that isn't a recognizable
+ * BR mobile/landline length, rather than guessing at other countries'
+ * formats.
+ */
+function formatPhoneDisplay(phone?: string): string | null {
+  if (!phone) return null;
+  let digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
+    digits = digits.slice(2);
+  }
+  const ddd = digits.slice(0, 2);
+  const rest = digits.slice(2);
+  if (rest.length === 9) {
+    return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
+  }
+  if (rest.length === 8) {
+    return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+  }
+  return `+${phone.replace(/\D/g, "")}`;
+}
+
 export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
   const t = useTranslations("Pipelines.card");
   const contactLabel = deal.contact?.name || deal.contact?.phone || t("noContact");
@@ -91,7 +115,14 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-foreground">
           {initials(deal.contact?.name, deal.contact?.phone)}
         </span>
-        <span className="truncate text-xs text-muted-foreground">{contactLabel}</span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs text-muted-foreground">{contactLabel}</p>
+          {deal.contact?.name && deal.contact?.phone && (
+            <p className="truncate text-[10px] text-muted-foreground/70">
+              {formatPhoneDisplay(deal.contact.phone)}
+            </p>
+          )}
+        </div>
       </div>
 
       {deal.source && (
