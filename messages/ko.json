@@ -582,6 +582,12 @@
       "toastFailedSave": "작업 업데이트 실패",
       "toastFailedDelete": "작업 삭제 실패"
     },
+    "conversationHistory": {
+      "title": "대화 기록 (WhatsApp)",
+      "empty": "아직 이 연락처와의 WhatsApp 대화가 없습니다.",
+      "nonTextPlaceholder": "텍스트가 아닌 메시지",
+      "viewFullInInbox": "인박스에서 전체 대화 보기"
+    },
     "card": {
       "noContact": "연락처 없음",
       "won": "성사",

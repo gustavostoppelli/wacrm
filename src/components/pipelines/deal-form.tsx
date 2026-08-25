@@ -44,6 +44,7 @@ import {
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { DealTasks } from "./deal-tasks";
+import { DealConversationHistory } from "./deal-conversation-history";
 
 interface DealFormProps {
   open: boolean;
@@ -373,6 +374,10 @@ export function DealForm({
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {deal && (
+              <DealConversationHistory contactId={deal.contact_id} />
+            )}
+
             <div className="grid gap-2">
               <Label className="text-muted-foreground">{t("title")}</Label>
               <Input

@@ -582,6 +582,12 @@
       "toastFailedSave": "Failed to update task",
       "toastFailedDelete": "Failed to delete task"
     },
+    "conversationHistory": {
+      "title": "Conversation history (WhatsApp)",
+      "empty": "No WhatsApp conversation with this contact yet.",
+      "nonTextPlaceholder": "Non-text message",
+      "viewFullInInbox": "View full conversation in Inbox"
+    },
     "card": {
       "noContact": "No contact",
       "won": "Won",

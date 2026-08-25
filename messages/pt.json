@@ -582,6 +582,12 @@
       "toastFailedSave": "Falha ao atualizar tarefa",
       "toastFailedDelete": "Falha ao excluir tarefa"
     },
+    "conversationHistory": {
+      "title": "Histórico da conversa (WhatsApp)",
+      "empty": "Nenhuma conversa de WhatsApp com esse contato ainda.",
+      "nonTextPlaceholder": "Mensagem não textual",
+      "viewFullInInbox": "Ver conversa completa na Caixa de entrada"
+    },
     "card": {
       "noContact": "Sem contato",
       "won": "Ganho",
