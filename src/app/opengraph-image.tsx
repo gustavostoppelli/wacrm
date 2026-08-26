@@ -57,10 +57,10 @@ export default function OpengraphImage() {
               fontFamily: "Inter, 'Helvetica Neue', Arial, sans-serif",
               fontWeight: 700,
               fontSize: 96,
-              color: "#f8fafc",
             }}
           >
-            FuseHub
+            <span style={{ color: "#f8fafc" }}>Fuse</span>
+            <span style={{ color: "#10b981" }}>Hub</span>
           </span>
         </div>
         <span
