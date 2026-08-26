@@ -38,7 +38,7 @@ export default function OpengraphImage() {
               width: 120,
               height: 120,
               borderRadius: 28,
-              background: "#7c3aed",
+              background: "#0A5E4E",
             }}
           >
             <span
@@ -46,10 +46,10 @@ export default function OpengraphImage() {
                 fontFamily: "Inter, 'Helvetica Neue', Arial, sans-serif",
                 fontWeight: 700,
                 fontSize: 72,
-                color: "#ffffff",
               }}
             >
-              F
+              <span style={{ color: "#F2EDE1" }}>f</span>
+              <span style={{ color: "#D8C08A" }}>.</span>
             </span>
           </div>
           <span
@@ -69,7 +69,7 @@ export default function OpengraphImage() {
             fontFamily: "Inter, 'Helvetica Neue', Arial, sans-serif",
             fontWeight: 500,
             fontSize: 34,
-            color: "#a78bfa",
+            color: "#D8C08A",
           }}
         >
           CRM com IA para vendas e atendimento no WhatsApp

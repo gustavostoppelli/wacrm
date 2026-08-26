@@ -1,7 +1,8 @@
 import { ImageResponse } from "next/og";
 
-// Brand favicon — violet rounded square with a bold "F" monogram, matching
-// the sidebar logo tile color (`bg-primary`) in `src/components/layout/sidebar.tsx`.
+// Brand favicon — Emerald Palace background with the "f." monogram,
+// matching the Fuse brand mark (see fuse-monograma-emerald.svg) and the
+// app's default Emerald accent theme (`DEFAULT_THEME` in src/lib/themes.ts).
 // Next.js renders this at build time and auto-injects <link rel="icon"> into <head>.
 //
 // This route takes precedence over src/app/favicon.ico, which is the
@@ -21,7 +22,7 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#7c3aed",
+          background: "#0A5E4E",
           borderRadius: 7,
         }}
       >
@@ -31,10 +32,10 @@ export default function Icon() {
             fontWeight: 700,
             fontSize: 20,
             lineHeight: 1,
-            color: "#ffffff",
           }}
         >
-          F
+          <span style={{ color: "#F2EDE1" }}>f</span>
+          <span style={{ color: "#D8C08A" }}>.</span>
         </span>
       </div>
     ),
