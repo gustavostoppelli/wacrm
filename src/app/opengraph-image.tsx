@@ -4,6 +4,14 @@ import { ImageResponse } from "next/og";
 // auto-detects this file convention and injects the right <meta> tags —
 // no manual metadata wiring needed. Also used as the Twitter card image
 // since no separate twitter-image route is defined.
+//
+// Deliberately just a scaled-up version of the favicon (src/app/icon.tsx)
+// filling the whole canvas edge-to-edge, rather than a wordmark+tagline
+// composition — several chat apps (WhatsApp included) crop this down to
+// a small square thumbnail instead of showing it full-size, and a
+// centered monogram on a flat brand color survives that crop no matter
+// where it's taken from. Title/description still come through as text
+// via the surrounding og:title/og:description meta tags.
 
 export const runtime = "edge";
 export const size = { width: 1200, height: 630 };
@@ -17,62 +25,21 @@ export default function OpengraphImage() {
           width: "100%",
           height: "100%",
           display: "flex",
-          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "#020617",
+          background: "#0A5E4E",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 28,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 120,
-              height: 120,
-              borderRadius: 28,
-              background: "#0A5E4E",
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "Inter, 'Helvetica Neue', Arial, sans-serif",
-                fontWeight: 700,
-                fontSize: 72,
-              }}
-            >
-              <span style={{ color: "#F2EDE1" }}>f</span>
-              <span style={{ color: "#D8C08A" }}>.</span>
-            </span>
-          </div>
-          <span
-            style={{
-              fontFamily: "Inter, 'Helvetica Neue', Arial, sans-serif",
-              fontWeight: 700,
-              fontSize: 96,
-            }}
-          >
-            <span style={{ color: "#f8fafc" }}>Fuse</span>
-            <span style={{ color: "#10b981" }}>Hub</span>
-          </span>
-        </div>
         <span
           style={{
-            marginTop: 32,
             fontFamily: "Inter, 'Helvetica Neue', Arial, sans-serif",
-            fontWeight: 500,
-            fontSize: 34,
-            color: "#D8C08A",
+            fontWeight: 700,
+            fontSize: 340,
+            lineHeight: 1,
           }}
         >
-          CRM com IA para vendas e atendimento no WhatsApp
+          <span style={{ color: "#F2EDE1" }}>f</span>
+          <span style={{ color: "#D8C08A" }}>.</span>
         </span>
       </div>
     ),
