@@ -20,18 +20,35 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+const APP_TITLE = "FuseHub";
+const APP_DESCRIPTION = "CRM com IA para vendas e atendimento no WhatsApp.";
+
 export const metadata: Metadata = {
+  metadataBase: process.env.NEXT_PUBLIC_APP_URL
+    ? new URL(process.env.NEXT_PUBLIC_APP_URL)
+    : undefined,
   title: {
-    default: "FuseHub",
+    default: APP_TITLE,
     template: "%s — FuseHub",
   },
-  description: "Self-hostable CRM template for WhatsApp.",
+  description: APP_DESCRIPTION,
   robots: {
     index: false,
     follow: false,
   },
   icons: {
     icon: [{ url: "/icon" }],
+  },
+  openGraph: {
+    title: APP_TITLE,
+    description: APP_DESCRIPTION,
+    siteName: APP_TITLE,
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: APP_TITLE,
+    description: APP_DESCRIPTION,
   },
   formatDetection: {
     email: false,
