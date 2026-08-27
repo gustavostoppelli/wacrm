@@ -7,12 +7,23 @@ import { ImageResponse } from "next/og";
 //
 // This route takes precedence over src/app/favicon.ico, which is the
 // Next.js default and can stay on disk harmlessly (or be removed).
+//
+// The renderer (Satori, via next/og) does NOT resolve font-family names
+// against system/Google fonts — without an explicit `fonts` buffer it
+// silently falls back to a generic sans, which is why "f." rendered in
+// the wrong typeface everywhere this image got embedded (WhatsApp link
+// previews included). `src/app/fonts/inter-700.woff` is the same
+// Inter Bold used for the wordmark elsewhere in the brand.
 
 export const runtime = "edge";
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
 
-export default function Icon() {
+export default async function Icon() {
+  const interBold = await fetch(
+    new URL("./fonts/inter-700.woff", import.meta.url),
+  ).then((res) => res.arrayBuffer());
+
   return new ImageResponse(
     (
       <div
@@ -28,7 +39,7 @@ export default function Icon() {
       >
         <span
           style={{
-            fontFamily: "Inter, 'Helvetica Neue', Arial, sans-serif",
+            fontFamily: "Inter",
             fontWeight: 700,
             fontSize: 20,
             lineHeight: 1,
@@ -39,6 +50,9 @@ export default function Icon() {
         </span>
       </div>
     ),
-    { ...size },
+    {
+      ...size,
+      fonts: [{ name: "Inter", data: interBold, weight: 700, style: "normal" }],
+    },
   );
 }

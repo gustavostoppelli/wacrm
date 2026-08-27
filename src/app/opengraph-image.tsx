@@ -12,12 +12,19 @@ import { ImageResponse } from "next/og";
 // centered monogram on a flat brand color survives that crop no matter
 // where it's taken from. Title/description still come through as text
 // via the surrounding og:title/og:description meta tags.
+//
+// See src/app/icon.tsx for why the `fonts` buffer below is required —
+// without it Satori silently falls back to a generic sans typeface.
 
 export const runtime = "edge";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OpengraphImage() {
+export default async function OpengraphImage() {
+  const interBold = await fetch(
+    new URL("./fonts/inter-700.woff", import.meta.url),
+  ).then((res) => res.arrayBuffer());
+
   return new ImageResponse(
     (
       <div
@@ -32,7 +39,7 @@ export default function OpengraphImage() {
       >
         <span
           style={{
-            fontFamily: "Inter, 'Helvetica Neue', Arial, sans-serif",
+            fontFamily: "Inter",
             fontWeight: 700,
             fontSize: 340,
             lineHeight: 1,
@@ -43,6 +50,9 @@ export default function OpengraphImage() {
         </span>
       </div>
     ),
-    { ...size },
+    {
+      ...size,
+      fonts: [{ name: "Inter", data: interBold, weight: 700, style: "normal" }],
+    },
   );
 }
