@@ -314,6 +314,7 @@
       "avgDaysToClose": "평균 성사 소요 시간",
       "avgValueWon": "평균 거래 규모 (성사)",
       "avgValueOpen": "평균 거래 규모 (진행 중)",
+      "avgFirstResponse": "평균 첫 응답 시간",
       "stuckInMeeting": "{days}일+ 상담 단계에 정체",
       "avgTimeInStageTitle": "단계별 평균 소요 시간",
       "days": "{count}일",
@@ -341,6 +342,29 @@
       "unsetSource": "출처 없음",
       "empty": "아직 거래가 없습니다.",
       "emptyHint": "출처가 기록된 거래가 생기면 차트가 표시됩니다."
+    },
+    "lostReasons": {
+      "title": "실패 사유",
+      "description": "실패한 거래를 사유별로 묶어서 보여줍니다 — 거래를 실패로 표시할 때 선택한 사유입니다.",
+      "reason": "사유",
+      "count": "거래",
+      "totalValue": "손실 금액",
+      "unsetReason": "미입력",
+      "empty": "아직 실패한 거래가 없습니다.",
+      "emptyHint": "사유를 선택해 거래를 실패로 표시하면 여기에 표시됩니다."
+    },
+    "ranking": {
+      "title": "담당자별 순위",
+      "description": "팀원별 거래 수, 성사 금액, 전환율입니다.",
+      "name": "담당자",
+      "totalDeals": "거래",
+      "won": "성사",
+      "lost": "실패",
+      "wonValue": "성사 금액",
+      "winRate": "전환율",
+      "unsetRate": "—",
+      "empty": "아직 배정된 거래가 없습니다.",
+      "emptyHint": "팀원에게 거래가 배정되면 여기에 표시됩니다."
     }
   },
   "Contacts": {
@@ -616,6 +640,8 @@
       "status": "상태",
       "markAsWon": "성사로 표시",
       "markAsLost": "실패로 표시",
+      "lostReasonLabel": "실패 사유",
+      "lostReasonDetailPlaceholder": "사유를 설명해 주세요...",
       "reopenDeal": "딜 재개",
       "cancel": "취소",
       "saving": "저장 중...",

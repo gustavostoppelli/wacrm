@@ -314,6 +314,7 @@
       "avgDaysToClose": "Avg time to close",
       "avgValueWon": "Avg ticket (won)",
       "avgValueOpen": "Avg ticket (open)",
+      "avgFirstResponse": "Avg first-response time",
       "stuckInMeeting": "Stuck {days}+ days in meeting",
       "avgTimeInStageTitle": "Avg time per stage",
       "days": "{count} {count, plural, =1 {day} other {days}}",
@@ -341,6 +342,29 @@
       "unsetSource": "No source",
       "empty": "No deals yet.",
       "emptyHint": "The chart shows up once there are deals with a recorded source."
+    },
+    "lostReasons": {
+      "title": "Loss reason",
+      "description": "Lost deals grouped by reason — picked when marking a deal as lost.",
+      "reason": "Reason",
+      "count": "Deals",
+      "totalValue": "Value lost",
+      "unsetReason": "Not informed",
+      "empty": "No lost deals yet.",
+      "emptyHint": "Shows up once a deal is marked lost with a reason selected."
+    },
+    "ranking": {
+      "title": "Ranking by rep",
+      "description": "Deals, closed value, and conversion rate per team member.",
+      "name": "Rep",
+      "totalDeals": "Deals",
+      "won": "Won",
+      "lost": "Lost",
+      "wonValue": "Won value",
+      "winRate": "Win rate",
+      "unsetRate": "—",
+      "empty": "No deals assigned yet.",
+      "emptyHint": "Shows up once deals are assigned to someone on the team."
     }
   },
   "Contacts": {
@@ -616,6 +640,8 @@
       "status": "Status",
       "markAsWon": "Mark as Won",
       "markAsLost": "Mark as Lost",
+      "lostReasonLabel": "Loss reason",
+      "lostReasonDetailPlaceholder": "Describe the reason...",
       "reopenDeal": "Reopen deal",
       "cancel": "Cancel",
       "saving": "Saving...",

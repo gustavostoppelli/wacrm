@@ -4,8 +4,20 @@ import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
-import { loadCampaignReport, loadFunnelInsights, loadPipelineFunnel } from "@/lib/dashboard/queries"
-import type { CampaignReportRow, FunnelInsightsData, PipelineFunnelData } from "@/lib/dashboard/types"
+import {
+  loadCampaignReport,
+  loadFunnelInsights,
+  loadLostReasonReport,
+  loadPipelineFunnel,
+  loadSalesRepRanking,
+} from "@/lib/dashboard/queries"
+import type {
+  CampaignReportRow,
+  FunnelInsightsData,
+  LostReasonReportRow,
+  PipelineFunnelData,
+  SalesRepRankingRow,
+} from "@/lib/dashboard/types"
 import {
   Table,
   TableBody,
@@ -17,6 +29,8 @@ import {
 import { PipelineFunnel } from "@/components/dashboard/pipeline-funnel"
 import { FunnelInsights } from "@/components/dashboard/funnel-insights"
 import { LeadsBySourceChart } from "@/components/dashboard/leads-by-source-chart"
+import { LostReasonsTable } from "@/components/dashboard/lost-reasons-table"
+import { SalesRepRankingTable } from "@/components/dashboard/sales-rep-ranking-table"
 import { BarChart3 } from "lucide-react"
 
 export default function ReportsPage() {
@@ -28,6 +42,10 @@ export default function ReportsPage() {
   const [funnelLoading, setFunnelLoading] = useState(true)
   const [insights, setInsights] = useState<FunnelInsightsData | null>(null)
   const [insightsLoading, setInsightsLoading] = useState(true)
+  const [lostReasons, setLostReasons] = useState<LostReasonReportRow[] | null>(null)
+  const [lostReasonsLoading, setLostReasonsLoading] = useState(true)
+  const [ranking, setRanking] = useState<SalesRepRankingRow[] | null>(null)
+  const [rankingLoading, setRankingLoading] = useState(true)
 
   useEffect(() => {
     const db = createClient()
@@ -45,6 +63,16 @@ export default function ReportsPage() {
       .then(setInsights)
       .catch((err) => console.error("[reports] insights load failed:", err))
       .finally(() => setInsightsLoading(false))
+
+    loadLostReasonReport(db)
+      .then(setLostReasons)
+      .catch((err) => console.error("[reports] lost reasons load failed:", err))
+      .finally(() => setLostReasonsLoading(false))
+
+    loadSalesRepRanking(db)
+      .then(setRanking)
+      .catch((err) => console.error("[reports] ranking load failed:", err))
+      .finally(() => setRankingLoading(false))
   }, [])
 
   return (
@@ -116,6 +144,10 @@ export default function ReportsPage() {
           </Table>
         )}
       </div>
+
+      <SalesRepRankingTable rows={ranking} loading={rankingLoading} currency={defaultCurrency} />
+
+      <LostReasonsTable rows={lostReasons} loading={lostReasonsLoading} currency={defaultCurrency} />
     </div>
   )
 }

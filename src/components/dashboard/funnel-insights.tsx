@@ -37,7 +37,7 @@ export function FunnelInsights({ data, loading, currency }: FunnelInsightsProps)
           <EmptyState icon={TrendingUp} title={t('empty')} hint={t('emptyHint')} />
         ) : (
           <>
-            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-5">
               <Stat
                 label={t('avgDaysToClose')}
                 value={data.avgDaysToClose !== null ? t('days', { count: Math.round(data.avgDaysToClose) }) : '—'}
@@ -49,6 +49,10 @@ export function FunnelInsights({ data, loading, currency }: FunnelInsightsProps)
               <Stat
                 label={t('avgValueOpen')}
                 value={data.avgValueOpen !== null ? formatCurrencyShort(data.avgValueOpen, currency) : '—'}
+              />
+              <Stat
+                label={t('avgFirstResponse')}
+                value={formatMinutes(data.avgFirstResponseMinutes)}
               />
               <Stat
                 label={t('stuckInMeeting', { days: data.stallThresholdDays })}
@@ -79,6 +83,15 @@ export function FunnelInsights({ data, loading, currency }: FunnelInsightsProps)
       </div>
     </section>
   )
+}
+
+/** Mirrors response-time-chart.tsx's `fmt` — seconds under a minute,
+ *  otherwise minutes, otherwise hours. */
+function formatMinutes(mins: number | null): string {
+  if (mins == null) return '—'
+  if (mins < 1) return `${Math.max(1, Math.round(mins * 60))}s`
+  if (mins < 60) return `${mins.toFixed(1)}m`
+  return `${(mins / 60).toFixed(1)}h`
 }
 
 function Stat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {

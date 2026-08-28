@@ -314,6 +314,7 @@
       "avgDaysToClose": "Tempo médio até fechar",
       "avgValueWon": "Ticket médio (fechados)",
       "avgValueOpen": "Ticket médio (em aberto)",
+      "avgFirstResponse": "Tempo médio de 1ª resposta",
       "stuckInMeeting": "Parados há {days}+ dias em reunião",
       "avgTimeInStageTitle": "Tempo médio por fase",
       "days": "{count} {count, plural, =1 {dia} other {dias}}",
@@ -341,6 +342,29 @@
       "unsetSource": "Sem origem",
       "empty": "Nenhum negócio ainda.",
       "emptyHint": "O gráfico aparece assim que houver negócios com origem registrada."
+    },
+    "lostReasons": {
+      "title": "Motivo de perda",
+      "description": "Negócios perdidos agrupados por motivo — escolhido ao marcar um negócio como perdido.",
+      "reason": "Motivo",
+      "count": "Negócios",
+      "totalValue": "Valor perdido",
+      "unsetReason": "Não informado",
+      "empty": "Nenhum negócio perdido ainda.",
+      "emptyHint": "Aparece assim que um negócio for marcado como perdido com um motivo selecionado."
+    },
+    "ranking": {
+      "title": "Ranking por responsável",
+      "description": "Negócios, valor fechado e taxa de conversão por pessoa da equipe.",
+      "name": "Responsável",
+      "totalDeals": "Negócios",
+      "won": "Ganhos",
+      "lost": "Perdidos",
+      "wonValue": "Valor ganho",
+      "winRate": "Taxa de conversão",
+      "unsetRate": "—",
+      "empty": "Nenhum negócio atribuído ainda.",
+      "emptyHint": "Aparece assim que negócios forem atribuídos a alguém da equipe."
     }
   },
   "Contacts": {
@@ -616,6 +640,8 @@
       "status": "Status",
       "markAsWon": "Marcar como ganho",
       "markAsLost": "Marcar como perdido",
+      "lostReasonLabel": "Motivo da perda",
+      "lostReasonDetailPlaceholder": "Detalhe o motivo...",
       "reopenDeal": "Reabrir negócio",
       "cancel": "Cancelar",
       "saving": "Salvando...",

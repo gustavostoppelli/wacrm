@@ -12,12 +12,14 @@ import type {
   CampaignReportRow,
   ConversationsSeriesPoint,
   FunnelInsightsData,
+  LostReasonReportRow,
   MetricsBundle,
   PipelineDonutData,
   PipelineFunnelData,
   PipelineStageSlice,
   ResponseTimeBucket,
   ResponseTimeSummary,
+  SalesRepRankingRow,
   StageDwellTime,
 } from './types'
 
@@ -528,12 +530,19 @@ export async function loadPipelineFunnel(db: DB): Promise<PipelineFunnelData> {
 const STALL_THRESHOLD_DAYS = 7
 
 export async function loadFunnelInsights(db: DB): Promise<FunnelInsightsData> {
-  const [stagesRes, dealsRes, historyRes] = await Promise.all([
+  const [stagesRes, dealsRes, historyRes, messagesRes] = await Promise.all([
     db.from('pipeline_stages').select('id, name, stage_role, position').order('position'),
     db.from('deals').select('id, stage_id, status, value, created_at, closed_at'),
     // Ascending so each deal's own entries land in visit order once
     // grouped below — no extra per-group sort needed.
     db.from('deal_stage_history').select('deal_id, stage_id, entered_at').order('entered_at', { ascending: true }),
+    // Same ordering requirement as loadResponseTime's per-conversation
+    // walk below (grouped by conversation, chronological within it).
+    db
+      .from('messages')
+      .select('conversation_id, sender_type, created_at')
+      .order('conversation_id', { ascending: true })
+      .order('created_at', { ascending: true }),
   ])
 
   const stages = (stagesRes.data ?? []) as {
@@ -620,6 +629,32 @@ export async function loadFunnelInsights(db: DB): Promise<FunnelInsightsData> {
     })
     .filter((s) => s.samples > 0)
 
+  // Same "unreplied customer message -> next outbound" pairing as
+  // loadResponseTime, but over every message ever (no 14-day window)
+  // and collapsed to one all-time average instead of per-weekday
+  // buckets, matching this bundle's other lifetime metrics.
+  const responseSamplesMin: number[] = []
+  let responseConv = ''
+  let pendingCustomerAt: Date | null = null
+  for (const row of (messagesRes.data ?? []) as {
+    conversation_id: string
+    sender_type: string
+    created_at: string
+  }[]) {
+    if (row.conversation_id !== responseConv) {
+      responseConv = row.conversation_id
+      pendingCustomerAt = null
+    }
+    const ts = new Date(row.created_at)
+    if (row.sender_type === 'customer') {
+      if (!pendingCustomerAt) pendingCustomerAt = ts
+    } else if (pendingCustomerAt) {
+      const diffMin = (ts.getTime() - pendingCustomerAt.getTime()) / 60_000
+      if (diffMin >= 0) responseSamplesMin.push(diffMin)
+      pendingCustomerAt = null
+    }
+  }
+
   return {
     avgDaysToClose: average(closedDurationsDays),
     avgValueWon: average(wonValues),
@@ -627,10 +662,103 @@ export async function loadFunnelInsights(db: DB): Promise<FunnelInsightsData> {
     stuckInMeetingCount,
     stallThresholdDays: STALL_THRESHOLD_DAYS,
     avgTimeInStage,
+    avgFirstResponseMinutes: average(responseSamplesMin),
   }
 }
 
 function average(nums: number[]): number | null {
   if (nums.length === 0) return null
   return nums.reduce((a, b) => a + b, 0) / nums.length
+}
+
+// --- 9. Lost reason report -------------------------------------------------
+
+/** Every lost deal grouped by `lost_reason` (migration 053). */
+export async function loadLostReasonReport(db: DB): Promise<LostReasonReportRow[]> {
+  const { data, error } = await db
+    .from('deals')
+    .select('lost_reason, value')
+    .eq('status', 'lost')
+
+  if (error) {
+    console.error('[dashboard] loadLostReasonReport failed:', error)
+    return []
+  }
+
+  const buckets = new Map<string, LostReasonReportRow>()
+  for (const row of (data ?? []) as { lost_reason: string | null; value: number | null }[]) {
+    const key = row.lost_reason ?? ''
+    let bucket = buckets.get(key)
+    if (!bucket) {
+      bucket = { reason: row.lost_reason, count: 0, totalValue: 0 }
+      buckets.set(key, bucket)
+    }
+    bucket.count += 1
+    bucket.totalValue += row.value ?? 0
+  }
+
+  return Array.from(buckets.values()).sort((a, b) => b.count - a.count)
+}
+
+// --- 10. Sales rep ranking --------------------------------------------------
+
+/**
+ * Deals grouped by `assigned_to`, joined against `profiles` for
+ * display names. Unassigned deals are excluded — there's no
+ * salesperson to rank them under.
+ */
+export async function loadSalesRepRanking(db: DB): Promise<SalesRepRankingRow[]> {
+  const [dealsRes, profilesRes] = await Promise.all([
+    db.from('deals').select('assigned_to, status, value').not('assigned_to', 'is', null),
+    db.from('profiles').select('id, full_name, email'),
+  ])
+
+  if (dealsRes.error) {
+    console.error('[dashboard] loadSalesRepRanking failed:', dealsRes.error)
+    return []
+  }
+
+  const nameById = new Map(
+    ((profilesRes.data ?? []) as { id: string; full_name: string | null; email: string | null }[]).map(
+      (p) => [p.id, p.full_name || p.email || p.id],
+    ),
+  )
+
+  const buckets = new Map<string, SalesRepRankingRow>()
+  for (const row of (dealsRes.data ?? []) as {
+    assigned_to: string
+    status: string | null
+    value: number | null
+  }[]) {
+    let bucket = buckets.get(row.assigned_to)
+    if (!bucket) {
+      bucket = {
+        userId: row.assigned_to,
+        name: nameById.get(row.assigned_to) ?? row.assigned_to,
+        totalDeals: 0,
+        wonCount: 0,
+        lostCount: 0,
+        openCount: 0,
+        wonValue: 0,
+        winRate: null,
+      }
+      buckets.set(row.assigned_to, bucket)
+    }
+    bucket.totalDeals += 1
+    if (row.status === 'won') {
+      bucket.wonCount += 1
+      bucket.wonValue += row.value ?? 0
+    } else if (row.status === 'lost') {
+      bucket.lostCount += 1
+    } else {
+      bucket.openCount += 1
+    }
+  }
+
+  for (const bucket of buckets.values()) {
+    const resolved = bucket.wonCount + bucket.lostCount
+    bucket.winRate = resolved > 0 ? bucket.wonCount / resolved : null
+  }
+
+  return Array.from(buckets.values()).sort((a, b) => b.wonValue - a.wonValue)
 }

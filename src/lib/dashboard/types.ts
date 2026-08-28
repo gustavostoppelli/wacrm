@@ -120,4 +120,41 @@ export interface FunnelInsightsData {
   stuckInMeetingCount: number
   stallThresholdDays: number
   avgTimeInStage: StageDwellTime[]
+  /**
+   * All-time average minutes between an unreplied customer message and
+   * the next outbound (agent/bot) message, across every conversation --
+   * same pairing logic as the Dashboard's 14-day ResponseTimeSummary,
+   * but account-wide and not windowed, matching this bundle's other
+   * "since the beginning" metrics.
+   */
+  avgFirstResponseMinutes: number | null
+}
+
+/**
+ * Lost deals grouped by `lost_reason` (migration 053). `reason` is
+ * `null` for deals lost before this field existed, or reopened+relost
+ * without picking one -- rendered as "not informed" rather than
+ * dropped, so the total still reconciles with the funnel's lostCount.
+ */
+export interface LostReasonReportRow {
+  reason: string | null
+  count: number
+  totalValue: number
+}
+
+/**
+ * Deals grouped by `assigned_to`, for a per-salesperson leaderboard.
+ * `winRate` is wonCount / (wonCount + lostCount) -- open deals don't
+ * count toward the denominator since they haven't resolved either way
+ * yet; null when there's no closed deal to compute a rate from.
+ */
+export interface SalesRepRankingRow {
+  userId: string
+  name: string
+  totalDeals: number
+  wonCount: number
+  lostCount: number
+  openCount: number
+  wonValue: number
+  winRate: number | null
 }

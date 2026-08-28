@@ -12,6 +12,7 @@ import {
   type ExistingContact,
 } from "@/lib/contacts/dedupe";
 import { DEAL_SOURCES } from "@/lib/deals/source";
+import { LOST_REASONS } from "@/lib/deals/lost-reason";
 import type {
   Contact,
   Conversation,
@@ -113,6 +114,9 @@ export function DealForm({
   const [statusAction, setStatusAction] = useState<DealStatus | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [lostReasonPrompt, setLostReasonPrompt] = useState(false);
+  const [lostReason, setLostReason] = useState<string>(LOST_REASONS[0]);
+  const [lostReasonDetail, setLostReasonDetail] = useState("");
 
   // Reset the form fields every time the sheet opens or its input
   // props change. This is a legitimate prop-driven sync; the rule is
@@ -121,6 +125,9 @@ export function DealForm({
   useEffect(() => {
     if (!open) return;
     setConfirmDelete(false);
+    setLostReasonPrompt(false);
+    setLostReason(LOST_REASONS[0]);
+    setLostReasonDetail("");
     setCreatingContact(false);
     setNewContactName("");
     setNewContactPhone("");
@@ -350,12 +357,26 @@ export function DealForm({
     onSaved();
   }
 
-  async function handleStatusChange(status: DealStatus) {
+  async function handleStatusChange(
+    status: DealStatus,
+    reason?: { lostReason: string; lostReasonDetail: string },
+  ) {
     if (!deal) return;
     setStatusAction(status);
+    const payload: Record<string, unknown> = { status };
+    if (status === "lost" && reason) {
+      payload.lost_reason = reason.lostReason;
+      payload.lost_reason_detail =
+        reason.lostReason === "Outro" ? reason.lostReasonDetail.trim() || null : null;
+    } else if (status !== "lost") {
+      // Reopening (or marking won) clears any stale loss reason from a
+      // previous lost->reopened->lost cycle.
+      payload.lost_reason = null;
+      payload.lost_reason_detail = null;
+    }
     const { error } = await supabase
       .from("deals")
-      .update({ status })
+      .update(payload)
       .eq("id", deal.id);
     setStatusAction(null);
     if (error) {
@@ -646,7 +667,7 @@ export function DealForm({
                   </Button>
                   <Button
                     type="button"
-                    onClick={() => handleStatusChange("lost")}
+                    onClick={() => setLostReasonPrompt(true)}
                     disabled={!!statusAction || deal.status === "lost"}
                     className="flex-1 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
                   >
@@ -660,6 +681,52 @@ export function DealForm({
                     )}
                   </Button>
                 </div>
+
+                {lostReasonPrompt && (
+                  <div className="space-y-2 rounded-md border border-red-500/30 bg-red-500/10 p-2.5">
+                    <Label className="text-xs text-red-300">{t("lostReasonLabel")}</Label>
+                    <select
+                      value={lostReason}
+                      onChange={(e) => setLostReason(e.target.value)}
+                      className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary"
+                    >
+                      {LOST_REASONS.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                    {lostReason === "Outro" && (
+                      <Input
+                        value={lostReasonDetail}
+                        onChange={(e) => setLostReasonDetail(e.target.value)}
+                        placeholder={t("lostReasonDetailPlaceholder")}
+                        className="border-border bg-muted text-foreground"
+                      />
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setLostReasonPrompt(false)}
+                        className="flex-1 border-border bg-transparent text-muted-foreground hover:bg-muted"
+                      >
+                        {t("cancel")}
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setLostReasonPrompt(false);
+                          handleStatusChange("lost", { lostReason, lostReasonDetail });
+                        }}
+                        className="flex-1 bg-red-600 text-white hover:bg-red-700"
+                      >
+                        {t("confirm")}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {deal.status && deal.status !== "open" && (
                   <Button
                     type="button"
