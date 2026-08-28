@@ -90,6 +90,7 @@ export async function GET(request: Request) {
   const followupsProcessed = await drainDueFollowups(admin)
   const reactivationsProcessed = await drainLostDealReactivation(admin)
   const tasksProcessed = await drainDueTasks(admin)
+  const closeDateAlertsProcessed = await drainDueCloseDateAlerts(admin)
 
   return NextResponse.json({
     processed,
@@ -98,6 +99,7 @@ export async function GET(request: Request) {
     followups_processed: followupsProcessed,
     reactivations_processed: reactivationsProcessed,
     tasks_processed: tasksProcessed,
+    close_date_alerts_processed: closeDateAlertsProcessed,
   })
 }
 
@@ -474,6 +476,68 @@ async function drainDueTasks(admin: ReturnType<typeof supabaseAdmin>): Promise<n
       })
     } catch (err) {
       console.error('[task reminder] notify failed:', err)
+    }
+    processed++
+  }
+  return processed
+}
+
+/**
+ * Drains open deals (migration 052) whose `expected_close_date` has
+ * arrived or passed into a `deal_close_due` notification -- "time to
+ * close this" the day it's due, "this is overdue" every day after
+ * until someone changes the date or moves the deal to won/lost.
+ * `expected_close_date` is a plain DATE (no timezone), so "due" is
+ * evaluated against the cron server's own UTC date, same
+ * best-effort precision as the rest of this file's day-level checks.
+ * Notifies `assigned_to` when set, falling back to the deal's
+ * creator (`user_id`) otherwise -- mirrors who a human would actually
+ * expect to hear about it.
+ */
+async function drainDueCloseDateAlerts(
+  admin: ReturnType<typeof supabaseAdmin>,
+): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10)
+
+  const { data: due } = await admin
+    .from('deals')
+    .select('id, account_id, user_id, assigned_to, contact_id, title, expected_close_date')
+    .eq('status', 'open')
+    .lte('expected_close_date', today)
+    .is('close_date_alert_sent_at', null)
+    .order('expected_close_date', { ascending: true })
+    .limit(50)
+
+  if (!due || due.length === 0) return 0
+
+  let processed = 0
+  for (const row of due) {
+    const { data: claim } = await admin
+      .from('deals')
+      .update({ close_date_alert_sent_at: new Date().toISOString() })
+      .eq('id', row.id)
+      .is('close_date_alert_sent_at', null)
+      .select('id')
+      .maybeSingle()
+    if (!claim) continue
+
+    try {
+      const isOverdue = (row.expected_close_date as string) < today
+      const body = isOverdue
+        ? `${row.title as string} — data de fechamento passou (${row.expected_close_date as string})`
+        : `${row.title as string} — data de fechamento é hoje`
+
+      await admin.from('notifications').insert({
+        account_id: row.account_id,
+        user_id: (row.assigned_to as string | null) ?? row.user_id,
+        type: 'deal_close_due',
+        deal_id: row.id,
+        contact_id: row.contact_id,
+        title: isOverdue ? 'Fechamento atrasado' : 'Fechar hoje',
+        body,
+      })
+    } catch (err) {
+      console.error('[deal close date alert] notify failed:', err)
     }
     processed++
   }

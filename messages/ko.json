@@ -592,7 +592,9 @@
       "noContact": "연락처 없음",
       "won": "성사",
       "lost": "실패",
-      "leadScore": "리드 점수: {score}/100"
+      "leadScore": "리드 점수: {score}/100",
+      "closeDueToday": "오늘 마감",
+      "closeOverdue": "기한 초과"
     },
     "form": {
       "editDeal": "딜 수정",
@@ -605,6 +607,7 @@
       "value": "금액",
       "currency": "통화",
       "expectedCloseDate": "예상 마감일",
+      "meetingScheduledAt": "미팅 일정",
       "stage": "단계",
       "assignedTo": "담당자",
       "unassigned": "담당자 없음",

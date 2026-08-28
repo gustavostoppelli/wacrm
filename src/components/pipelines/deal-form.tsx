@@ -46,6 +46,17 @@ import { useTranslations } from "next-intl";
 import { DealTasks } from "./deal-tasks";
 import { DealConversationHistory } from "./deal-conversation-history";
 
+// Converts a stored UTC ISO timestamp into the local "YYYY-MM-DDTHH:mm"
+// string a `datetime-local` input expects — the reverse of `new
+// Date(value).toISOString()` used when saving.
+function toDatetimeLocalValue(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 interface DealFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -76,6 +87,7 @@ export function DealForm({
   const [stageId, setStageId] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
+  const [meetingScheduledAt, setMeetingScheduledAt] = useState("");
   const [notes, setNotes] = useState("");
   const [source, setSource] = useState("");
   const [leadScore, setLeadScore] = useState("");
@@ -123,6 +135,7 @@ export function DealForm({
       setStageId(deal.stage_id);
       setAssignedTo(deal.assigned_to ?? "");
       setExpectedCloseDate(deal.expected_close_date ?? "");
+      setMeetingScheduledAt(toDatetimeLocalValue(deal.meeting_scheduled_at));
       setNotes(deal.notes ?? "");
       setSource(deal.source ?? "");
       setLeadScore(
@@ -136,6 +149,7 @@ export function DealForm({
       setStageId(defaultStageId || stages[0]?.id || "");
       setAssignedTo("");
       setExpectedCloseDate("");
+      setMeetingScheduledAt("");
       setNotes("");
       setSource("");
       setLeadScore("");
@@ -285,6 +299,16 @@ export function DealForm({
       assigned_to: assignedTo || null,
       notes: notes.trim() || null,
       expected_close_date: expectedCloseDate || null,
+      // Reopens the close-date alert (052) when the date actually
+      // changes, so pushing it out (or setting a new one after the
+      // last alert fired) doesn't leave it permanently silenced.
+      // Left untouched on unrelated edits (e.g. just editing notes).
+      ...(deal && (deal.expected_close_date ?? "") !== expectedCloseDate
+        ? { close_date_alert_sent_at: null }
+        : {}),
+      meeting_scheduled_at: meetingScheduledAt
+        ? new Date(meetingScheduledAt).toISOString()
+        : null,
       source: source || null,
       lead_score: leadScore.trim() ? Math.max(0, Math.min(100, Math.round(Number(leadScore)))) : null,
     };
@@ -507,6 +531,16 @@ export function DealForm({
                 type="date"
                 value={expectedCloseDate}
                 onChange={(e) => setExpectedCloseDate(e.target.value)}
+                className="border-border bg-muted text-foreground"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label className="text-muted-foreground">{t("meetingScheduledAt")}</Label>
+              <Input
+                type="datetime-local"
+                value={meetingScheduledAt}
+                onChange={(e) => setMeetingScheduledAt(e.target.value)}
                 className="border-border bg-muted text-foreground"
               />
             </div>

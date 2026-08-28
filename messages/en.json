@@ -592,7 +592,9 @@
       "noContact": "No contact",
       "won": "Won",
       "lost": "Lost",
-      "leadScore": "Lead score: {score}/100"
+      "leadScore": "Lead score: {score}/100",
+      "closeDueToday": "Close today",
+      "closeOverdue": "Overdue"
     },
     "form": {
       "editDeal": "Edit Deal",
@@ -605,6 +607,7 @@
       "value": "Value",
       "currency": "Currency",
       "expectedCloseDate": "Expected Close Date",
+      "meetingScheduledAt": "Meeting Date",
       "stage": "Stage",
       "assignedTo": "Assigned To",
       "unassigned": "Unassigned",

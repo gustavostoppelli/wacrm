@@ -194,7 +194,7 @@ export interface Conversation {
 // Notifications (migration 027)
 // ============================================================
 
-export type NotificationType = 'conversation_assigned' | 'task_due';
+export type NotificationType = 'conversation_assigned' | 'task_due' | 'deal_close_due';
 
 export interface Notification {
   id: string;

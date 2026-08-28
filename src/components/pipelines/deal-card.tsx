@@ -153,12 +153,29 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         <span className="text-sm font-bold text-primary">
           {formatCurrency(deal.value, deal.currency)}
         </span>
-        {deal.expected_close_date && (
-          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            <Calendar className="h-3 w-3" />
-            {formatDate(deal.expected_close_date)}
-          </span>
-        )}
+        {deal.expected_close_date &&
+          (() => {
+            const today = new Date().toISOString().slice(0, 10);
+            const isOpen = !deal.status || deal.status === "open";
+            const isOverdue = isOpen && deal.expected_close_date < today;
+            const isDueToday = isOpen && deal.expected_close_date === today;
+            return (
+              <span
+                className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] ${
+                  isOverdue
+                    ? "bg-red-500/15 font-semibold text-red-400"
+                    : isDueToday
+                      ? "bg-amber-500/15 font-semibold text-amber-400"
+                      : "text-muted-foreground"
+                }`}
+              >
+                <Calendar className="h-3 w-3" />
+                {formatDate(deal.expected_close_date)}
+                {isOverdue && ` · ${t("closeOverdue")}`}
+                {isDueToday && ` · ${t("closeDueToday")}`}
+              </span>
+            );
+          })()}
       </div>
 
       {assigneeLabel && (

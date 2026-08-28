@@ -592,7 +592,9 @@
       "noContact": "Sem contato",
       "won": "Ganho",
       "lost": "Perdido",
-      "leadScore": "Pontuação do lead: {score}/100"
+      "leadScore": "Pontuação do lead: {score}/100",
+      "closeDueToday": "Fechar hoje",
+      "closeOverdue": "Atrasado"
     },
     "form": {
       "editDeal": "Editar negócio",
@@ -605,6 +607,7 @@
       "value": "Valor",
       "currency": "Moeda",
       "expectedCloseDate": "Data prevista de fechamento",
+      "meetingScheduledAt": "Data da reunião",
       "stage": "Etapa",
       "assignedTo": "Atribuído a",
       "unassigned": "Não atribuído",
