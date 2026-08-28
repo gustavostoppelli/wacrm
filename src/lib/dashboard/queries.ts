@@ -408,22 +408,38 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
  * meeting-scheduled deal or a won deal — the two "this lead was actually
  * qualified" proxies already tracked on `deals`. Lets an account see
  * which specific campaign converts, not just which broad channel.
+ *
+ * "Reached a meeting" uses the same two-signal check as
+ * `loadPipelineFunnel` below (`meeting_scheduled_at` OR a stage tagged
+ * `stage_role = 'meeting_scheduled'`) — this used to only check the
+ * timestamp, so a deal dragged by hand into that stage (never going
+ * through the AI-agent/site-form flow that sets the timestamp) silently
+ * never counted here, even though the funnel chart further down the
+ * same page already counted it correctly.
  */
 export async function loadCampaignReport(db: DB): Promise<CampaignReportRow[]> {
-  const { data, error } = await db
-    .from('deals')
-    .select('source, campaign, status, meeting_scheduled_at')
+  const [stagesRes, dealsRes] = await Promise.all([
+    db.from('pipeline_stages').select('id, stage_role'),
+    db.from('deals').select('source, campaign, status, stage_id, meeting_scheduled_at'),
+  ])
 
-  if (error) {
-    console.error('[dashboard] loadCampaignReport failed:', error)
+  if (dealsRes.error) {
+    console.error('[dashboard] loadCampaignReport failed:', dealsRes.error)
     return []
   }
 
+  const meetingStageIds = new Set(
+    ((stagesRes.data ?? []) as { id: string; stage_role: string | null }[])
+      .filter((s) => s.stage_role === 'meeting_scheduled')
+      .map((s) => s.id)
+  )
+
   const buckets = new Map<string, CampaignReportRow>()
-  for (const row of (data ?? []) as Array<{
+  for (const row of (dealsRes.data ?? []) as Array<{
     source: string | null
     campaign: string | null
     status: string | null
+    stage_id: string
     meeting_scheduled_at: string | null
   }>) {
     const key = `${row.source ?? ''}::${row.campaign ?? ''}`
@@ -439,7 +455,9 @@ export async function loadCampaignReport(db: DB): Promise<CampaignReportRow[]> {
       buckets.set(key, bucket)
     }
     bucket.totalDeals += 1
-    if (row.meeting_scheduled_at) bucket.meetingScheduledCount += 1
+    if (row.meeting_scheduled_at || meetingStageIds.has(row.stage_id)) {
+      bucket.meetingScheduledCount += 1
+    }
     if (row.status === 'won') bucket.wonCount += 1
   }
 
