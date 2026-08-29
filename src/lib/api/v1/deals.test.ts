@@ -25,6 +25,7 @@ describe('serializeDeal', () => {
       currency: 'USD',
       source: 'Apify',
       campaign: null,
+      city: null,
       lead_score: null,
       notes: null,
       status: 'open',

@@ -420,6 +420,8 @@ export interface Deal {
   meeting_note?: string | null;
   /** Free-text campaign/ad/form name — one level more granular than `source`. */
   campaign?: string | null;
+  /** Free-text city/region, e.g. "Petrópolis, Porto Alegre/RS". */
+  city?: string | null;
   /** 0-100. wacrm never computes this -- set by whatever created the
    *  deal (public API, an automation, or a human in the form). */
   lead_score?: number | null;

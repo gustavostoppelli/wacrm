@@ -691,6 +691,8 @@
       "toastFailedCreateContact": "Failed to create contact",
       "source": "Source",
       "selectSource": "Not specified",
+      "city": "City",
+      "cityPlaceholder": "e.g. Moinhos de Vento, Porto Alegre/RS",
       "leadScore": "Lead score (0-100)",
       "leadScorePlaceholder": "E.g. 85"
     },

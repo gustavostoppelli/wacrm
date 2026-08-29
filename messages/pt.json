@@ -691,6 +691,8 @@
       "toastFailedCreateContact": "Falha ao criar contato",
       "source": "Origem",
       "selectSource": "Não especificado",
+      "city": "Cidade",
+      "cityPlaceholder": "Ex: Moinhos de Vento, Porto Alegre/RS",
       "leadScore": "Pontuação do lead (0-100)",
       "leadScorePlaceholder": "Ex: 85"
     },

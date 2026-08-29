@@ -691,6 +691,8 @@
       "toastFailedCreateContact": "연락처 생성에 실패했습니다",
       "source": "출처",
       "selectSource": "지정 안 함",
+      "city": "도시",
+      "cityPlaceholder": "예: Moinhos de Vento, Porto Alegre/RS",
       "leadScore": "리드 점수 (0-100)",
       "leadScorePlaceholder": "예: 85"
     },

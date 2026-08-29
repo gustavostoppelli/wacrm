@@ -117,6 +117,7 @@ export async function POST(request: Request) {
         source,
         campaign:
           typeof body.campaign === 'string' ? body.campaign.trim() || null : null,
+        city: typeof body.city === 'string' ? body.city.trim() || null : null,
         lead_score: leadScore,
         status: 'open',
         meeting_scheduled_at: meetingScheduledAt,

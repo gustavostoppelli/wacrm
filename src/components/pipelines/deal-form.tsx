@@ -91,6 +91,7 @@ export function DealForm({
   const [meetingScheduledAt, setMeetingScheduledAt] = useState("");
   const [notes, setNotes] = useState("");
   const [source, setSource] = useState("");
+  const [city, setCity] = useState("");
   const [leadScore, setLeadScore] = useState("");
 
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -145,6 +146,7 @@ export function DealForm({
       setMeetingScheduledAt(toDatetimeLocalValue(deal.meeting_scheduled_at));
       setNotes(deal.notes ?? "");
       setSource(deal.source ?? "");
+      setCity(deal.city ?? "");
       setLeadScore(
         typeof deal.lead_score === "number" ? String(deal.lead_score) : "",
       );
@@ -159,6 +161,7 @@ export function DealForm({
       setMeetingScheduledAt("");
       setNotes("");
       setSource("");
+      setCity("");
       setLeadScore("");
     }
   }, [open, deal, defaultStageId, stages, defaultCurrency]);
@@ -317,6 +320,7 @@ export function DealForm({
         ? new Date(meetingScheduledAt).toISOString()
         : null,
       source: source || null,
+      city: city.trim() || null,
       lead_score: leadScore.trim() ? Math.max(0, Math.min(100, Math.round(Number(leadScore)))) : null,
     };
 
@@ -608,6 +612,16 @@ export function DealForm({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="grid gap-2">
+              <Label className="text-muted-foreground">{t("city")}</Label>
+              <Input
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder={t("cityPlaceholder")}
+                className="border-border bg-muted text-foreground"
+              />
             </div>
 
             <div className="grid gap-2">

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Deal, PipelineStage } from "@/types";
-import { Calendar, CalendarClock, Check, Clock, X } from "lucide-react";
+import { Calendar, CalendarClock, Check, Clock, MapPin, X } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { daysInStage, isStaleInStage } from "@/lib/deals/stage-age";
 import { useTranslations } from "next-intl";
@@ -113,6 +113,13 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
           </span>
         )}
       </div>
+
+      {deal.city && (
+        <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+          <MapPin className="h-3 w-3 shrink-0" />
+          <span className="truncate">{deal.city}</span>
+        </div>
+      )}
 
       {/* Contact row */}
       <div className="mt-2 flex items-center gap-2">

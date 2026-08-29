@@ -30,6 +30,8 @@ export interface ApiDeal {
   source: string | null;
   /** Free-text campaign/ad/form name — one level more granular than `source`. */
   campaign: string | null;
+  /** Free-text city/region, e.g. "Petrópolis, Porto Alegre/RS". */
+  city: string | null;
   /** 0-100. wacrm never computes this itself -- set by whatever created
    *  the deal (the public API, an automation, or a human in the form). */
   lead_score: number | null;
@@ -52,6 +54,7 @@ export function serializeDeal(row: Record<string, unknown>): ApiDeal {
     currency: (row.currency as string | null) ?? null,
     source: (row.source as string | null) ?? null,
     campaign: (row.campaign as string | null) ?? null,
+    city: (row.city as string | null) ?? null,
     lead_score: (row.lead_score as number | null) ?? null,
     notes: (row.notes as string | null) ?? null,
     status: (row.status as string | null) ?? null,
