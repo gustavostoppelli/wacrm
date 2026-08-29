@@ -103,6 +103,16 @@ export function canDeleteAccount(role: AccountRole): boolean {
   return role === "owner";
 }
 
+/**
+ * Owner / admin: permanently delete a deal. Deleting a deal has no
+ * undo (hard delete, no audit trail) — restricted above agent so a
+ * rep can't erase a lead the manager has no way to notice went
+ * missing.
+ */
+export function canDeleteDeals(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
 /** Owner only: hand the account to another member. */
 export function canTransferOwnership(role: AccountRole): boolean {
   return role === "owner";

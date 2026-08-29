@@ -663,6 +663,7 @@
       "toastMarkedLost": "실패로 표시했습니다",
       "toastReopened": "딜이 재개되었습니다",
       "toastFailedDelete": "딜을 삭제하지 못했습니다",
+      "toastNotAllowedDelete": "딜을 삭제할 권한이 없습니다 — 계정 관리자에게 문의하세요",
       "toastDeleted": "딜이 삭제되었습니다",
       "newContact": "새 연락처",
       "useExistingContact": "기존 연락처 사용",

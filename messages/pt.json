@@ -663,6 +663,7 @@
       "toastMarkedLost": "Marcado como perdido",
       "toastReopened": "Negócio reaberto",
       "toastFailedDelete": "Falha ao excluir negócio",
+      "toastNotAllowedDelete": "Você não tem permissão para excluir negócios — fale com um administrador da conta",
       "toastDeleted": "Negócio excluído",
       "newContact": "Novo contato",
       "useExistingContact": "Usar contato já cadastrado",

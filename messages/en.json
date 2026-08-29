@@ -663,6 +663,7 @@
       "toastMarkedLost": "Marked as lost",
       "toastReopened": "Deal reopened",
       "toastFailedDelete": "Failed to delete deal",
+      "toastNotAllowedDelete": "You don't have permission to delete deals — ask an account admin",
       "toastDeleted": "Deal deleted",
       "newContact": "New contact",
       "useExistingContact": "Use an existing contact",

@@ -79,7 +79,7 @@ export function DealForm({
 }: DealFormProps) {
   const t = useTranslations("Pipelines.form");
   const supabase = createClient();
-  const { accountId, defaultCurrency } = useAuth();
+  const { accountId, defaultCurrency, canDeleteDeals } = useAuth();
 
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
@@ -393,10 +393,23 @@ export function DealForm({
   async function handleDelete() {
     if (!deal) return;
     setDeleting(true);
-    const { error } = await supabase.from("deals").delete().eq("id", deal.id);
+    // .select() forces the response to include the rows Postgres actually
+    // deleted. Without it, a delete blocked by RLS (e.g. an "agent" role,
+    // now restricted to admin+ — see canDeleteDeals) still comes back with
+    // no `error` and 0 rows affected, which used to show a false "deleted"
+    // success toast even though the deal is still sitting there untouched.
+    const { data, error } = await supabase
+      .from("deals")
+      .delete()
+      .eq("id", deal.id)
+      .select("id");
     setDeleting(false);
     if (error) {
       toast.error(t("toastFailedDelete"));
+      return;
+    }
+    if (!data || data.length === 0) {
+      toast.error(t("toastNotAllowedDelete"));
       return;
     }
     toast.success(t("toastDeleted"));
@@ -767,6 +780,7 @@ export function DealForm({
             </div>
 
             {deal &&
+              canDeleteDeals &&
               (confirmDelete ? (
                 <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs">
                   <span className="text-red-300">{t("deletePrompt")}</span>
