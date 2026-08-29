@@ -114,13 +114,6 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         )}
       </div>
 
-      {deal.city && (
-        <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-          <MapPin className="h-3 w-3 shrink-0" />
-          <span className="truncate">{deal.city}</span>
-        </div>
-      )}
-
       {/* Contact row */}
       <div className="mt-2 flex items-center gap-2">
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-foreground">
@@ -131,6 +124,12 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
           {deal.contact?.name && deal.contact?.phone && (
             <p className="truncate text-[10px] text-muted-foreground/70">
               {formatPhoneDisplay(deal.contact.phone)}
+            </p>
+          )}
+          {deal.city && (
+            <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-muted-foreground/70">
+              <MapPin className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{deal.city}</span>
             </p>
           )}
         </div>
