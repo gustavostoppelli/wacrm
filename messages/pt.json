@@ -343,6 +343,19 @@
       "empty": "Nenhum negócio ainda.",
       "emptyHint": "O gráfico aparece assim que houver negócios com origem registrada."
     },
+    "stuckDeals": {
+      "title": "Negócios parados",
+      "description": "Todo negócio em aberto, do mais antigo na etapa atual pro mais recente — pra saber quem ficou parado sem ser tratado.",
+      "deal": "Negócio",
+      "stage": "Etapa",
+      "assignedTo": "Responsável",
+      "unassigned": "Sem responsável",
+      "value": "Valor",
+      "daysInStage": "Dias na etapa",
+      "days": "{count} {count, plural, =1 {dia} other {dias}}",
+      "empty": "Nenhum negócio em aberto.",
+      "emptyHint": "Aparece assim que houver negócios abertos no pipeline."
+    },
     "lostReasons": {
       "title": "Motivo de perda",
       "description": "Negócios perdidos agrupados por motivo — escolhido ao marcar um negócio como perdido.",
@@ -618,7 +631,9 @@
       "lost": "Perdido",
       "leadScore": "Pontuação do lead: {score}/100",
       "closeDueToday": "Fechar hoje",
-      "closeOverdue": "Atrasado"
+      "closeOverdue": "Atrasado",
+      "stageAge": "Há {count} {count, plural, =1 {dia} other {dias}} nesta etapa",
+      "stageAgeToday": "Entrou hoje nesta etapa"
     },
     "form": {
       "editDeal": "Editar negócio",
@@ -694,6 +709,8 @@
       "saving": "Salvando...",
       "saveChanges": "Salvar alterações",
       "dragToReorder": "Arraste para reordenar",
+      "staleAfterDaysPlaceholder": "dias",
+      "staleAfterDaysHint": "Alertar quando um negócio ficar mais de X dias parado nesta etapa (em branco = sem alerta)",
       "changeColor": "Mudar cor",
       "toastFailedSave": "Falha ao salvar funil",
       "toastSaved": "Funil salvo",

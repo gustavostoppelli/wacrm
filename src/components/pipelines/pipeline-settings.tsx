@@ -116,6 +116,7 @@ export function PipelineSettings({
       name: s.name,
       color: s.color,
       position: i,
+      stale_after_days: s.stale_after_days ?? null,
     }));
 
     const [renameRes, stagesRes] = await Promise.all([
@@ -274,6 +275,11 @@ export function PipelineSettings({
                             updated[index] = { ...updated[index], color: v };
                             setLocalStages(updated);
                           }}
+                          onStaleAfterDaysChange={(v) => {
+                            const updated = [...localStages];
+                            updated[index] = { ...updated[index], stale_after_days: v };
+                            setLocalStages(updated);
+                          }}
                           onRemove={() => handleRemoveStage(stage.id)}
                           colors={STAGE_COLORS}
                           t={t}
@@ -368,6 +374,7 @@ function SortableStageRow({
   stage,
   onNameChange,
   onColorChange,
+  onStaleAfterDaysChange,
   onRemove,
   colors,
   t,
@@ -375,6 +382,7 @@ function SortableStageRow({
   stage: PipelineStage;
   onNameChange: (v: string) => void;
   onColorChange: (v: string) => void;
+  onStaleAfterDaysChange: (v: number | null) => void;
   onRemove: () => void;
   colors: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -409,6 +417,19 @@ function SortableStageRow({
         value={stage.name}
         onChange={(e) => onNameChange(e.target.value)}
         className="h-7 flex-1 border-transparent bg-transparent text-sm text-foreground focus:border-border"
+      />
+      <Input
+        type="number"
+        min={0}
+        step={1}
+        title={t("staleAfterDaysHint")}
+        placeholder={t("staleAfterDaysPlaceholder")}
+        value={stage.stale_after_days ?? ""}
+        onChange={(e) => {
+          const raw = e.target.value;
+          onStaleAfterDaysChange(raw === "" ? null : Math.max(0, Number(raw)));
+        }}
+        className="h-7 w-16 border-border bg-transparent text-center text-xs text-foreground"
       />
       <Button
         variant="ghost"

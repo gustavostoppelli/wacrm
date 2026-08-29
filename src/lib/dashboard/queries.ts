@@ -21,7 +21,9 @@ import type {
   ResponseTimeSummary,
   SalesRepRankingRow,
   StageDwellTime,
+  StuckDealRow,
 } from './types'
+import { daysInStage, isStaleInStage } from '../deals/stage-age'
 
 // ------------------------------------------------------------
 // All client-side aggregation. RLS scopes every query to the
@@ -761,4 +763,67 @@ export async function loadSalesRepRanking(db: DB): Promise<SalesRepRankingRow[]>
   }
 
   return Array.from(buckets.values()).sort((a, b) => b.wonValue - a.wonValue)
+}
+
+// --- 10. Stuck deals (oldest-in-stage first) ----------------------------
+
+/**
+ * Every OPEN deal ranked by days sitting in its current stage, oldest
+ * first — the per-deal counterpart to `loadFunnelInsights`' averages.
+ * Answers "which specific leads has nobody touched in a while", not
+ * just "stage X averages N days". `stage_entered_at` (migration 056)
+ * makes this a single query with no join against `deal_stage_history`.
+ */
+export async function loadStuckDeals(db: DB): Promise<StuckDealRow[]> {
+  const [dealsRes, stagesRes, profilesRes] = await Promise.all([
+    db
+      .from('deals')
+      .select('id, title, stage_id, assigned_to, value, currency, stage_entered_at, status')
+      .eq('status', 'open'),
+    db.from('pipeline_stages').select('id, name, stale_after_days'),
+    db.from('profiles').select('id, full_name, email'),
+  ])
+
+  if (dealsRes.error) {
+    console.error('[dashboard] loadStuckDeals failed:', dealsRes.error)
+    return []
+  }
+
+  const stageById = new Map(
+    ((stagesRes.data ?? []) as { id: string; name: string; stale_after_days: number | null }[]).map(
+      (s) => [s.id, s],
+    ),
+  )
+  const nameById = new Map(
+    ((profilesRes.data ?? []) as { id: string; full_name: string | null; email: string | null }[]).map(
+      (p) => [p.id, p.full_name || p.email || null],
+    ),
+  )
+
+  const rows: StuckDealRow[] = ((dealsRes.data ?? []) as {
+    id: string
+    title: string
+    stage_id: string
+    assigned_to: string | null
+    value: number | null
+    currency: string | null
+    stage_entered_at: string
+  }[]).map((d) => {
+    const stage = stageById.get(d.stage_id)
+    const days = daysInStage(d.stage_entered_at)
+    return {
+      dealId: d.id,
+      title: d.title,
+      stageId: d.stage_id,
+      stageName: stage?.name ?? '',
+      daysInStage: days,
+      staleAfterDays: stage?.stale_after_days ?? null,
+      isStale: isStaleInStage(days, stage?.stale_after_days),
+      assignedToName: d.assigned_to ? (nameById.get(d.assigned_to) ?? null) : null,
+      value: d.value ?? 0,
+      currency: d.currency ?? 'BRL',
+    }
+  })
+
+  return rows.sort((a, b) => b.daysInStage - a.daysInStage)
 }

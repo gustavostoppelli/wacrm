@@ -10,6 +10,7 @@ import {
   loadLostReasonReport,
   loadPipelineFunnel,
   loadSalesRepRanking,
+  loadStuckDeals,
 } from "@/lib/dashboard/queries"
 import type {
   CampaignReportRow,
@@ -17,6 +18,7 @@ import type {
   LostReasonReportRow,
   PipelineFunnelData,
   SalesRepRankingRow,
+  StuckDealRow,
 } from "@/lib/dashboard/types"
 import {
   Table,
@@ -31,6 +33,7 @@ import { FunnelInsights } from "@/components/dashboard/funnel-insights"
 import { LeadsBySourceChart } from "@/components/dashboard/leads-by-source-chart"
 import { LostReasonsTable } from "@/components/dashboard/lost-reasons-table"
 import { SalesRepRankingTable } from "@/components/dashboard/sales-rep-ranking-table"
+import { StuckDealsTable } from "@/components/dashboard/stuck-deals-table"
 import { BarChart3 } from "lucide-react"
 
 export default function ReportsPage() {
@@ -46,6 +49,8 @@ export default function ReportsPage() {
   const [lostReasonsLoading, setLostReasonsLoading] = useState(true)
   const [ranking, setRanking] = useState<SalesRepRankingRow[] | null>(null)
   const [rankingLoading, setRankingLoading] = useState(true)
+  const [stuckDeals, setStuckDeals] = useState<StuckDealRow[] | null>(null)
+  const [stuckDealsLoading, setStuckDealsLoading] = useState(true)
 
   useEffect(() => {
     const db = createClient()
@@ -73,6 +78,11 @@ export default function ReportsPage() {
       .then(setRanking)
       .catch((err) => console.error("[reports] ranking load failed:", err))
       .finally(() => setRankingLoading(false))
+
+    loadStuckDeals(db)
+      .then(setStuckDeals)
+      .catch((err) => console.error("[reports] stuck deals load failed:", err))
+      .finally(() => setStuckDealsLoading(false))
   }, [])
 
   return (
@@ -85,6 +95,8 @@ export default function ReportsPage() {
       <PipelineFunnel data={funnel} loading={funnelLoading} />
 
       <FunnelInsights data={insights} loading={insightsLoading} currency={defaultCurrency} />
+
+      <StuckDealsTable rows={stuckDeals} loading={stuckDealsLoading} currency={defaultCurrency} />
 
       <LeadsBySourceChart rows={rows} loading={loading} />
 

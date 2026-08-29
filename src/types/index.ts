@@ -384,6 +384,10 @@ export interface PipelineStage {
    *  Agent (or anyone) confirms a real meeting time; null otherwise.
    *  At most one such stage per pipeline. */
   stage_role?: 'meeting_scheduled' | null;
+  /** Days a deal can sit in this stage before the "stuck" indicator
+   *  (deal card badge, stuck-deals report) flags it. Null disables
+   *  the alert coloring for this stage — the day count still shows. */
+  stale_after_days?: number | null;
   created_at: string;
 }
 
@@ -419,6 +423,10 @@ export interface Deal {
   /** 0-100. wacrm never computes this -- set by whatever created the
    *  deal (public API, an automation, or a human in the form). */
   lead_score?: number | null;
+  /** When the deal entered its CURRENT stage (`stage_id`) — stamped by
+   *  a DB trigger on every insert/stage change, migration 056. Powers
+   *  the "days in stage" card badge and the stuck-deals report. */
+  stage_entered_at: string;
   created_at: string;
   updated_at?: string;
   contact?: Contact;

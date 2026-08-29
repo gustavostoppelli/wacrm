@@ -158,3 +158,23 @@ export interface SalesRepRankingRow {
   wonValue: number
   winRate: number | null
 }
+
+/**
+ * One open deal, ranked by how long it has sat in its current stage
+ * (oldest first). `isStale` is true once `daysInStage` reaches the
+ * stage's own `staleAfterDays` threshold (null threshold = never
+ * flagged, but the deal still appears so a manager can sort by age
+ * regardless of whether an alert threshold was configured).
+ */
+export interface StuckDealRow {
+  dealId: string
+  title: string
+  stageId: string
+  stageName: string
+  daysInStage: number
+  staleAfterDays: number | null
+  isStale: boolean
+  assignedToName: string | null
+  value: number
+  currency: string
+}

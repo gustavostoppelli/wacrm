@@ -1,8 +1,9 @@
 "use client";
 
 import type { Deal, PipelineStage } from "@/types";
-import { Calendar, CalendarClock, Check, X } from "lucide-react";
+import { Calendar, CalendarClock, Check, Clock, X } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
+import { daysInStage, isStaleInStage } from "@/lib/deals/stage-age";
 import { useTranslations } from "next-intl";
 
 interface DealCardProps {
@@ -54,6 +55,9 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
   const t = useTranslations("Pipelines.card");
   const contactLabel = deal.contact?.name || deal.contact?.phone || t("noContact");
   const assigneeLabel = deal.assignee?.full_name || null;
+  const stageDays = daysInStage(deal.stage_entered_at);
+  const isOpen = !deal.status || deal.status === "open";
+  const stageStale = isOpen && isStaleInStage(stageDays, stage?.stale_after_days);
 
   return (
     <button
@@ -125,11 +129,26 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         </div>
       </div>
 
-      {deal.source && (
-        <div className="mt-2">
-          <span className="inline-flex max-w-full items-center truncate rounded-full bg-muted-foreground/10 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-            {deal.source}
-          </span>
+      {(deal.source || isOpen) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {deal.source && (
+            <span className="inline-flex max-w-full items-center truncate rounded-full bg-muted-foreground/10 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {deal.source}
+            </span>
+          )}
+          {isOpen && (
+            <span
+              title={stageDays === 0 ? t("stageAgeToday") : t("stageAge", { count: stageDays })}
+              className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                stageStale
+                  ? "bg-red-500/15 font-semibold text-red-400"
+                  : "bg-muted-foreground/10 text-muted-foreground"
+              }`}
+            >
+              <Clock className="h-3 w-3" />
+              {stageDays}d
+            </span>
+          )}
         </div>
       )}
 

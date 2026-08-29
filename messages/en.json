@@ -343,6 +343,19 @@
       "empty": "No deals yet.",
       "emptyHint": "The chart shows up once there are deals with a recorded source."
     },
+    "stuckDeals": {
+      "title": "Stuck deals",
+      "description": "Every open deal, oldest in its current stage first — so you know who's sat untouched.",
+      "deal": "Deal",
+      "stage": "Stage",
+      "assignedTo": "Assigned to",
+      "unassigned": "Unassigned",
+      "value": "Value",
+      "daysInStage": "Days in stage",
+      "days": "{count} {count, plural, =1 {day} other {days}}",
+      "empty": "No open deals.",
+      "emptyHint": "Shows up once there are open deals in the pipeline."
+    },
     "lostReasons": {
       "title": "Loss reason",
       "description": "Lost deals grouped by reason — picked when marking a deal as lost.",
@@ -618,7 +631,9 @@
       "lost": "Lost",
       "leadScore": "Lead score: {score}/100",
       "closeDueToday": "Close today",
-      "closeOverdue": "Overdue"
+      "closeOverdue": "Overdue",
+      "stageAge": "{count} {count, plural, =1 {day} other {days}} in this stage",
+      "stageAgeToday": "Entered this stage today"
     },
     "form": {
       "editDeal": "Edit Deal",
@@ -694,6 +709,8 @@
       "saving": "Saving...",
       "saveChanges": "Save Changes",
       "dragToReorder": "Drag to reorder",
+      "staleAfterDaysPlaceholder": "days",
+      "staleAfterDaysHint": "Alert when a deal sits more than X days in this stage (blank = no alert)",
       "changeColor": "Change color",
       "toastFailedSave": "Failed to save pipeline",
       "toastSaved": "Pipeline saved",

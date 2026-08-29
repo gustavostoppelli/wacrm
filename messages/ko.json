@@ -343,6 +343,19 @@
       "empty": "아직 거래가 없습니다.",
       "emptyHint": "출처가 기록된 거래가 생기면 차트가 표시됩니다."
     },
+    "stuckDeals": {
+      "title": "정체된 딜",
+      "description": "모든 진행 중 딜을 현재 단계에 머문 기간이 긴 순서로 정렬 — 방치된 딜을 바로 확인하세요.",
+      "deal": "딜",
+      "stage": "단계",
+      "assignedTo": "담당자",
+      "unassigned": "담당자 없음",
+      "value": "금액",
+      "daysInStage": "단계 체류 기간",
+      "days": "{count}일",
+      "empty": "진행 중인 딜이 없습니다.",
+      "emptyHint": "파이프라인에 진행 중인 딜이 있으면 표시됩니다."
+    },
     "lostReasons": {
       "title": "실패 사유",
       "description": "실패한 거래를 사유별로 묶어서 보여줍니다 — 거래를 실패로 표시할 때 선택한 사유입니다.",
@@ -618,7 +631,9 @@
       "lost": "실패",
       "leadScore": "리드 점수: {score}/100",
       "closeDueToday": "오늘 마감",
-      "closeOverdue": "기한 초과"
+      "closeOverdue": "기한 초과",
+      "stageAge": "이 단계에서 {count}일 경과",
+      "stageAgeToday": "오늘 이 단계에 진입함"
     },
     "form": {
       "editDeal": "딜 수정",
@@ -694,6 +709,8 @@
       "saving": "저장 중...",
       "saveChanges": "변경 사항 저장",
       "dragToReorder": "드래그하여 순서 변경",
+      "staleAfterDaysPlaceholder": "일",
+      "staleAfterDaysHint": "이 단계에 X일 이상 머무르면 알림 (비워두면 알림 없음)",
       "changeColor": "색상 변경",
       "toastFailedSave": "파이프라인을 저장하지 못했습니다",
       "toastSaved": "파이프라인이 저장되었습니다",
