@@ -10,6 +10,7 @@ export const DEAL_SOURCES = [
   'Formulário do Site — Diagnóstico',
   'Tráfego Pago (Meta/Google Ads)',
   'Prospecção Outbound',
+  'Prospecção Outbound IA',
   'Apify',
   'Indicação',
   'Instagram / Orgânico',
