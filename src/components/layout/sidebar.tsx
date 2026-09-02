@@ -199,8 +199,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <span style={{ color: "#D8C08A" }}>.</span>
             </div>
             <span className="text-sm font-semibold">
-              <span className="text-foreground">Fuse</span>
-              <span className="text-emerald-500">Hub</span>
+              <span className="text-foreground">fuse</span>
+              <span style={{ color: "#2FA184" }}>Hub</span>
+              <sup style={{ color: "#2FA184", fontSize: "0.6em" }}>&reg;</sup>
             </span>
           </Link>
           <button
