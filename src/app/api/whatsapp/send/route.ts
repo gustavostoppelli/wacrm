@@ -11,7 +11,7 @@ import {
   validateSendMessageParams,
   SendMessageError,
 } from '@/lib/whatsapp/send-message'
-import { resolveDefaultChannelForAccount } from '@/lib/whatsapp/resolve-channel'
+import { resolveDefaultChannelForAccount, resolveSenderChannel } from '@/lib/whatsapp/resolve-channel'
 
 // The dashboard's outbound-send endpoint. It owns auth, per-user rate
 // limiting, and the two ways the UI targets a thread — an existing
@@ -199,11 +199,15 @@ type SendSupabase = Awaited<ReturnType<typeof createClient>>
  * thread per contact. Runs under the caller's RLS — the conversations_insert
  * policy requires account agent membership, which the caller already is.
  *
- * Resolves the account's default channel (migration 037) to stamp
- * `whatsapp_config_id` on a newly-created conversation — there's no
- * inbound message to inherit a channel from here, unlike the webhook
- * path. Once a channel picker ships in the UI (Fase 4), this will take
- * an explicit `channelId` instead.
+ * Resolves which channel to stamp `whatsapp_config_id` with on a
+ * newly-created conversation — there's no inbound message to inherit
+ * a channel from here, unlike the webhook path. Deliberately no
+ * picker and no `channelId` input: the sender's own assigned channel
+ * (migration 060) is used automatically and exclusively when they
+ * have one — a teammate below admin must never be able to see or
+ * choose a different number — falling back to the account's default
+ * channel only when the caller has none assigned (the common case for
+ * an admin using the main, AI-driven number).
  */
 async function findOrCreateConversation(
   supabase: SendSupabase,
@@ -211,7 +215,9 @@ async function findOrCreateConversation(
   userId: string,
   contactId: string,
 ): Promise<string | null> {
-  const channel = await resolveDefaultChannelForAccount(supabase, accountId)
+  const channel =
+    (await resolveSenderChannel(supabase, accountId, userId)) ??
+    (await resolveDefaultChannelForAccount(supabase, accountId))
   if (!channel) {
     console.error('No WhatsApp channel configured for account:', accountId)
     return null

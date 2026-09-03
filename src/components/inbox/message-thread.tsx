@@ -759,6 +759,20 @@ export function MessageThread({
 
   const contactDisplayName = contact?.name || contact?.phone || "Customer";
 
+  // Which number/salesperson this thread is on (migration 037/060) —
+  // matters once an account runs more than one WhatsApp channel.
+  // `assigned_to` is an auth.users id; `profiles.user_id` (not
+  // `profiles.id`) is the matching column, same convention as the
+  // channel-settings panels.
+  const channelLabel = useMemo(() => {
+    const channel = conversation?.whatsapp_channel;
+    if (!channel) return null;
+    const assigneeName = channel.assigned_to
+      ? profiles.find((p) => p.user_id === channel.assigned_to)?.full_name
+      : null;
+    return assigneeName || channel.name || null;
+  }, [conversation?.whatsapp_channel, profiles]);
+
   // Author label for a quoted message: "You" when we sent the parent,
   // contact name when the customer sent it.
   const authorLabelFor = useCallback(
@@ -926,6 +940,11 @@ export function MessageThread({
             {displayName.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
+            {channelLabel && (
+              <p className="truncate text-[10px] font-medium uppercase tracking-wide text-primary">
+                {channelLabel}
+              </p>
+            )}
             <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
             <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
           </div>

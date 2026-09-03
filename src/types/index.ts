@@ -188,6 +188,15 @@ export interface Conversation {
   ai_autoreply_disabled?: boolean;
   ai_reply_count?: number;
   ai_handoff_summary?: string | null;
+  /**
+   * The channel this thread belongs to (embedded via
+   * `whatsapp_config_id`, migration 037/060) — lets a multi-channel
+   * Inbox show which number/salesperson a conversation is on. `name`
+   * is the channel's own label; `assigned_to` (an auth.users id) is
+   * looked up against the account's member list client-side, since
+   * there's no direct FK from whatsapp_config to profiles to embed.
+   */
+  whatsapp_channel?: { id: string; name: string | null; assigned_to: string | null } | null;
 }
 
 // ============================================================

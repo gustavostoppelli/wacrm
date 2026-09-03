@@ -94,11 +94,38 @@ export async function resolveChannelForConversation(
 }
 
 /**
+ * Resolve the channel reserved for a specific teammate (migration
+ * 060's `assigned_to`), if any. Used to route a business-initiated
+ * send (Contact detail → Send template, or a deal with no prior
+ * conversation) through a salesperson's own number automatically and
+ * silently — no channel picker exists or should exist for this case:
+ * a teammate below admin must never see or choose any channel but
+ * their own, so the caller always resolves the sender's channel
+ * first and only falls back to `resolveDefaultChannelForAccount` when
+ * they have none assigned (e.g. an admin using the main channel).
+ */
+export async function resolveSenderChannel(
+  db: SupabaseClient,
+  accountId: string,
+  userId: string
+): Promise<WhatsAppChannel | null> {
+  const { data: row } = await db
+    .from('whatsapp_config')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('assigned_to', userId)
+    .limit(1)
+    .maybeSingle()
+
+  if (!row) return null
+  return toChannel(db, row)
+}
+
+/**
  * Resolve "the" channel for an account with no conversation to anchor
- * on — business-initiated sends (Contact detail → Send template) and
- * broadcasts. Picks the oldest channel deterministically. Once Fase 4
- * ships a channel picker in the UI, these call sites will pass an
- * explicit `channelId` instead of relying on this.
+ * on and no assigned sender channel — business-initiated sends
+ * (Contact detail → Send template) and broadcasts. Picks the oldest
+ * channel deterministically.
  */
 export async function resolveDefaultChannelForAccount(
   db: SupabaseClient,

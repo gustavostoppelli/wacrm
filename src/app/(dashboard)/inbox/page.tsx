@@ -200,13 +200,17 @@ function InboxPageInner() {
         return;
       }
 
+      // An account can have more than one channel since multi-channel
+      // support (migration 037) — `.maybeSingle()` here would error out
+      // (and this banner would wrongly show "not connected") the moment
+      // a second channel exists. "At least one connected" is what the
+      // banner actually needs to know.
       const { data } = await supabase
         .from("whatsapp_config")
         .select("status")
-        .eq("account_id", accountId)
-        .maybeSingle();
+        .eq("account_id", accountId);
 
-      setWhatsappConnected(data?.status === "connected");
+      setWhatsappConnected(!!data?.some((row) => row.status === "connected"));
     };
 
     checkConnection();
