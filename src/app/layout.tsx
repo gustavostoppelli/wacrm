@@ -55,6 +55,12 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
+  // Belt-and-braces alongside the <html translate="no"> / .notranslate
+  // above — this is the specific tag Chrome's translate feature checks
+  // for opting a whole page out of auto-translation.
+  other: {
+    google: "notranslate",
+  },
 };
 
 export const viewport: Viewport = {
@@ -107,7 +113,16 @@ export default async function RootLayout({
       lang={locale}
       data-theme={DEFAULT_THEME}
       data-mode={DEFAULT_MODE}
-      className={`${inter.variable} h-full antialiased`}
+      // Chrome/Edge auto-offer (or auto-trigger, depending on the
+      // browser's own settings) a full-page machine translation on top
+      // of the app's own next-intl locale — it has no notion of what's
+      // a proper noun, so it happily mangles the "FuseHub" wordmark
+      // into nonsense. `translate="no"` + the `notranslate` class +
+      // the `google: notranslate` meta tag below are the three signals
+      // Chrome's translate feature actually honors; using all three is
+      // the documented way to opt a page out for good.
+      translate="no"
+      className={`${inter.variable} notranslate h-full antialiased`}
       // The `theme-boot` script below rewrites `data-theme` and
       // `data-mode` on <html> from localStorage before React hydrates,
       // so for any non-default choice the client DOM intentionally
