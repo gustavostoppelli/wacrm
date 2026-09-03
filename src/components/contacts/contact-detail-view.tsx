@@ -39,6 +39,7 @@ import {
   X,
   DollarSign,
   LayoutTemplate,
+  MessageSquare,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -68,6 +69,21 @@ export function ContactDetailView({
   // find-or-creates the conversation, so no inbound message is required.
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [sendingTemplate, setSendingTemplate] = useState(false);
+
+  // Plain-text first message — Send Template only works on Meta Cloud
+  // API channels (approved-template flow); a UAZAPI channel has no
+  // such concept at all (createUazapiProvider's sendTemplate always
+  // throws) and would otherwise leave an account with no working way
+  // to message a contact that's never texted in. `/api/whatsapp/send`
+  // already accepts message_type "text" + contact_id — this was just
+  // never wired up in the UI. Left available alongside Send Template
+  // rather than hidden per-provider: a Meta account attempting this
+  // outside the 24h window gets Meta's own policy error surfaced
+  // through the same toast, which is informative enough without this
+  // view needing to know the account's channel mix up front.
+  const [plainMessageOpen, setPlainMessageOpen] = useState(false);
+  const [plainMessageText, setPlainMessageText] = useState('');
+  const [sendingPlainMessage, setSendingPlainMessage] = useState(false);
 
   // Details tab
   const [editName, setEditName] = useState('');
@@ -366,6 +382,38 @@ export function ContactDetailView({
     }
   }
 
+  async function handleSendPlainMessage() {
+    if (!contactId || !plainMessageText.trim()) return;
+    setSendingPlainMessage(true);
+    try {
+      const res = await fetch('/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact_id: contactId,
+          message_type: 'text',
+          content_text: plainMessageText.trim(),
+        }),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const reason = payload?.error || `HTTP ${res.status}`;
+        toast.error(t('toastPlainMessageFailed', { reason }));
+        return;
+      }
+
+      toast.success(t('toastPlainMessageSent'));
+      setPlainMessageText('');
+      setPlainMessageOpen(false);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'network error';
+      toast.error(t('toastPlainMessageFailed', { reason }));
+    } finally {
+      setSendingPlainMessage(false);
+    }
+  }
+
   function getInitials(name?: string | null) {
     if (!name) return '?';
     return name
@@ -432,7 +480,16 @@ export function ContactDetailView({
                   </div>
                 </div>
               </div>
-              <div className="mt-3">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPlainMessageOpen((v) => !v)}
+                  className="border-border text-foreground hover:bg-muted"
+                >
+                  <MessageSquare className="size-4" />
+                  {t('sendMessageBtn')}
+                </Button>
                 <Button
                   size="sm"
                   onClick={() => setTemplatePickerOpen(true)}
@@ -447,6 +504,40 @@ export function ContactDetailView({
                   {t('sendTemplateBtn')}
                 </Button>
               </div>
+              {plainMessageOpen && (
+                <div className="mt-2 space-y-2 rounded-lg border border-border bg-muted/50 p-3">
+                  <Textarea
+                    value={plainMessageText}
+                    onChange={(e) => setPlainMessageText(e.target.value)}
+                    placeholder={t('sendMessagePlaceholder')}
+                    rows={3}
+                    className="border-border bg-background text-sm text-foreground"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setPlainMessageOpen(false)}
+                      className="text-muted-foreground hover:bg-muted"
+                    >
+                      {t('cancel')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSendPlainMessage}
+                      disabled={sendingPlainMessage || !plainMessageText.trim()}
+                      className="bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      {sendingPlainMessage ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <MessageSquare className="size-4" />
+                      )}
+                      {t('sendMessageBtn')}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </SheetHeader>
 
             {/* Tabs */}

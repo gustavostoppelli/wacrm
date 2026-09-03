@@ -504,6 +504,9 @@
         "noTagsAvailable": "Nenhuma etiqueta disponível. Crie etiquetas em Configurações."
       },
       "sendTemplateBtn": "Enviar modelo",
+      "sendMessageBtn": "Enviar mensagem",
+      "sendMessagePlaceholder": "Escreva a primeira mensagem...",
+      "cancel": "Cancelar",
       "saveChangesBtn": "Salvar alterações",
       "saveCustomFieldsBtn": "Salvar campos personalizados",
       "toastPhoneRequired": "O número de telefone é obrigatório",
@@ -517,7 +520,9 @@
       "toastCustomFieldsSaved": "Campos personalizados salvos",
       "toastCustomFieldsFailed": "Falha ao salvar campos personalizados",
       "toastTemplateSent": "Modelo \"{name}\" enviado",
-      "toastTemplateFailed": "Falha ao enviar modelo: {reason}"
+      "toastTemplateFailed": "Falha ao enviar modelo: {reason}",
+      "toastPlainMessageSent": "Mensagem enviada",
+      "toastPlainMessageFailed": "Falha ao enviar mensagem: {reason}"
     },
     "importModal": {
       "title": "Importar contatos",

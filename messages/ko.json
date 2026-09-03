@@ -504,6 +504,9 @@
         "noTagsAvailable": "사용 가능한 태그가 없습니다. 설정에서 태그를 만드세요."
       },
       "sendTemplateBtn": "템플릿 보내기",
+      "sendMessageBtn": "메시지 보내기",
+      "sendMessagePlaceholder": "첫 메시지를 작성하세요...",
+      "cancel": "취소",
       "saveChangesBtn": "변경 사항 저장",
       "saveCustomFieldsBtn": "커스텀 필드 저장",
       "toastPhoneRequired": "전화번호는 필수입니다",
@@ -517,7 +520,9 @@
       "toastCustomFieldsSaved": "커스텀 필드가 저장되었습니다",
       "toastCustomFieldsFailed": "커스텀 필드를 저장하지 못했습니다",
       "toastTemplateSent": "\"{name}\" 템플릿을 보냈습니다",
-      "toastTemplateFailed": "템플릿을 보내지 못했습니다: {reason}"
+      "toastTemplateFailed": "템플릿을 보내지 못했습니다: {reason}",
+      "toastPlainMessageSent": "메시지를 보냈습니다",
+      "toastPlainMessageFailed": "메시지를 보내지 못했습니다: {reason}"
     },
     "importModal": {
       "title": "연락처 가져오기",

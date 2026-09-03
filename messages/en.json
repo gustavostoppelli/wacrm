@@ -504,6 +504,9 @@
         "noTagsAvailable": "No tags available. Create tags in Settings."
       },
       "sendTemplateBtn": "Send template",
+      "sendMessageBtn": "Send message",
+      "sendMessagePlaceholder": "Write the first message...",
+      "cancel": "Cancel",
       "saveChangesBtn": "Save Changes",
       "saveCustomFieldsBtn": "Save Custom Fields",
       "toastPhoneRequired": "Phone number is required",
@@ -517,7 +520,9 @@
       "toastCustomFieldsSaved": "Custom fields saved",
       "toastCustomFieldsFailed": "Failed to save custom fields",
       "toastTemplateSent": "Template \"{name}\" sent",
-      "toastTemplateFailed": "Failed to send template: {reason}"
+      "toastTemplateFailed": "Failed to send template: {reason}",
+      "toastPlainMessageSent": "Message sent",
+      "toastPlainMessageFailed": "Failed to send message: {reason}"
     },
     "importModal": {
       "title": "Import Contacts",
