@@ -317,6 +317,13 @@ export interface WhatsAppConfig {
   subscribed_apps_at?: string;
   /** Last error from /register; cleared on success. Meta-only. */
   last_registration_error?: string;
+  /**
+   * Per-channel opt-out for the AI agent (migration 058). Defaults to
+   * true — `ai_configs` is account-wide, so this is the only way to
+   * keep a specific channel (e.g. a salesperson's own number) 100%
+   * human while the account's other channel(s) stay AI-driven.
+   */
+  ai_enabled?: boolean;
 }
 
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)

@@ -266,12 +266,24 @@ export async function processInboundMessage(
   )
 
   if (!flowConsumed && !msg.interactiveReplyId && inboundText.trim()) {
-    await dispatchInboundToAiReply({
-      accountId: msg.accountId,
-      conversationId: conversation.id,
-      contactId: contactRecord.id,
-      configOwnerUserId: msg.configOwnerUserId,
-    })
+    const { data: channelConfig } = await db
+      .from('whatsapp_config')
+      .select('ai_enabled')
+      .eq('id', msg.channelId)
+      .maybeSingle()
+    // Per-channel opt-out (migration 058) — an account can run a
+    // human-only channel (e.g. a salesperson's own number) alongside
+    // the AI-driven one(s). Defaults to enabled so a channel with no
+    // row yet (shouldn't happen, but belt-and-braces) behaves like
+    // every channel did before this toggle existed.
+    if (channelConfig?.ai_enabled !== false) {
+      await dispatchInboundToAiReply({
+        accountId: msg.accountId,
+        conversationId: conversation.id,
+        contactId: contactRecord.id,
+        configOwnerUserId: msg.configOwnerUserId,
+      })
+    }
   }
 
   await dispatchWebhookEvent(db, msg.accountId, 'message.received', {

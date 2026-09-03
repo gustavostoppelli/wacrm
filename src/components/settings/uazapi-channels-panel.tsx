@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   Dialog,
@@ -29,7 +30,10 @@ import {
 } from '@/components/ui/dialog';
 import type { WhatsAppConfig } from '@/types';
 
-type UazapiChannel = Pick<WhatsAppConfig, 'id' | 'name' | 'status' | 'uazapi_base_url' | 'connected_at'>;
+type UazapiChannel = Pick<
+  WhatsAppConfig,
+  'id' | 'name' | 'status' | 'uazapi_base_url' | 'connected_at' | 'ai_enabled'
+>;
 
 const STATUS_POLL_MS = 3000;
 
@@ -59,12 +63,13 @@ export function UazapiChannelsPanel() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingAiId, setTogglingAiId] = useState<string | null>(null);
 
   const fetchChannels = useCallback(async (acctId: string) => {
     setLoading(true);
     const { data, error } = await supabase
       .from('whatsapp_config')
-      .select('id, name, status, uazapi_base_url, connected_at')
+      .select('id, name, status, uazapi_base_url, connected_at, ai_enabled')
       .eq('account_id', acctId)
       .eq('provider', 'uazapi')
       .order('created_at', { ascending: true });
@@ -204,6 +209,39 @@ export function UazapiChannelsPanel() {
     }
   }
 
+  async function handleToggleAi(channelId: string, nextEnabled: boolean) {
+    setTogglingAiId(channelId);
+    // Optimistic — flip immediately, roll back on failure so the switch
+    // never silently drifts from what the server actually has.
+    setChannels((prev) =>
+      prev.map((c) => (c.id === channelId ? { ...c, ai_enabled: nextEnabled } : c))
+    );
+    try {
+      const res = await fetch(`/api/uazapi/channels/${channelId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ai_enabled: nextEnabled }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error || 'Failed to update channel');
+        setChannels((prev) =>
+          prev.map((c) => (c.id === channelId ? { ...c, ai_enabled: !nextEnabled } : c))
+        );
+        return;
+      }
+      toast.success(nextEnabled ? 'AI agent enabled on this channel' : 'AI agent disabled — channel is now human-only');
+    } catch (err) {
+      console.error('Toggle AI channel error:', err);
+      toast.error('Failed to update channel');
+      setChannels((prev) =>
+        prev.map((c) => (c.id === channelId ? { ...c, ai_enabled: !nextEnabled } : c))
+      );
+    } finally {
+      setTogglingAiId(null);
+    }
+  }
+
   async function handleDelete(channelId: string) {
     if (!confirm('Disconnect and remove this WhatsApp channel? Conversation history is kept.')) {
       return;
@@ -281,6 +319,16 @@ export function UazapiChannelsPanel() {
                 </Badge>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 pr-2 border-r border-border mr-1">
+                  <Switch
+                    checked={ch.ai_enabled !== false}
+                    disabled={togglingAiId === ch.id}
+                    onCheckedChange={(checked) => handleToggleAi(ch.id, checked)}
+                  />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    AI agent
+                  </span>
+                </div>
                 {ch.status !== 'connected' && (
                   <Button
                     variant="outline"
