@@ -638,7 +638,12 @@
       "closeDueToday": "오늘 마감",
       "closeOverdue": "기한 초과",
       "stageAge": "이 단계에서 {count}일 경과",
-      "stageAgeToday": "오늘 이 단계에 진입함"
+      "stageAgeToday": "오늘 이 단계에 진입함",
+      "sendMessageBtn": "메시지 보내기",
+      "sendMessagePlaceholder": "첫 메시지를 작성하세요...",
+      "cancel": "취소",
+      "toastMessageSent": "메시지를 보냈습니다",
+      "toastMessageFailed": "메시지를 보내지 못했습니다: {reason}"
     },
     "form": {
       "editDeal": "딜 수정",

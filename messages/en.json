@@ -638,7 +638,12 @@
       "closeDueToday": "Close today",
       "closeOverdue": "Overdue",
       "stageAge": "{count} {count, plural, =1 {day} other {days}} in this stage",
-      "stageAgeToday": "Entered this stage today"
+      "stageAgeToday": "Entered this stage today",
+      "sendMessageBtn": "Send message",
+      "sendMessagePlaceholder": "Write the first message...",
+      "cancel": "Cancel",
+      "toastMessageSent": "Message sent",
+      "toastMessageFailed": "Failed to send message: {reason}"
     },
     "form": {
       "editDeal": "Edit Deal",

@@ -1,10 +1,29 @@
 "use client";
 
+import { useState } from "react";
+import { toast } from "sonner";
 import type { Deal, PipelineStage } from "@/types";
-import { Calendar, CalendarClock, Check, Clock, MapPin, X } from "lucide-react";
+import {
+  Calendar,
+  CalendarClock,
+  Check,
+  Clock,
+  Loader2,
+  MapPin,
+  MessageSquare,
+  X,
+} from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { daysInStage, isStaleInStage } from "@/lib/deals/stage-age";
 import { useTranslations } from "next-intl";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface DealCardProps {
   deal: Deal;
@@ -58,6 +77,44 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
   const stageDays = daysInStage(deal.stage_entered_at);
   const isOpen = !deal.status || deal.status === "open";
   const stageStale = isOpen && isStaleInStage(stageDays, stage?.stale_after_days);
+
+  // Shortcut to message this lead without leaving the pipeline —
+  // opens the same plain-text send used on the Contact detail view
+  // (/api/whatsapp/send, contact_id + message_type "text"). Resolves
+  // to whichever channel is assigned to the sender automatically
+  // (see resolveSenderChannel) — no picker here either, same as there.
+  const [messageOpen, setMessageOpen] = useState(false);
+  const [messageText, setMessageText] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
+
+  async function handleSendMessage() {
+    if (!deal.contact_id || !messageText.trim()) return;
+    setSendingMessage(true);
+    try {
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contact_id: deal.contact_id,
+          message_type: "text",
+          content_text: messageText.trim(),
+        }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(t("toastMessageFailed", { reason: payload?.error || `HTTP ${res.status}` }));
+        return;
+      }
+      toast.success(t("toastMessageSent"));
+      setMessageText("");
+      setMessageOpen(false);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "network error";
+      toast.error(t("toastMessageFailed", { reason }));
+    } finally {
+      setSendingMessage(false);
+    }
+  }
 
   return (
     <button
@@ -133,7 +190,79 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
             </p>
           )}
         </div>
+        {deal.contact_id && (
+          // A <button> can't nest inside the card's own root <button> (invalid
+          // HTML — browsers close the outer one early, breaking the
+          // click-to-edit). A keyboard-operable <span role="button"> sidesteps
+          // that while still stopping the click from reaching the card.
+          <span
+            role="button"
+            tabIndex={0}
+            title={t("sendMessageBtn")}
+            aria-label={t("sendMessageBtn")}
+            onClick={(e) => {
+              e.stopPropagation();
+              setMessageOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                setMessageOpen(true);
+              }
+            }}
+            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-primary/15 hover:text-primary"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+          </span>
+        )}
       </div>
+
+      {messageOpen && (
+        <Dialog open={messageOpen} onOpenChange={setMessageOpen}>
+          <DialogContent
+            className="bg-popover border-border sm:max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <DialogHeader>
+              <DialogTitle className="text-popover-foreground">
+                {t("sendMessageBtn")} — {contactLabel}
+              </DialogTitle>
+            </DialogHeader>
+            <Textarea
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              placeholder={t("sendMessagePlaceholder")}
+              rows={3}
+              className="border-border bg-muted text-sm text-foreground"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setMessageOpen(false)}
+                className="border-border bg-transparent text-muted-foreground hover:bg-muted"
+              >
+                {t("cancel")}
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSendMessage}
+                disabled={sendingMessage || !messageText.trim()}
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {sendingMessage ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <MessageSquare className="h-4 w-4" />
+                )}
+                {t("sendMessageBtn")}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {(deal.source || isOpen) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
