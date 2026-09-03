@@ -117,6 +117,7 @@ export function PipelineSettings({
       color: s.color,
       position: i,
       stale_after_days: s.stale_after_days ?? null,
+      notify_phone: s.notify_phone?.trim() || null,
     }));
 
     const [renameRes, stagesRes] = await Promise.all([
@@ -280,6 +281,11 @@ export function PipelineSettings({
                             updated[index] = { ...updated[index], stale_after_days: v };
                             setLocalStages(updated);
                           }}
+                          onNotifyPhoneChange={(v) => {
+                            const updated = [...localStages];
+                            updated[index] = { ...updated[index], notify_phone: v };
+                            setLocalStages(updated);
+                          }}
                           onRemove={() => handleRemoveStage(stage.id)}
                           colors={STAGE_COLORS}
                           t={t}
@@ -375,6 +381,7 @@ function SortableStageRow({
   onNameChange,
   onColorChange,
   onStaleAfterDaysChange,
+  onNotifyPhoneChange,
   onRemove,
   colors,
   t,
@@ -383,6 +390,7 @@ function SortableStageRow({
   onNameChange: (v: string) => void;
   onColorChange: (v: string) => void;
   onStaleAfterDaysChange: (v: number | null) => void;
+  onNotifyPhoneChange: (v: string | null) => void;
   onRemove: () => void;
   colors: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -401,44 +409,56 @@ function SortableStageRow({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 rounded-lg border border-border bg-muted p-2"
+      className="space-y-1.5 rounded-lg border border-border bg-muted p-2"
     >
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
-        aria-label={t("dragToReorder")}
-      >
-        <GripVertical className="h-4 w-4" />
-      </button>
-      <ColorSwatch value={stage.color} onChange={onColorChange} colors={colors} t={t} />
-      <Input
-        value={stage.name}
-        onChange={(e) => onNameChange(e.target.value)}
-        className="h-7 flex-1 border-transparent bg-transparent text-sm text-foreground focus:border-border"
-      />
-      <Input
-        type="number"
-        min={0}
-        step={1}
-        title={t("staleAfterDaysHint")}
-        placeholder={t("staleAfterDaysPlaceholder")}
-        value={stage.stale_after_days ?? ""}
-        onChange={(e) => {
-          const raw = e.target.value;
-          onStaleAfterDaysChange(raw === "" ? null : Math.max(0, Number(raw)));
-        }}
-        className="h-7 w-16 border-border bg-transparent text-center text-xs text-foreground"
-      />
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        onClick={onRemove}
-        className="text-muted-foreground hover:text-red-400"
-      >
-        <Trash2 className="h-3 w-3" />
-      </Button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+          aria-label={t("dragToReorder")}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <ColorSwatch value={stage.color} onChange={onColorChange} colors={colors} t={t} />
+        <Input
+          value={stage.name}
+          onChange={(e) => onNameChange(e.target.value)}
+          className="h-7 flex-1 border-transparent bg-transparent text-sm text-foreground focus:border-border"
+        />
+        <Input
+          type="number"
+          min={0}
+          step={1}
+          title={t("staleAfterDaysHint")}
+          placeholder={t("staleAfterDaysPlaceholder")}
+          value={stage.stale_after_days ?? ""}
+          onChange={(e) => {
+            const raw = e.target.value;
+            onStaleAfterDaysChange(raw === "" ? null : Math.max(0, Number(raw)));
+          }}
+          className="h-7 w-16 border-border bg-transparent text-center text-xs text-foreground"
+        />
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={onRemove}
+          className="text-muted-foreground hover:text-red-400"
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+      <div className="flex items-center gap-2 pl-6">
+        <Input
+          type="tel"
+          title={t("notifyPhoneHint")}
+          placeholder={t("notifyPhonePlaceholder")}
+          value={stage.notify_phone ?? ""}
+          onChange={(e) => onNotifyPhoneChange(e.target.value || null)}
+          className="h-7 flex-1 border-border bg-transparent text-xs text-foreground"
+        />
+      </div>
     </div>
   );
 }

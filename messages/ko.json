@@ -713,6 +713,8 @@
       "dragToReorder": "드래그하여 순서 변경",
       "staleAfterDaysPlaceholder": "일",
       "staleAfterDaysHint": "이 단계에 X일 이상 머무르면 알림 (비워두면 알림 없음)",
+      "notifyPhonePlaceholder": "WhatsApp으로 알림 (쉼표로 구분된 전화번호)",
+      "notifyPhoneHint": "거래가 이 단계에 들어올 때마다 이 번호들로 WhatsApp 알림을 보냅니다 (비워두면 알림 없음)",
       "changeColor": "색상 변경",
       "toastFailedSave": "파이프라인을 저장하지 못했습니다",
       "toastSaved": "파이프라인이 저장되었습니다",

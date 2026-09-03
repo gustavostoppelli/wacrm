@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
-import { resumePendingExecution } from '@/lib/automations/engine'
+import { resumePendingExecution, findOrCreateInternalRecipient } from '@/lib/automations/engine'
 import type { AutomationContext } from '@/lib/automations/engine'
 import {
   dispatchInboundToAiReply,
@@ -91,6 +91,7 @@ export async function GET(request: Request) {
   const reactivationsProcessed = await drainLostDealReactivation(admin)
   const tasksProcessed = await drainDueTasks(admin)
   const closeDateAlertsProcessed = await drainDueCloseDateAlerts(admin)
+  const stageEntryNotificationsProcessed = await drainStageEntryNotifications(admin)
 
   return NextResponse.json({
     processed,
@@ -100,6 +101,7 @@ export async function GET(request: Request) {
     reactivations_processed: reactivationsProcessed,
     tasks_processed: tasksProcessed,
     close_date_alerts_processed: closeDateAlertsProcessed,
+    stage_entry_notifications_processed: stageEntryNotificationsProcessed,
   })
 }
 
@@ -540,6 +542,99 @@ async function drainDueCloseDateAlerts(
       console.error('[deal close date alert] notify failed:', err)
     }
     processed++
+  }
+  return processed
+}
+
+/**
+ * Drains open deals that just entered a stage with `notify_phone` set
+ * (migration 061) — sends a WhatsApp alert to every comma-separated
+ * number configured on that stage (e.g. every connected salesperson's
+ * own number, "avisar todo mundo quando cair um lead novo"). No
+ * automation trigger exists for "a deal reached stage X" (every
+ * existing trigger is message/conversation-centric), so this is its
+ * own dedicated drain rather than routed through the automations
+ * engine.
+ *
+ * Dedupe compares `stage_notify_sent_at` against `stage_entered_at`
+ * (migration 056) instead of nulling it out on every stage change — a
+ * deal that later re-enters the same notify-configured stage
+ * re-arms the alert on its own the moment `stage_entered_at` moves
+ * past the last `stage_notify_sent_at`, no extra reset trigger
+ * needed. The claim re-checks `stage_entered_at` hasn't moved again
+ * since we read it, so a deal dragged twice in quick succession can't
+ * double-send.
+ */
+async function drainStageEntryNotifications(
+  admin: ReturnType<typeof supabaseAdmin>,
+): Promise<number> {
+  const { data: stages } = await admin
+    .from('pipeline_stages')
+    .select('id, name, notify_phone')
+    .not('notify_phone', 'is', null)
+
+  if (!stages || stages.length === 0) return 0
+
+  let processed = 0
+  for (const stage of stages) {
+    const phones = ((stage.notify_phone as string) ?? '')
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)
+    if (phones.length === 0) continue
+
+    const { data: deals } = await admin
+      .from('deals')
+      .select(
+        'id, account_id, user_id, contact_id, title, stage_entered_at, stage_notify_sent_at, contact:contacts(name)',
+      )
+      .eq('stage_id', stage.id as string)
+      .eq('status', 'open')
+      .limit(20)
+
+    if (!deals || deals.length === 0) continue
+
+    for (const deal of deals) {
+      const sentAt = deal.stage_notify_sent_at as string | null
+      const enteredAt = deal.stage_entered_at as string
+      if (sentAt && sentAt >= enteredAt) continue // already notified for this stage entry
+
+      const { data: claim } = await admin
+        .from('deals')
+        .update({ stage_notify_sent_at: new Date().toISOString() })
+        .eq('id', deal.id)
+        .eq('stage_entered_at', enteredAt)
+        .select('id')
+        .maybeSingle()
+      if (!claim) continue
+
+      const contact = Array.isArray(deal.contact) ? deal.contact[0] : deal.contact
+      const contactName = (contact as { name?: string } | null)?.name || (deal.title as string)
+      const text = `🔔 Novo lead: ${contactName} entrou em "${stage.name as string}"`
+
+      for (const phone of phones) {
+        try {
+          const recipient = await findOrCreateInternalRecipient(
+            admin,
+            deal.account_id as string,
+            deal.user_id as string,
+            phone,
+          )
+          if (!recipient) continue
+          await engineSendText({
+            accountId: deal.account_id as string,
+            userId: deal.user_id as string,
+            conversationId: recipient.conversationId,
+            contactId: recipient.contactId,
+            text,
+            aiGenerated: false,
+          })
+        } catch (err) {
+          console.error('[stage entry notify] send failed:', phone, err)
+        }
+      }
+      processed++
+    }
   }
   return processed
 }

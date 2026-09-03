@@ -859,7 +859,7 @@ const DEFAULT_NOTIFY_OWNER_TEMPLATE =
  * callers' error-handling shapes differ (this one throws, that one
  * logs-and-returns-null).
  */
-async function findOrCreateInternalRecipient(
+export async function findOrCreateInternalRecipient(
   db: SupabaseClient,
   accountId: string,
   configOwnerUserId: string,

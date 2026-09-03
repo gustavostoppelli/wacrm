@@ -713,6 +713,8 @@
       "dragToReorder": "Drag to reorder",
       "staleAfterDaysPlaceholder": "days",
       "staleAfterDaysHint": "Alert when a deal sits more than X days in this stage (blank = no alert)",
+      "notifyPhonePlaceholder": "Notify by WhatsApp (comma-separated phones)",
+      "notifyPhoneHint": "Sends a WhatsApp alert to these numbers every time a deal enters this stage (blank = no alert)",
       "changeColor": "Change color",
       "toastFailedSave": "Failed to save pipeline",
       "toastSaved": "Pipeline saved",

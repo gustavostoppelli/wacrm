@@ -713,6 +713,8 @@
       "dragToReorder": "Arraste para reordenar",
       "staleAfterDaysPlaceholder": "dias",
       "staleAfterDaysHint": "Alertar quando um negócio ficar mais de X dias parado nesta etapa (em branco = sem alerta)",
+      "notifyPhonePlaceholder": "Avisar por WhatsApp (telefones separados por vírgula)",
+      "notifyPhoneHint": "Envia um aviso por WhatsApp pra esses números toda vez que um negócio entrar nesta etapa (em branco = sem aviso)",
       "changeColor": "Mudar cor",
       "toastFailedSave": "Falha ao salvar funil",
       "toastSaved": "Funil salvo",

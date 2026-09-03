@@ -410,6 +410,10 @@ export interface PipelineStage {
    *  (deal card badge, stuck-deals report) flags it. Null disables
    *  the alert coloring for this stage — the day count still shows. */
   stale_after_days?: number | null;
+  /** WhatsApp number (migration 061) alerted whenever an open deal
+   *  enters this stage — e.g. "ping the salesperson when a lead lands
+   *  in Novo Lead." Null disables the alert for this stage. */
+  notify_phone?: string | null;
   created_at: string;
 }
 
