@@ -56,6 +56,15 @@ export function UazapiChannelsPanel() {
   const [channelName, setChannelName] = useState('');
   const [creating, setCreating] = useState(false);
 
+  // Whether this account already has a saved UAZAPI server (migration
+  // 059) — once true, "Add channel" only asks for a name; a teammate
+  // adding their own number never needs the admin token. `null` means
+  // "still loading", so the dialog doesn't flash the credential form
+  // before this resolves.
+  const [serverConfigured, setServerConfigured] = useState<boolean | null>(null);
+  const [serverBaseUrl, setServerBaseUrl] = useState<string | null>(null);
+  const [showServerFields, setShowServerFields] = useState(false);
+
   const [connectChannelId, setConnectChannelId] = useState<string | null>(null);
   const [qrcode, setQrcode] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -100,10 +109,23 @@ export function UazapiChannelsPanel() {
     }
   }, [supabase]);
 
+  const fetchServerConfig = useCallback(async () => {
+    try {
+      const res = await fetch('/api/uazapi/server');
+      const data = await res.json();
+      if (!res.ok) return;
+      setServerConfigured(!!data.configured);
+      setServerBaseUrl(data.base_url || null);
+    } catch (err) {
+      console.error('Failed to load UAZAPI server config:', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (authLoading || profileLoading || !accountId) return;
     fetchChannels(accountId);
-  }, [authLoading, profileLoading, accountId, fetchChannels]);
+    fetchServerConfig();
+  }, [authLoading, profileLoading, accountId, fetchChannels, fetchServerConfig]);
 
   useEffect(() => {
     return () => {
@@ -118,8 +140,13 @@ export function UazapiChannelsPanel() {
     }
   }
 
+  // Credential fields are only required the first time (or when the
+  // teammate explicitly asks to use a different server) — once an
+  // account has a saved server, adding another channel is just a name.
+  const needsServerFields = !serverConfigured || showServerFields;
+
   async function handleCreate() {
-    if (!baseUrl.trim() || !adminToken.trim()) {
+    if (needsServerFields && (!baseUrl.trim() || !adminToken.trim())) {
       toast.error('Server URL and admin token are required');
       return;
     }
@@ -129,8 +156,9 @@ export function UazapiChannelsPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          base_url: baseUrl.trim(),
-          admin_token: adminToken.trim(),
+          ...(needsServerFields
+            ? { base_url: baseUrl.trim(), admin_token: adminToken.trim() }
+            : {}),
           name: channelName.trim() || null,
         }),
       });
@@ -140,6 +168,7 @@ export function UazapiChannelsPanel() {
         return;
       }
       toast.success('Channel created — scan the QR code to finish connecting.');
+      fetchServerConfig();
       setAddOpen(false);
       setBaseUrl('');
       setAdminToken('');
@@ -360,41 +389,66 @@ export function UazapiChannelsPanel() {
       </CardContent>
 
       {/* Add channel dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog
+        open={addOpen}
+        onOpenChange={(open) => {
+          setAddOpen(open);
+          if (open) setShowServerFields(!serverConfigured);
+        }}
+      >
         <DialogContent className="bg-popover border-border sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-popover-foreground">Connect a UAZAPI channel</DialogTitle>
+            <DialogTitle className="text-popover-foreground">
+              {needsServerFields ? 'Connect a UAZAPI channel' : 'Add a channel'}
+            </DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              Paste your UAZAPI server URL and admin token. The admin token is
-              used once to create your instance and is never stored.
+              {needsServerFields
+                ? 'Paste your UAZAPI server URL and admin token once — every channel after this one reuses it, so teammates never need to see it.'
+                : 'Just give the channel a name. It reuses the server already configured for this account — no credentials needed.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-muted-foreground">Server URL</Label>
-              <Input
-                placeholder="https://free.uazapi.com"
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-muted-foreground">Admin token</Label>
-              <Input
-                type="password"
-                placeholder="Your UAZAPI server's admin token"
-                value={adminToken}
-                onChange={(e) => setAdminToken(e.target.value)}
-                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
-              />
-            </div>
+            {!needsServerFields && serverBaseUrl && (
+              <p className="text-xs text-muted-foreground">
+                Server: <span className="text-foreground">{serverBaseUrl}</span>{' '}
+                <button
+                  type="button"
+                  onClick={() => setShowServerFields(true)}
+                  className="underline hover:text-foreground"
+                >
+                  use a different one
+                </button>
+              </p>
+            )}
+            {needsServerFields && (
+              <>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Server URL</Label>
+                  <Input
+                    placeholder="https://free.uazapi.com"
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Admin token</Label>
+                  <Input
+                    type="password"
+                    placeholder="Your UAZAPI server's admin token"
+                    value={adminToken}
+                    onChange={(e) => setAdminToken(e.target.value)}
+                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+              </>
+            )}
             <div className="space-y-2">
               <Label className="text-muted-foreground">
                 Name <span className="text-muted-foreground">(optional)</span>
               </Label>
               <Input
-                placeholder="e.g. Sales"
+                placeholder="e.g. Sales — Ana"
                 value={channelName}
                 onChange={(e) => setChannelName(e.target.value)}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
