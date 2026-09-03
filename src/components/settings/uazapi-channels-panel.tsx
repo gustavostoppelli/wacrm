@@ -82,6 +82,7 @@ export function UazapiChannelsPanel() {
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingAiId, setTogglingAiId] = useState<string | null>(null);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
 
   const fetchChannels = useCallback(async (acctId: string) => {
     setLoading(true);
@@ -300,6 +301,38 @@ export function UazapiChannelsPanel() {
     }
   }
 
+  async function handleAssignChange(channelId: string, nextAssignedTo: string) {
+    setAssigningId(channelId);
+    const prev = channels.find((c) => c.id === channelId)?.assigned_to ?? null;
+    setChannels((prevList) =>
+      prevList.map((c) => (c.id === channelId ? { ...c, assigned_to: nextAssignedTo || null } : c))
+    );
+    try {
+      const res = await fetch(`/api/uazapi/channels/${channelId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assigned_to: nextAssignedTo || null }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.error || 'Failed to update assignment');
+        setChannels((prevList) =>
+          prevList.map((c) => (c.id === channelId ? { ...c, assigned_to: prev } : c))
+        );
+        return;
+      }
+      toast.success('Channel assignment updated');
+    } catch (err) {
+      console.error('Assign channel error:', err);
+      toast.error('Failed to update assignment');
+      setChannels((prevList) =>
+        prevList.map((c) => (c.id === channelId ? { ...c, assigned_to: prev } : c))
+      );
+    } finally {
+      setAssigningId(null);
+    }
+  }
+
   async function handleDelete(channelId: string) {
     if (!confirm('Disconnect and remove this WhatsApp channel? Conversation history is kept.')) {
       return;
@@ -364,16 +397,6 @@ export function UazapiChannelsPanel() {
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {ch.uazapi_base_url}
-                    {ch.assigned_to && (
-                      <>
-                        {' · '}
-                        <span className="text-foreground">
-                          {members.find((m) => m.user_id === ch.assigned_to)?.full_name ||
-                            members.find((m) => m.user_id === ch.assigned_to)?.email ||
-                            'Assigned teammate'}
-                        </span>
-                      </>
-                    )}
                   </p>
                 </div>
                 <Badge
@@ -387,6 +410,20 @@ export function UazapiChannelsPanel() {
                 </Badge>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <select
+                  value={ch.assigned_to || ''}
+                  disabled={assigningId === ch.id}
+                  onChange={(e) => handleAssignChange(ch.id, e.target.value)}
+                  title="Which teammate can connect/manage this channel without being an admin"
+                  className="h-8 rounded-md border border-border bg-muted px-2 text-xs text-foreground outline-none focus:border-primary"
+                >
+                  <option value="">Unassigned</option>
+                  {members.map((m) => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.full_name || m.email}
+                    </option>
+                  ))}
+                </select>
                 <div className="flex items-center gap-1.5 pr-2 border-r border-border mr-1">
                   <Switch
                     checked={ch.ai_enabled !== false}
