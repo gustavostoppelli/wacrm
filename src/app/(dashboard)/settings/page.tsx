@@ -13,6 +13,7 @@ import { SecurityPanel } from '@/components/settings/security-panel';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { UazapiChannelsPanel } from '@/components/settings/uazapi-channels-panel';
+import { MyWhatsAppChannelPanel } from '@/components/settings/my-whatsapp-channel-panel';
 import { CalendarConfig } from '@/components/settings/calendar-config';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
@@ -44,7 +45,7 @@ export default function SettingsPage() {
 function SettingsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { defaultCurrency } = useAuth();
+  const { defaultCurrency, canEditSettings } = useAuth();
   const { mode } = useTheme();
   const t = useTranslations('Settings');
 
@@ -76,11 +77,17 @@ function SettingsPageInner() {
     profile: <ProfileForm />,
     security: <SecurityPanel />,
     appearance: <AppearancePanel />,
-    whatsapp: (
+    // Admin+ manages every channel on the account (create, credentials,
+    // AI toggle, assignment); anyone below that only ever sees the one
+    // channel (if any) an admin assigned to them, with just a Connect
+    // button — see MyWhatsAppChannelPanel and migration 060.
+    whatsapp: canEditSettings ? (
       <div className="space-y-6">
         <WhatsAppConfig />
         <UazapiChannelsPanel />
       </div>
+    ) : (
+      <MyWhatsAppChannelPanel />
     ),
     calendar: <CalendarConfig />,
     templates: <TemplateManager />,

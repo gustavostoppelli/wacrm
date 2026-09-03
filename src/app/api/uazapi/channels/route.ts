@@ -27,14 +27,40 @@ import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
  * UAZAPI instance so inbound messages start flowing — see
  * `/api/uazapi/webhook`. Connecting the actual WhatsApp number (QR
  * scan) happens in a separate step — POST .../connect.
+ *
+ * Optional `assigned_to` (a user id, must belong to this account)
+ * reserves the channel for one teammate — they can then complete the
+ * QR pairing themselves (POST/GET .../connect and .../status accept
+ * 'agent' role for their own assigned channel, migration 060) without
+ * ever needing admin access. Creating the channel itself stays
+ * admin-only regardless — that's the intended control point for an
+ * account that bills per connected number.
  */
 export async function POST(request: Request) {
   try {
     const { supabase, accountId, userId } = await requireRole('admin')
 
     const body = await request.json()
-    const { name } = body as { name?: string }
+    const { name, assigned_to } = body as { name?: string; assigned_to?: string }
     let { base_url, admin_token } = body as { base_url?: string; admin_token?: string }
+
+    if (assigned_to) {
+      // `assigned_to` is an auth.users id (matches whatsapp_config's FK
+      // and auth.uid() in the RLS policy) — profiles.user_id, not
+      // profiles.id, is the column that holds that value.
+      const { data: assignee } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', assigned_to)
+        .eq('account_id', accountId)
+        .maybeSingle()
+      if (!assignee) {
+        return NextResponse.json(
+          { error: 'assigned_to must be a member of this account' },
+          { status: 400 },
+        )
+      }
+    }
 
     if (!base_url?.trim() || !admin_token?.trim()) {
       // Fall back to the account's saved server (migration 059).
@@ -97,6 +123,7 @@ export async function POST(request: Request) {
         user_id: userId,
         provider: 'uazapi',
         name: name || null,
+        assigned_to: assigned_to || null,
         uazapi_base_url: resolvedBaseUrl,
         uazapi_instance_id: instance.id,
         uazapi_instance_token: encrypt(instance.token),

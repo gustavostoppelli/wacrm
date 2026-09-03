@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { requireRole, toErrorResponse } from '@/lib/auth/account'
+import { requireRole, toErrorResponse, ForbiddenError } from '@/lib/auth/account'
+import { hasMinRole } from '@/lib/auth/roles'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { getInstanceStatus } from '@/lib/whatsapp/uazapi-api'
 
@@ -10,18 +11,23 @@ import { getInstanceStatus } from '@/lib/whatsapp/uazapi-api'
  * channel list to show live connection state. Syncs UAZAPI's live
  * status onto `whatsapp_config.status`/`connected_at` as a side
  * effect, mirroring how Meta's `/config` GET keeps `status` fresh.
+ *
+ * Role: same admin-or-assigned-agent rule as .../connect (migration
+ * 060) — an agent can poll (and thus persist the sync side effect
+ * for) only the channel reserved for them, via the matching RLS
+ * UPDATE policy scoped to `assigned_to = auth.uid()`.
  */
 export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { supabase, accountId } = await requireRole('agent')
+    const { supabase, accountId, userId, role } = await requireRole('agent')
     const { id } = await context.params
 
     const { data: channel, error: fetchError } = await supabase
       .from('whatsapp_config')
-      .select('uazapi_base_url, uazapi_instance_token, status')
+      .select('uazapi_base_url, uazapi_instance_token, status, assigned_to')
       .eq('id', id)
       .eq('account_id', accountId)
       .eq('provider', 'uazapi')
@@ -29,6 +35,9 @@ export async function GET(
 
     if (fetchError || !channel) {
       return NextResponse.json({ error: 'Channel not found' }, { status: 404 })
+    }
+    if (channel.assigned_to !== userId && !hasMinRole(role, 'admin')) {
+      throw new ForbiddenError('This channel is not assigned to you')
     }
 
     const result = await getInstanceStatus({

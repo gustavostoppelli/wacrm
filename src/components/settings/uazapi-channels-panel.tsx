@@ -32,8 +32,15 @@ import type { WhatsAppConfig } from '@/types';
 
 type UazapiChannel = Pick<
   WhatsAppConfig,
-  'id' | 'name' | 'status' | 'uazapi_base_url' | 'connected_at' | 'ai_enabled'
+  'id' | 'name' | 'status' | 'uazapi_base_url' | 'connected_at' | 'ai_enabled' | 'assigned_to'
 >;
+
+interface Member {
+  /** auth.users id — matches whatsapp_config.assigned_to, NOT profiles.id. */
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+}
 
 const STATUS_POLL_MS = 3000;
 
@@ -54,7 +61,9 @@ export function UazapiChannelsPanel() {
   const [baseUrl, setBaseUrl] = useState('');
   const [adminToken, setAdminToken] = useState('');
   const [channelName, setChannelName] = useState('');
+  const [assignedTo, setAssignedTo] = useState('');
   const [creating, setCreating] = useState(false);
+  const [members, setMembers] = useState<Member[]>([]);
 
   // Whether this account already has a saved UAZAPI server (migration
   // 059) — once true, "Add channel" only asks for a name; a teammate
@@ -78,7 +87,7 @@ export function UazapiChannelsPanel() {
     setLoading(true);
     const { data, error } = await supabase
       .from('whatsapp_config')
-      .select('id, name, status, uazapi_base_url, connected_at, ai_enabled')
+      .select('id, name, status, uazapi_base_url, connected_at, ai_enabled, assigned_to')
       .eq('account_id', acctId)
       .eq('provider', 'uazapi')
       .order('created_at', { ascending: true });
@@ -109,6 +118,15 @@ export function UazapiChannelsPanel() {
     }
   }, [supabase]);
 
+  const fetchMembers = useCallback(async (acctId: string) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('user_id, full_name, email')
+      .eq('account_id', acctId)
+      .order('full_name');
+    setMembers(data || []);
+  }, [supabase]);
+
   const fetchServerConfig = useCallback(async () => {
     try {
       const res = await fetch('/api/uazapi/server');
@@ -125,7 +143,8 @@ export function UazapiChannelsPanel() {
     if (authLoading || profileLoading || !accountId) return;
     fetchChannels(accountId);
     fetchServerConfig();
-  }, [authLoading, profileLoading, accountId, fetchChannels, fetchServerConfig]);
+    fetchMembers(accountId);
+  }, [authLoading, profileLoading, accountId, fetchChannels, fetchServerConfig, fetchMembers]);
 
   useEffect(() => {
     return () => {
@@ -160,6 +179,7 @@ export function UazapiChannelsPanel() {
             ? { base_url: baseUrl.trim(), admin_token: adminToken.trim() }
             : {}),
           name: channelName.trim() || null,
+          assigned_to: assignedTo || null,
         }),
       });
       const data = await res.json();
@@ -167,14 +187,23 @@ export function UazapiChannelsPanel() {
         toast.error(data.error || 'Failed to connect to UAZAPI');
         return;
       }
-      toast.success('Channel created — scan the QR code to finish connecting.');
+      const wasAssigned = !!assignedTo;
+      toast.success(
+        wasAssigned
+          ? 'Channel created — the assigned teammate can connect it from their own account.'
+          : 'Channel created — scan the QR code to finish connecting.',
+      );
       fetchServerConfig();
       setAddOpen(false);
       setBaseUrl('');
       setAdminToken('');
       setChannelName('');
+      setAssignedTo('');
       if (accountId) await fetchChannels(accountId);
-      startConnect(data.channel.id);
+      // Only auto-open the QR dialog when the admin created this
+      // channel for themselves — an assigned teammate connects it from
+      // their own simplified view instead (see MyWhatsAppChannelPanel).
+      if (!wasAssigned) startConnect(data.channel.id);
     } catch (err) {
       console.error('Create UAZAPI channel error:', err);
       toast.error('Failed to connect to UAZAPI');
@@ -335,6 +364,16 @@ export function UazapiChannelsPanel() {
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {ch.uazapi_base_url}
+                    {ch.assigned_to && (
+                      <>
+                        {' · '}
+                        <span className="text-foreground">
+                          {members.find((m) => m.user_id === ch.assigned_to)?.full_name ||
+                            members.find((m) => m.user_id === ch.assigned_to)?.email ||
+                            'Assigned teammate'}
+                        </span>
+                      </>
+                    )}
                   </p>
                 </div>
                 <Badge
@@ -393,7 +432,10 @@ export function UazapiChannelsPanel() {
         open={addOpen}
         onOpenChange={(open) => {
           setAddOpen(open);
-          if (open) setShowServerFields(!serverConfigured);
+          if (open) {
+            setShowServerFields(!serverConfigured);
+            setAssignedTo('');
+          }
         }}
       >
         <DialogContent className="bg-popover border-border sm:max-w-md">
@@ -453,6 +495,28 @@ export function UazapiChannelsPanel() {
                 onChange={(e) => setChannelName(e.target.value)}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
               />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">
+                Assign to <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <select
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary"
+              >
+                <option value="">Just me (admin) — I&apos;ll connect it now</option>
+                {members.map((m) => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.full_name || m.email}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                The assigned teammate can connect their own phone to this
+                channel without being an admin — they never see the server
+                credentials.
+              </p>
             </div>
           </div>
           <DialogFooter>

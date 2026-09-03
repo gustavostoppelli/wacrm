@@ -324,6 +324,12 @@ export interface WhatsAppConfig {
    * human while the account's other channel(s) stay AI-driven.
    */
   ai_enabled?: boolean;
+  /**
+   * Teammate this channel is reserved for (migration 060). They can
+   * complete the QR pairing themselves without being an admin —
+   * creating/deleting the channel stays admin-only.
+   */
+  assigned_to?: string | null;
 }
 
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)
