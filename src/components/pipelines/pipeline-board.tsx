@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -17,7 +17,7 @@ import {
 import type { Deal, PipelineStage } from "@/types";
 import { DealCard } from "./deal-card";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { useTranslations } from "next-intl";
@@ -38,6 +38,7 @@ export function PipelineBoard({
   onEditDeal,
 }: PipelineBoardProps) {
   const { defaultCurrency } = useAuth();
+  const t = useTranslations("Pipelines.board");
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
 
   // Click-and-drag-to-pan the board horizontally from anywhere over it
@@ -77,6 +78,33 @@ export function PipelineBoard({
     panState.current = null;
     setIsPanning(false);
     scrollRef.current?.releasePointerCapture(e.pointerId);
+  }
+
+  // Explicit, always-visible left/right controls above the board —
+  // drag-to-pan works but isn't discoverable on its own, so this gives
+  // a click target that immediately reveals a hidden stage is there.
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    function updateScrollButtons() {
+      if (!el) return;
+      setCanScrollLeft(el.scrollLeft > 4);
+      setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+    }
+    updateScrollButtons();
+    el.addEventListener("scroll", updateScrollButtons);
+    window.addEventListener("resize", updateScrollButtons);
+    return () => {
+      el.removeEventListener("scroll", updateScrollButtons);
+      window.removeEventListener("resize", updateScrollButtons);
+    };
+  }, [stages, deals]);
+
+  function scrollByColumn(direction: 1 | -1) {
+    scrollRef.current?.scrollBy({ left: direction * 300, behavior: "smooth" });
   }
 
   const sortedStages = useMemo(
@@ -146,7 +174,37 @@ export function PipelineBoard({
           so that scrollbar can end up far below the fold. The
           onPointer* handlers above let a click-drag ANYWHERE over the
           board pan it sideways too, so reaching a hidden stage never
-          requires scrolling all the way down first. */}
+          requires scrolling all the way down first. The arrow buttons
+          right below are a second, more discoverable way to do the
+          same thing — they sit at the TOP of the board, above every
+          column, so they're visible without scrolling the page down
+          first, and only render once there's actually more to see. */}
+      {(canScrollLeft || canScrollRight) && (
+        <div className="mb-2 flex justify-end gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            disabled={!canScrollLeft}
+            onClick={() => scrollByColumn(-1)}
+            aria-label={t("scrollLeft")}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            disabled={!canScrollRight}
+            onClick={() => scrollByColumn(1)}
+            aria-label={t("scrollRight")}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
       <div
         ref={scrollRef}
         onPointerDown={handlePanPointerDown}

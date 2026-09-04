@@ -610,7 +610,9 @@
     },
     "board": {
       "dropDealHere": "여기에 딜을 놓으세요",
-      "addDeal": "딜 추가"
+      "addDeal": "딜 추가",
+      "scrollLeft": "왼쪽으로 스크롤",
+      "scrollRight": "오른쪽으로 스크롤"
     },
     "tasks": {
       "title": "작업",

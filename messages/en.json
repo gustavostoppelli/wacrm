@@ -610,7 +610,9 @@
     },
     "board": {
       "dropDealHere": "Drop a deal here",
-      "addDeal": "Add Deal"
+      "addDeal": "Add Deal",
+      "scrollLeft": "Scroll left",
+      "scrollRight": "Scroll right"
     },
     "tasks": {
       "title": "Tasks",

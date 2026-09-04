@@ -610,7 +610,9 @@
     },
     "board": {
       "dropDealHere": "Solte um negócio aqui",
-      "addDeal": "Adicionar negócio"
+      "addDeal": "Adicionar negócio",
+      "scrollLeft": "Rolar para a esquerda",
+      "scrollRight": "Rolar para a direita"
     },
     "tasks": {
       "title": "Tarefas",
