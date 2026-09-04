@@ -319,7 +319,15 @@ export default function PipelinesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    // flex column filling the dashboard shell's own scroll area
+    // (main.overflow-y-auto in dashboard-shell.tsx) so the board
+    // section below can be height-bounded instead of growing as tall
+    // as its tallest column — that's what pushed the Kanban's
+    // horizontal scrollbar down to below the last card, forcing a
+    // scroll-to-the-bottom just to scroll sideways. `min-h-0` at every
+    // level here is load-bearing: without it, a flex child ignores
+    // `flex-1` and reverts to its content's natural (unbounded) height.
+    <div className="flex h-full min-h-0 flex-col gap-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -416,16 +424,18 @@ export default function PipelinesPage() {
           </GatedButton>
         </div>
       ) : (
-        <>
+        <div className="flex min-h-0 flex-1 flex-col gap-6">
           <PipelineAnalytics stages={stages} deals={deals} />
-          <PipelineBoard
-            stages={stages}
-            deals={deals}
-            onDealMoved={handleDealMoved}
-            onAddDeal={handleAddDeal}
-            onEditDeal={handleEditDeal}
-          />
-        </>
+          <div className="min-h-0 flex-1">
+            <PipelineBoard
+              stages={stages}
+              deals={deals}
+              onDealMoved={handleDealMoved}
+              onAddDeal={handleAddDeal}
+              onEditDeal={handleEditDeal}
+            />
+          </div>
+        </div>
       )}
 
       {/* New Pipeline Dialog */}
