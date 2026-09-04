@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -39,6 +39,45 @@ export function PipelineBoard({
 }: PipelineBoardProps) {
   const { defaultCurrency } = useAuth();
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
+
+  // Click-and-drag-to-pan the board horizontally from anywhere over it
+  // (not just a thin scrollbar at the very bottom of the tallest
+  // column) — columns grow as tall as their card list again (no
+  // internal vertical scroll), so this is the only way to reach a
+  // hidden stage without first scrolling the whole page down to find
+  // the native scrollbar. Pointer Capture keeps move/up events firing
+  // on this element even once the cursor leaves it mid-drag, so no
+  // window-level listeners are needed.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isPanning, setIsPanning] = useState(false);
+  const panState = useRef<{ startX: number; startScrollLeft: number } | null>(null);
+
+  function handlePanPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    // Don't hijack clicks meant for a card (dnd-kit owns those), a
+    // button, or any other interactive control on the board.
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-deal-card], button, a, input, textarea, select, [role="button"]')) {
+      return;
+    }
+    const el = scrollRef.current;
+    if (!el) return;
+    panState.current = { startX: e.clientX, startScrollLeft: el.scrollLeft };
+    setIsPanning(true);
+    el.setPointerCapture(e.pointerId);
+  }
+
+  function handlePanPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!panState.current || !scrollRef.current) return;
+    scrollRef.current.scrollLeft =
+      panState.current.startScrollLeft - (e.clientX - panState.current.startX);
+  }
+
+  function handlePanPointerEnd(e: React.PointerEvent<HTMLDivElement>) {
+    if (!panState.current) return;
+    panState.current = null;
+    setIsPanning(false);
+    scrollRef.current?.releasePointerCapture(e.pointerId);
+  }
 
   const sortedStages = useMemo(
     () => [...stages].sort((a, b) => a.position - b.position),
@@ -102,8 +141,22 @@ export function PipelineBoard({
           Disabled on lg+ where snapping would interfere with the
           natural layout. The board can still overflow horizontally on
           lg+ once a pipeline has many stages (columns keep a 260px
-          min-width), so a thin scrollbar stays visible on desktop. */}
-      <div className="pipeline-scroll flex h-full min-h-0 snap-x snap-mandatory gap-3 overflow-x-auto pb-4 lg:snap-none">
+          min-width) — a thin scrollbar stays visible on desktop, but
+          columns grow as tall as their card list (no internal scroll),
+          so that scrollbar can end up far below the fold. The
+          onPointer* handlers above let a click-drag ANYWHERE over the
+          board pan it sideways too, so reaching a hidden stage never
+          requires scrolling all the way down first. */}
+      <div
+        ref={scrollRef}
+        onPointerDown={handlePanPointerDown}
+        onPointerMove={handlePanPointerMove}
+        onPointerUp={handlePanPointerEnd}
+        onPointerCancel={handlePanPointerEnd}
+        className={`pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 lg:snap-none ${
+          isPanning ? "cursor-grabbing select-none" : "cursor-grab"
+        }`}
+      >
         {sortedStages.map((stage) => {
           const stageDeals = dealsByStage.get(stage.id) ?? [];
           const totalValue = stageDeals.reduce(
@@ -211,7 +264,7 @@ function StageColumn({
     // restore the flex-1 share-the-row behavior. The droppable ref is
     // on the inner messages region below — intentionally NOT here, so
     // a drag over the column header doesn't highlight the whole column.
-    <div className="flex w-[85vw] min-h-0 min-w-[260px] max-w-[320px] shrink-0 snap-start flex-col rounded-xl border border-border bg-card/60 p-4 lg:w-auto lg:max-w-none lg:flex-1 lg:basis-[260px] lg:shrink lg:snap-none">
+    <div className="flex w-[85vw] min-w-[260px] max-w-[320px] shrink-0 snap-start flex-col rounded-xl border border-border bg-card/60 p-4 lg:w-auto lg:max-w-none lg:flex-1 lg:basis-[260px] lg:shrink lg:snap-none">
       {/* 3px colored top border — sits above the column's padding */}
       <div
         className="-mx-4 -mt-4 h-[3px] rounded-t-xl"
@@ -231,7 +284,7 @@ function StageColumn({
 
       <div
         ref={setNodeRef}
-        className={`mt-3 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-lg transition-all ${
+        className={`mt-3 flex flex-1 flex-col gap-2 rounded-lg transition-all ${
           isOver
             ? "bg-primary/5 outline outline-2 outline-dashed outline-primary outline-offset-2"
             : ""
@@ -282,6 +335,7 @@ function DraggableDealCard({
   return (
     <div
       ref={setNodeRef}
+      data-deal-card
       {...listeners}
       {...attributes}
       style={{ opacity: isDragging ? 0.3 : 1, touchAction: "none" }}
