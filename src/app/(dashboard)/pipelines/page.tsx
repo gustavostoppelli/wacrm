@@ -218,6 +218,17 @@ export default function PipelinesPage() {
     };
   }, [accountId, supabase]);
 
+  // The Select's trigger doesn't derive its display text from the
+  // matching SelectItem's children on its own — it must be passed
+  // explicitly, or picking a member showed the raw uuid instead of
+  // their name.
+  const assigneeFilterLabel = useMemo(() => {
+    if (assigneeFilter === "all") return t("filterAllAssignees");
+    if (assigneeFilter === "unassigned") return t("filterUnassigned");
+    const member = members.find((m) => m.id === assigneeFilter);
+    return member?.full_name || member?.email || assigneeFilter;
+  }, [assigneeFilter, members, t]);
+
   const filteredDeals = useMemo(() => {
     if (assigneeFilter === "all") return deals;
     if (assigneeFilter === "unassigned") {
@@ -429,7 +440,7 @@ export default function PipelinesPage() {
           <Select value={assigneeFilter} onValueChange={(v) => v && setAssigneeFilter(v)}>
             <SelectTrigger className="w-[180px] border-border bg-card text-foreground">
               <Users className="mr-1 h-4 w-4 text-muted-foreground" />
-              <SelectValue />
+              <SelectValue>{assigneeFilterLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("filterAllAssignees")}</SelectItem>
