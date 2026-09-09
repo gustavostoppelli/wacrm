@@ -609,7 +609,8 @@
       "toastNotLinkedToAccount": "프로필이 계정에 연결되어 있지 않습니다.",
       "filterByAssignee": "담당자",
       "filterAllAssignees": "전체",
-      "filterUnassigned": "담당자 없음"
+      "filterUnassigned": "담당자 없음",
+      "searchDealPlaceholder": "딜 검색..."
     },
     "board": {
       "dropDealHere": "여기에 딜을 놓으세요",

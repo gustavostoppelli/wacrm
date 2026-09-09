@@ -609,7 +609,8 @@
       "toastNotLinkedToAccount": "Your profile is not linked to an account.",
       "filterByAssignee": "Assigned to",
       "filterAllAssignees": "All",
-      "filterUnassigned": "Unassigned"
+      "filterUnassigned": "Unassigned",
+      "searchDealPlaceholder": "Search deal..."
     },
     "board": {
       "dropDealHere": "Drop a deal here",

@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GitBranch, Plus, ChevronDown, Settings, Users } from "lucide-react";
+import { GitBranch, Plus, ChevronDown, Settings, Users, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
@@ -82,6 +82,12 @@ export default function PipelinesPage() {
     { id: string; full_name: string | null; email: string | null }[]
   >([]);
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+
+  // "Search deal" board filter — matches deal title, contact name, or
+  // contact phone (digits only, so punctuation in what's typed or
+  // stored doesn't block a match). Combines with assigneeFilter (both
+  // must pass).
+  const [dealSearch, setDealSearch] = useState("");
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -230,12 +236,26 @@ export default function PipelinesPage() {
   }, [assigneeFilter, members, t]);
 
   const filteredDeals = useMemo(() => {
-    if (assigneeFilter === "all") return deals;
+    let result = deals;
     if (assigneeFilter === "unassigned") {
-      return deals.filter((d) => !d.assigned_to);
+      result = result.filter((d) => !d.assigned_to);
+    } else if (assigneeFilter !== "all") {
+      result = result.filter((d) => d.assigned_to === assigneeFilter);
     }
-    return deals.filter((d) => d.assigned_to === assigneeFilter);
-  }, [deals, assigneeFilter]);
+
+    const query = dealSearch.trim().toLowerCase();
+    if (query) {
+      const digitsQuery = query.replace(/\D/g, "");
+      result = result.filter((d) => {
+        if (d.title?.toLowerCase().includes(query)) return true;
+        if (d.contact?.name?.toLowerCase().includes(query)) return true;
+        if (digitsQuery && d.contact?.phone?.replace(/\D/g, "").includes(digitsQuery)) return true;
+        return false;
+      });
+    }
+
+    return result;
+  }, [deals, assigneeFilter, dealSearch]);
 
   // Load stages + deals whenever selected pipeline changes.
   // Clearing on no-selection is a legitimate sync with URL/prop
@@ -452,6 +472,19 @@ export default function PipelinesPage() {
               ))}
             </SelectContent>
           </Select>
+
+          {/* Search by deal title, contact name, or contact phone —
+              combines with the "assigned to" filter above (both must
+              match). */}
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={dealSearch}
+              onChange={(e) => setDealSearch(e.target.value)}
+              placeholder={t("searchDealPlaceholder")}
+              className="w-[220px] border-border bg-card pl-8 text-foreground"
+            />
+          </div>
         </div>
 
         <div className="flex items-center gap-2">

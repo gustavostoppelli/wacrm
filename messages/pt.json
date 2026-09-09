@@ -609,7 +609,8 @@
       "toastNotLinkedToAccount": "Seu perfil não está vinculado a uma conta.",
       "filterByAssignee": "Atribuído a",
       "filterAllAssignees": "Todos",
-      "filterUnassigned": "Não atribuído"
+      "filterUnassigned": "Não atribuído",
+      "searchDealPlaceholder": "Buscar negócio..."
     },
     "board": {
       "dropDealHere": "Solte um negócio aqui",
