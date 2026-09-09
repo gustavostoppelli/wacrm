@@ -29,6 +29,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Trash2,
   Plus,
   GripVertical,
@@ -118,6 +125,7 @@ export function PipelineSettings({
       position: i,
       stale_after_days: s.stale_after_days ?? null,
       notify_phone: s.notify_phone?.trim() || null,
+      deal_sort_order: s.deal_sort_order ?? "newest_first",
     }));
 
     const [renameRes, stagesRes] = await Promise.all([
@@ -286,6 +294,11 @@ export function PipelineSettings({
                             updated[index] = { ...updated[index], notify_phone: v };
                             setLocalStages(updated);
                           }}
+                          onDealSortOrderChange={(v) => {
+                            const updated = [...localStages];
+                            updated[index] = { ...updated[index], deal_sort_order: v };
+                            setLocalStages(updated);
+                          }}
                           onRemove={() => handleRemoveStage(stage.id)}
                           colors={STAGE_COLORS}
                           t={t}
@@ -382,6 +395,7 @@ function SortableStageRow({
   onColorChange,
   onStaleAfterDaysChange,
   onNotifyPhoneChange,
+  onDealSortOrderChange,
   onRemove,
   colors,
   t,
@@ -391,6 +405,7 @@ function SortableStageRow({
   onColorChange: (v: string) => void;
   onStaleAfterDaysChange: (v: number | null) => void;
   onNotifyPhoneChange: (v: string | null) => void;
+  onDealSortOrderChange: (v: "newest_first" | "oldest_first") => void;
   onRemove: () => void;
   colors: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -458,6 +473,25 @@ function SortableStageRow({
           onChange={(e) => onNotifyPhoneChange(e.target.value || null)}
           className="h-7 flex-1 border-border bg-transparent text-xs text-foreground"
         />
+        <Select
+          value={stage.deal_sort_order ?? "newest_first"}
+          onValueChange={(v) => v && onDealSortOrderChange(v as "newest_first" | "oldest_first")}
+        >
+          <SelectTrigger
+            title={t("dealSortOrderHint")}
+            className="h-7 w-auto shrink-0 border-border bg-transparent text-xs text-foreground"
+          >
+            <SelectValue>
+              {stage.deal_sort_order === "oldest_first"
+                ? t("dealSortOldestFirst")
+                : t("dealSortNewestFirst")}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest_first">{t("dealSortNewestFirst")}</SelectItem>
+            <SelectItem value="oldest_first">{t("dealSortOldestFirst")}</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );

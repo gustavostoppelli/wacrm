@@ -119,6 +119,17 @@ export function PipelineBoard({
       const bucket = map.get(deal.stage_id);
       if (bucket) bucket.push(deal);
     }
+    // `deals` loads newest-first account-wide (see loadDeals in
+    // pipelines/page.tsx), so every bucket inherits that order by
+    // default. A stage set to 'oldest_first' (migration 063) — e.g. a
+    // prospecting queue fed by a daily automation — reverses just its
+    // own bucket, so the longest-waiting lead surfaces first there
+    // without touching any other column's order.
+    for (const stage of sortedStages) {
+      if (stage.deal_sort_order === "oldest_first") {
+        map.get(stage.id)?.reverse();
+      }
+    }
     return map;
   }, [sortedStages, deals]);
 

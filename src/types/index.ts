@@ -414,6 +414,12 @@ export interface PipelineStage {
    *  enters this stage — e.g. "ping the salesperson when a lead lands
    *  in Novo Lead." Null disables the alert for this stage. */
   notify_phone?: string | null;
+  /** Card order within this stage's column (migration 063). Deals load
+   *  newest-first account-wide; a stage set to 'oldest_first' reverses
+   *  that within its own bucket only — for a prospecting-queue stage
+   *  fed by a daily automation, so the longest-waiting lead surfaces
+   *  first. Defaults to 'newest_first'. */
+  deal_sort_order?: "newest_first" | "oldest_first";
   created_at: string;
 }
 
