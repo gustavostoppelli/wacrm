@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
-import { processInboundMessage } from '@/lib/whatsapp/inbound-message'
+import { processInboundMessage, processOutboundEchoMessage } from '@/lib/whatsapp/inbound-message'
 import type { ContentType } from '@/types'
 
 export const maxDuration = 60
@@ -126,19 +126,64 @@ async function processWebhookEvent(body: UazapiWebhookEvent, config: any) {
   const message = body.message
   if (!message) return
 
-  // We only send messages ourselves through the provider layer, never
-  // through this webhook — `excludeMessages: ['wasSentByApi']` is set
-  // at registration time (see uazapi-api.ts's registerWebhook), and
-  // `fromMe` is a belt-and-braces guard against echoing our own sends
-  // (e.g. a message sent manually from the connected phone).
-  if (message.fromMe) return
-
   // Skip group messages entirely — never create a contact/conversation
   // for them. `isGroup` is UAZAPI's own flag; the `chatid` suffix is a
   // second, protocol-level check (group chat ids end `@g.us`, direct
   // chats end `@s.whatsapp.net`) so this still holds even if `isGroup`
   // is ever missing or wrong on a given payload.
   if (message.isGroup || message.chatid?.endsWith('@g.us')) return
+
+  const externalMessageId = message.messageid || message.id
+  if (!externalMessageId) return
+
+  const hasFile = !!message.fileURL
+  const contentType = mapContentType(message.messageType, hasFile)
+  const contentText =
+    typeof message.content === 'string' ? message.content : message.text || null
+  const timestamp = message.messageTimestamp ? new Date(message.messageTimestamp) : new Date()
+
+  // We only send messages ourselves through the provider layer, never
+  // through this webhook — `excludeMessages: ['wasSentByApi']` is set
+  // at registration time (see uazapi-api.ts's registerWebhook) so a
+  // CRM-composer send never reaches this handler at all. What DOES
+  // arrive here with `fromMe: true` is a rep messaging a lead manually
+  // from their own phone's native WhatsApp app — see
+  // processOutboundEchoMessage for why that still needs recording.
+  if (message.fromMe) {
+    // Opt-in per account via `accounts.feature_flags` (migration 062),
+    // absent/false by default — dropping `fromMe` messages is the
+    // correct behavior for the sellable product's default account, so
+    // this stays a data flag, never a hardcoded account id here (see
+    // AGENTS.md "Per-account feature flags"). Only fetched on this
+    // rarer branch, not on every inbound message.
+    const { data: account } = await supabaseAdmin()
+      .from('accounts')
+      .select('feature_flags')
+      .eq('id', config.account_id)
+      .maybeSingle()
+    if (account?.feature_flags?.capture_manual_wa_replies !== true) return
+
+    // `sender`/`sender_pn` on a `fromMe` event identify the CONNECTED
+    // number (us), not the lead — `chatid` is the only field that still
+    // names the counterparty in either direction of a 1:1 chat.
+    const rawChat = message.chatid
+    if (!rawChat) return
+    const counterpartyPhone = normalizePhone(rawChat.split('@')[0])
+
+    await processOutboundEchoMessage({
+      accountId: config.account_id,
+      configOwnerUserId: config.user_id,
+      channelId: config.id,
+      counterpartyPhone,
+      counterpartyName: counterpartyPhone,
+      externalMessageId,
+      timestamp,
+      contentType,
+      contentText,
+      mediaUrl: hasFile ? message.fileURL! : null,
+    })
+    return
+  }
 
   // `sender` is a `<digits>@lid` privacy ID, not a phone number, since
   // WhatsApp's LID rollout — `sender_pn` (`<digits>@s.whatsapp.net`) is
@@ -149,14 +194,6 @@ async function processWebhookEvent(body: UazapiWebhookEvent, config: any) {
   if (!rawSender) return
   const senderPhone = normalizePhone(rawSender.split('@')[0])
 
-  const externalMessageId = message.messageid || message.id
-  if (!externalMessageId) return
-
-  const hasFile = !!message.fileURL
-  const contentType = mapContentType(message.messageType, hasFile)
-  const contentText =
-    typeof message.content === 'string' ? message.content : message.text || null
-
   await processInboundMessage({
     accountId: config.account_id,
     configOwnerUserId: config.user_id,
@@ -164,7 +201,7 @@ async function processWebhookEvent(body: UazapiWebhookEvent, config: any) {
     senderPhone,
     senderName: message.senderName || senderPhone,
     externalMessageId,
-    timestamp: message.messageTimestamp ? new Date(message.messageTimestamp) : new Date(),
+    timestamp,
     contentType,
     contentText,
     mediaUrl: hasFile ? message.fileURL! : null,

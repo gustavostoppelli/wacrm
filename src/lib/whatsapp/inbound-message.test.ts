@@ -46,6 +46,7 @@ let pipelinesResult: { data: unknown[] | null; error: null } = { data: null, err
 let stagesResult: { data: unknown[] | null; error: null } = { data: null, error: null };
 let accountResult: { data: unknown | null; error: null } = { data: null, error: null };
 let existingOpenDeal: { data: unknown | null; error: null } = { data: null, error: null };
+let existingMessage: { data: unknown | null; error: null } = { data: null, error: null };
 
 function makeDb() {
   const builder = (table: string) => {
@@ -76,6 +77,7 @@ function makeDb() {
       maybeSingle: () => {
         if (table === 'deals') return Promise.resolve(existingOpenDeal);
         if (table === 'accounts') return Promise.resolve(accountResult);
+        if (table === 'messages') return Promise.resolve(existingMessage);
         return Promise.resolve({ data: null, error: null });
       },
       single: () =>
@@ -95,7 +97,7 @@ vi.mock('@/lib/flows/admin-client', () => ({
   supabaseAdmin: () => makeDb(),
 }));
 
-import { processInboundMessage } from './inbound-message';
+import { processInboundMessage, processOutboundEchoMessage } from './inbound-message';
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver';
 
 describe('processInboundMessage', () => {
@@ -109,6 +111,7 @@ describe('processInboundMessage', () => {
     stagesResult = { data: null, error: null };
     accountResult = { data: null, error: null };
     existingOpenDeal = { data: null, error: null };
+    existingMessage = { data: null, error: null };
     vi.clearAllMocks();
   });
 
@@ -216,5 +219,50 @@ describe('processInboundMessage', () => {
     });
 
     expect(inserted.deals).toHaveLength(0);
+  });
+});
+
+describe('processOutboundEchoMessage', () => {
+  beforeEach(() => {
+    inserted.contacts = [];
+    inserted.conversations = [];
+    inserted.messages = [];
+    existingMessage = { data: null, error: null };
+    vi.clearAllMocks();
+  });
+
+  const base = {
+    accountId: 'acct-1',
+    configOwnerUserId: 'user-1',
+    channelId: 'chan-1',
+    counterpartyPhone: '14155550123',
+    counterpartyName: '14155550123',
+    externalMessageId: 'wamid.echo1',
+    timestamp: new Date('2026-01-01T00:00:00Z'),
+    contentType: 'text' as const,
+    contentText: 'falado direto do celular',
+    mediaUrl: null,
+  };
+
+  it('records a manually-sent phone message as an outbound (agent) message', async () => {
+    const result = await processOutboundEchoMessage(base);
+
+    expect(result).toEqual({ conversationId: 'conversations-1', contactId: 'contacts-1' });
+    expect(inserted.messages[0]).toMatchObject({
+      conversation_id: 'conversations-1',
+      sender_type: 'agent',
+      content_type: 'text',
+      content_text: 'falado direto do celular',
+      message_id: 'wamid.echo1',
+      status: 'sent',
+    });
+  });
+
+  it('skips the insert when the message id was already recorded (redelivery)', async () => {
+    existingMessage = { data: { id: 'messages-existing' }, error: null };
+
+    await processOutboundEchoMessage(base);
+
+    expect(inserted.messages).toHaveLength(0);
   });
 });

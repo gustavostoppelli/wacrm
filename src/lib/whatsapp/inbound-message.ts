@@ -73,6 +73,36 @@ export interface InboundDispatchResult {
   contactId: string
 }
 
+/**
+ * A message the provider reports as sent BY the connected number, but
+ * NOT through this CRM's own send path (that path already writes its
+ * own `messages` row directly — see send-message.ts — and UAZAPI is
+ * configured with `excludeMessages: ['wasSentByApi']` so it never even
+ * echoes those back here). What's left arriving here with `fromMe`
+ * true is a rep messaging a lead manually from their own phone's
+ * native WhatsApp app instead of through the CRM's composer — see
+ * [[feedback_alertar_mudancas_pipeline_leads]] for why reps are given
+ * their own connected number in the first place. Without capturing
+ * these, only the first CRM-sent message of a conversation would ever
+ * show up in the Inbox; everything the rep types afterward from their
+ * phone would silently vanish for every other viewer of the account.
+ */
+export interface NormalizedOutboundEchoMessage {
+  accountId: string
+  configOwnerUserId: string
+  channelId: string
+  /** The lead's phone — for a `fromMe` event the provider's `sender`
+   *  field is the connected number itself, not the counterparty, so
+   *  callers must resolve this from the chat id instead. */
+  counterpartyPhone: string
+  counterpartyName: string
+  externalMessageId: string
+  timestamp: Date
+  contentType: ContentType
+  contentText: string | null
+  mediaUrl: string | null
+}
+
 // The messages.content_type CHECK constraint (migration 001 + 010) only
 // allows these values — a provider's own type must map onto this set
 // before the insert, or it fails with a constraint error.
@@ -293,6 +323,107 @@ export async function processInboundMessage(
     content_type: contentType,
     text: msg.contentText,
   })
+
+  return { conversationId: conversation.id, contactId: contactRecord.id }
+}
+
+/**
+ * Persists a message a rep sent manually from their own phone (not
+ * through the CRM) so it shows up in the Inbox like any other outbound
+ * message. Deliberately narrower than `processInboundMessage`: no
+ * unread-count bump, no automations/Flows/AI-auto-reply dispatch, no
+ * `ensureDealForContact` (this isn't a lead messaging in) — it only
+ * needs to make the conversation thread complete. It DOES pause an
+ * active Flow run, same as a CRM-composer send (send-message.ts) — a
+ * human replying by any means is the same "yield, human is here"
+ * signal.
+ */
+export async function processOutboundEchoMessage(
+  msg: NormalizedOutboundEchoMessage
+): Promise<InboundDispatchResult | null> {
+  const db = supabaseAdmin()
+
+  const contactOutcome = await findOrCreateContact(
+    msg.accountId,
+    msg.configOwnerUserId,
+    msg.counterpartyPhone,
+    msg.counterpartyName
+  )
+  if (!contactOutcome) return null
+  const contactRecord = contactOutcome.contact
+
+  const convResult = await findOrCreateConversation(
+    msg.accountId,
+    msg.configOwnerUserId,
+    contactRecord.id,
+    msg.channelId
+  )
+  if (!convResult) return null
+  const conversation = convResult.conversation
+
+  // `messages.message_id` has no unique constraint (just an index — see
+  // 001_initial_schema.sql), so a webhook redelivery would otherwise
+  // insert the same message twice.
+  const { data: existingMsg } = await db
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', conversation.id)
+    .eq('message_id', msg.externalMessageId)
+    .maybeSingle()
+  if (existingMsg) {
+    return { conversationId: conversation.id, contactId: contactRecord.id }
+  }
+
+  const contentType = ALLOWED_CONTENT_TYPES.has(msg.contentType) ? msg.contentType : 'text'
+
+  const { error: msgError } = await db.from('messages').insert({
+    conversation_id: conversation.id,
+    sender_type: 'agent',
+    content_type: contentType,
+    content_text: msg.contentText,
+    media_url: msg.mediaUrl,
+    message_id: msg.externalMessageId,
+    status: 'sent',
+    created_at: msg.timestamp.toISOString(),
+  })
+  if (msgError) {
+    console.error('[outbound-echo] error inserting message:', msgError)
+    return null
+  }
+
+  const lastMessageText = msg.contentText || `[${msg.contentType}]`
+  const { error: convError } = await db
+    .from('conversations')
+    .update({
+      last_message_text: lastMessageText,
+      last_message_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', conversation.id)
+  if (convError) {
+    console.error('[outbound-echo] error updating conversation:', convError)
+  }
+
+  try {
+    const { error: pauseErr } = await db
+      .from('flow_runs')
+      .update({
+        status: 'paused_by_agent',
+        ended_at: new Date().toISOString(),
+        end_reason: 'agent_replied',
+      })
+      .eq('account_id', msg.accountId)
+      .eq('contact_id', contactRecord.id)
+      .eq('status', 'active')
+    if (pauseErr) {
+      console.error('[outbound-echo] pause-on-agent-send failed:', pauseErr.message)
+    }
+  } catch (err) {
+    console.error(
+      '[outbound-echo] pause-on-agent-send threw:',
+      err instanceof Error ? err.message : err
+    )
+  }
 
   return { conversationId: conversation.id, contactId: contactRecord.id }
 }
