@@ -606,7 +606,10 @@
       "toastFailedMoveDeal": "Failed to move deal",
       "toastFailedCreatePipeline": "Failed to create pipeline",
       "toastPipelineCreated": "Pipeline created",
-      "toastNotLinkedToAccount": "Your profile is not linked to an account."
+      "toastNotLinkedToAccount": "Your profile is not linked to an account.",
+      "filterByAssignee": "Assigned to",
+      "filterAllAssignees": "All",
+      "filterUnassigned": "Unassigned"
     },
     "board": {
       "dropDealHere": "Drop a deal here",

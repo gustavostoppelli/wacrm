@@ -606,7 +606,10 @@
       "toastFailedMoveDeal": "Falha ao mover negócio",
       "toastFailedCreatePipeline": "Falha ao criar funil",
       "toastPipelineCreated": "Funil criado",
-      "toastNotLinkedToAccount": "Seu perfil não está vinculado a uma conta."
+      "toastNotLinkedToAccount": "Seu perfil não está vinculado a uma conta.",
+      "filterByAssignee": "Atribuído a",
+      "filterAllAssignees": "Todos",
+      "filterUnassigned": "Não atribuído"
     },
     "board": {
       "dropDealHere": "Solte um negócio aqui",

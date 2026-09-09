@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Pipeline, PipelineStage, Deal } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
@@ -24,7 +24,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GitBranch, Plus, ChevronDown, Settings } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { GitBranch, Plus, ChevronDown, Settings, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
@@ -60,6 +67,13 @@ export default function PipelinesPage() {
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // "Assigned to" board filter — every account member (any role, not
+  // just admin) can narrow the board down to one person's deals, or to
+  // deals nobody has claimed yet ("unassigned"). `"all"` is the default
+  // (no filtering).
+  const [members, setMembers] = useState<{ user_id: string; full_name: string | null }[]>([]);
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -172,6 +186,37 @@ export default function PipelinesPage() {
       cancelled = true;
     };
   }, [loadPipelines, seedDefaultPipeline]);
+
+  // Every account member, for the "assigned to" filter — any role can
+  // read every profile row for their own account (see profiles_select
+  // RLS policy), so this isn't gated behind canEditSettings.
+  useEffect(() => {
+    if (!accountId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMembers([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .eq("account_id", accountId)
+        .order("full_name");
+      if (!cancelled) setMembers(data ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, supabase]);
+
+  const filteredDeals = useMemo(() => {
+    if (assigneeFilter === "all") return deals;
+    if (assigneeFilter === "unassigned") {
+      return deals.filter((d) => !d.assigned_to);
+    }
+    return deals.filter((d) => d.assigned_to === assigneeFilter);
+  }, [deals, assigneeFilter]);
 
   // Load stages + deals whenever selected pipeline changes.
   // Clearing on no-selection is a legitimate sync with URL/prop
@@ -369,6 +414,25 @@ export default function PipelinesPage() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* "Assigned to" filter — open to every role, not just admin
+              (see profiles_select RLS: any account member can read the
+              full member list for their own account). */}
+          <Select value={assigneeFilter} onValueChange={(v) => v && setAssigneeFilter(v)}>
+            <SelectTrigger className="w-[180px] border-border bg-card text-foreground">
+              <Users className="mr-1 h-4 w-4 text-muted-foreground" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("filterAllAssignees")}</SelectItem>
+              <SelectItem value="unassigned">{t("filterUnassigned")}</SelectItem>
+              {members.map((m) => (
+                <SelectItem key={m.user_id} value={m.user_id}>
+                  {m.full_name || m.user_id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex items-center gap-2">
@@ -417,10 +481,10 @@ export default function PipelinesPage() {
         </div>
       ) : (
         <>
-          <PipelineAnalytics stages={stages} deals={deals} />
+          <PipelineAnalytics stages={stages} deals={filteredDeals} />
           <PipelineBoard
             stages={stages}
-            deals={deals}
+            deals={filteredDeals}
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}
