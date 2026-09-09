@@ -72,7 +72,15 @@ export default function PipelinesPage() {
   // just admin) can narrow the board down to one person's deals, or to
   // deals nobody has claimed yet ("unassigned"). `"all"` is the default
   // (no filtering).
-  const [members, setMembers] = useState<{ user_id: string; full_name: string | null }[]>([]);
+  //
+  // `deals.assigned_to` is a FK to `profiles.id` (the internal profile
+  // PK, migration 002) — NOT `profiles.user_id` (the auth uid). That's
+  // the opposite convention from `whatsapp_config.assigned_to` (FK to
+  // auth.users.id, matched via profiles.user_id). Easy to mix up; the
+  // filter value below must be `profiles.id` to ever match a deal.
+  const [members, setMembers] = useState<
+    { id: string; full_name: string | null; email: string | null }[]
+  >([]);
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
 
   // Dialog / sheet state
@@ -200,7 +208,7 @@ export default function PipelinesPage() {
     (async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("user_id, full_name")
+        .select("id, full_name, email")
         .eq("account_id", accountId)
         .order("full_name");
       if (!cancelled) setMembers(data ?? []);
@@ -427,8 +435,8 @@ export default function PipelinesPage() {
               <SelectItem value="all">{t("filterAllAssignees")}</SelectItem>
               <SelectItem value="unassigned">{t("filterUnassigned")}</SelectItem>
               {members.map((m) => (
-                <SelectItem key={m.user_id} value={m.user_id}>
-                  {m.full_name || m.user_id}
+                <SelectItem key={m.id} value={m.id}>
+                  {m.full_name || m.email || m.id}
                 </SelectItem>
               ))}
             </SelectContent>
