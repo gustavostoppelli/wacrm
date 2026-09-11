@@ -79,7 +79,7 @@ export function TodayActivityRankingTable() {
         <p className="mt-0.5 text-xs text-muted-foreground">{t("description")}</p>
       </header>
 
-      <div className="flex flex-col gap-6 p-5 sm:flex-row sm:divide-x sm:divide-border">
+      <div className="grid grid-cols-1 gap-6 p-5 sm:grid-cols-3 sm:divide-x sm:divide-border">
         <MetricColumn
           title={t("firstContacts")}
           metric="firstContacts"
@@ -133,7 +133,7 @@ function MetricColumn({
   const ranked = (rows ?? []).filter((r) => r[metric] > 0).sort((a, b) => b[metric] - a[metric])
 
   return (
-    <div className="min-w-[200px] flex-1">
+    <div className="min-w-0">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {title}

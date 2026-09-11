@@ -772,10 +772,19 @@ export async function loadSalesRepRanking(db: DB): Promise<SalesRepRankingRow[]>
 // --- 11. Today/week/month activity ranking ---------------------------------
 
 /**
- * Per-rep activity within a period, grouped by `deals.assigned_to`:
+ * Per-rep activity within a period. `dealsClosed` and `followUps` key
+ * off `deals.assigned_to`; `firstContacts` keys off the WhatsApp
+ * channel's owner (`whatsapp_config.assigned_to`) instead — a rep
+ * cold-messaging a contact from Contacts/the Kanban shortcut has no
+ * `deals` row yet (one is only auto-created when the LEAD replies
+ * first, see `ensureDealForContact` in inbound-message.ts), so
+ * deal-based attribution would silently drop exactly the outbound
+ * prospecting this metric exists to count.
  *
- *   - firstContacts: the deal's very first-ever agent message falls in
- *     the period (a brand-new lead this rep just reached out to).
+ *   - firstContacts: the conversation's very first-ever agent message
+ *     falls in the period (a brand-new lead this rep just reached out
+ *     to), attributed to whichever rep owns the WhatsApp number that
+ *     conversation is on.
  *   - dealsClosed: `deals.closed_at` (migration 047, auto-stamped on
  *     status→won/lost) falls in the period and status is 'won'.
  *   - followUps: an agent message in the period, on a deal whose
@@ -783,6 +792,12 @@ export async function loadSalesRepRanking(db: DB): Promise<SalesRepRankingRow[]>
  *     stage (migration 064) or any stage after it by `position`. Zero
  *     for everyone until an admin marks such a stage — deliberately no
  *     hardcoded stage name, so this works the same for any pipeline.
+ *
+ * Rows are keyed by `profiles.id` throughout (matching `deals.
+ * assigned_to`'s FK target, migration 002) — `whatsapp_config.
+ * assigned_to` is a different convention (FK to auth.users.id,
+ * matched via `profiles.user_id`, migration 060), so it's resolved
+ * back to the same `profiles.id` space before bucketing.
  *
  * Fetches every agent message's `(conversation_id, created_at)` to
  * determine each conversation's true first-ever agent message,
@@ -800,47 +815,67 @@ export async function loadTodayActivityRanking(
     period === 'week' ? startOfLocalWeek() : period === 'month' ? startOfLocalMonth() : startOfLocalDay()
   const periodStartMs = periodStart.getTime()
 
-  const [dealsRes, profilesRes, stagesRes, closedRes, agentMsgsRes] = await Promise.all([
-    db
-      .from('deals')
-      .select('conversation_id, assigned_to, stage_id')
-      .not('assigned_to', 'is', null)
-      .not('conversation_id', 'is', null),
-    db.from('profiles').select('id, full_name, email'),
-    db.from('pipeline_stages').select('id, pipeline_id, position, stage_role'),
-    db
-      .from('deals')
-      .select('assigned_to')
-      .eq('status', 'won')
-      .not('assigned_to', 'is', null)
-      .gte('closed_at', periodStart.toISOString()),
-    db
-      .from('messages')
-      .select('conversation_id, created_at')
-      .eq('sender_type', 'agent')
-      .order('created_at', { ascending: true }),
-  ])
+  const [dealsRes, profilesRes, stagesRes, closedRes, agentMsgsRes, conversationsRes, channelsRes] =
+    await Promise.all([
+      db
+        .from('deals')
+        .select('conversation_id, assigned_to, stage_id')
+        .not('assigned_to', 'is', null)
+        .not('conversation_id', 'is', null),
+      db.from('profiles').select('id, user_id, full_name, email'),
+      db.from('pipeline_stages').select('id, pipeline_id, position, stage_role'),
+      db
+        .from('deals')
+        .select('assigned_to')
+        .eq('status', 'won')
+        .not('assigned_to', 'is', null)
+        .gte('closed_at', periodStart.toISOString()),
+      db
+        .from('messages')
+        .select('conversation_id, created_at')
+        .eq('sender_type', 'agent')
+        .order('created_at', { ascending: true }),
+      db.from('conversations').select('id, whatsapp_config_id'),
+      db.from('whatsapp_config').select('id, assigned_to').not('assigned_to', 'is', null),
+    ])
 
-  if (dealsRes.error || stagesRes.error || closedRes.error || agentMsgsRes.error) {
+  if (
+    dealsRes.error ||
+    stagesRes.error ||
+    closedRes.error ||
+    agentMsgsRes.error ||
+    conversationsRes.error ||
+    channelsRes.error
+  ) {
     console.error(
       '[dashboard] loadTodayActivityRanking failed:',
-      dealsRes.error || stagesRes.error || closedRes.error || agentMsgsRes.error,
+      dealsRes.error || stagesRes.error || closedRes.error || agentMsgsRes.error ||
+        conversationsRes.error || channelsRes.error,
     )
     return []
   }
 
-  const nameById = new Map(
-    ((profilesRes.data ?? []) as { id: string; full_name: string | null; email: string | null }[]).map(
-      (p) => [p.id, p.full_name || p.email || p.id],
-    ),
-  )
+  const profiles = (profilesRes.data ?? []) as {
+    id: string
+    user_id: string
+    full_name: string | null
+    email: string | null
+  }[]
+  const nameById = new Map(profiles.map((p) => [p.id, p.full_name || p.email || p.id]))
+  const profileIdByUserId = new Map(profiles.map((p) => [p.user_id, p.id]))
 
   const buckets = new Map<string, TodayActivityRankingRow>()
-  function bucketFor(userId: string): TodayActivityRankingRow {
-    let b = buckets.get(userId)
+  function bucketFor(profileId: string): TodayActivityRankingRow {
+    let b = buckets.get(profileId)
     if (!b) {
-      b = { userId, name: nameById.get(userId) ?? userId, firstContacts: 0, dealsClosed: 0, followUps: 0 }
-      buckets.set(userId, b)
+      b = {
+        userId: profileId,
+        name: nameById.get(profileId) ?? profileId,
+        firstContacts: 0,
+        dealsClosed: 0,
+        followUps: 0,
+      }
+      buckets.set(profileId, b)
     }
     return b
   }
@@ -881,6 +916,22 @@ export async function loadTodayActivityRanking(
     deals.filter((d) => followUpStageIds.has(d.stage_id)).map((d) => d.conversation_id),
   )
 
+  // Channel owner (profiles.id) per conversation, via conversations →
+  // whatsapp_config.assigned_to → profiles.user_id. Independent of
+  // whether a deal exists yet.
+  const channelOwnerProfileIdByChannelId = new Map<string, string>()
+  for (const c of (channelsRes.data ?? []) as { id: string; assigned_to: string }[]) {
+    const profileId = profileIdByUserId.get(c.assigned_to)
+    if (profileId) channelOwnerProfileIdByChannelId.set(c.id, profileId)
+  }
+  const channelOwnerProfileIdByConversation = new Map<string, string>()
+  for (const c of (conversationsRes.data ?? []) as { id: string; whatsapp_config_id: string | null }[]) {
+    const profileId = c.whatsapp_config_id
+      ? channelOwnerProfileIdByChannelId.get(c.whatsapp_config_id)
+      : undefined
+    if (profileId) channelOwnerProfileIdByConversation.set(c.id, profileId)
+  }
+
   const agentMsgs = (agentMsgsRes.data ?? []) as { conversation_id: string; created_at: string }[]
 
   // Ascending order means the first occurrence per conversation is its
@@ -894,15 +945,15 @@ export async function loadTodayActivityRanking(
 
   for (const [conversationId, firstAtMs] of firstAgentMsgAtMs) {
     if (firstAtMs < periodStartMs) continue
-    const userId = assignedToByConversation.get(conversationId)
-    if (userId) bucketFor(userId).firstContacts += 1
+    const profileId = channelOwnerProfileIdByConversation.get(conversationId)
+    if (profileId) bucketFor(profileId).firstContacts += 1
   }
 
   for (const m of agentMsgs) {
     if (new Date(m.created_at).getTime() < periodStartMs) continue
     if (!followUpConversationIds.has(m.conversation_id)) continue
-    const userId = assignedToByConversation.get(m.conversation_id)
-    if (userId) bucketFor(userId).followUps += 1
+    const profileId = assignedToByConversation.get(m.conversation_id)
+    if (profileId) bucketFor(profileId).followUps += 1
   }
 
   return Array.from(buckets.values()).sort(
