@@ -403,9 +403,13 @@ export interface PipelineStage {
   position: number;
   color: string;
   /** 'meeting_scheduled' marks the stage a deal moves to once the AI
-   *  Agent (or anyone) confirms a real meeting time; null otherwise.
-   *  At most one such stage per pipeline. */
-  stage_role?: 'meeting_scheduled' | null;
+   *  Agent (or anyone) confirms a real meeting time. 'price_sent'
+   *  (migration 064) marks the stage where the price/proposal has
+   *  already been communicated — the Reports today-activity ranking
+   *  uses it to tell a "first contact" message from a "follow-up"
+   *  (any agent message on a deal in this stage or later). Null
+   *  otherwise. At most one of each role per pipeline. */
+  stage_role?: 'meeting_scheduled' | 'price_sent' | null;
   /** Days a deal can sit in this stage before the "stuck" indicator
    *  (deal card badge, stuck-deals report) flags it. Null disables
    *  the alert coloring for this stage — the day count still shows. */

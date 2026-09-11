@@ -378,6 +378,19 @@
       "unsetRate": "—",
       "empty": "Nenhum negócio atribuído ainda.",
       "emptyHint": "Aparece assim que negócios forem atribuídos a alguém da equipe."
+    },
+    "activityRanking": {
+      "title": "Atividade por vendedor",
+      "description": "Primeiro contato, negócios fechados e follow-ups no período, por responsável.",
+      "periodToday": "Hoje",
+      "periodWeek": "Esta semana",
+      "periodMonth": "Este mês",
+      "name": "Responsável",
+      "firstContacts": "1º contato",
+      "dealsClosed": "Fechados",
+      "followUps": "Follow-up",
+      "empty": "Nenhuma atividade neste período.",
+      "emptyHint": "Aparece assim que alguém da equipe enviar mensagem ou fechar um negócio."
     }
   },
   "Contacts": {
@@ -734,6 +747,10 @@
       "dealSortOrderHint": "Ordem dos cards nesta coluna",
       "dealSortNewestFirst": "Mais novos primeiro",
       "dealSortOldestFirst": "Mais antigos primeiro",
+      "stageRoleHint": "Papel especial desta etapa",
+      "stageRoleNone": "Sem papel especial",
+      "stageRoleMeetingScheduled": "Reunião marcada",
+      "stageRolePriceSent": "Preço/proposta enviada",
       "changeColor": "Mudar cor",
       "toastFailedSave": "Falha ao salvar funil",
       "toastSaved": "Funil salvo",

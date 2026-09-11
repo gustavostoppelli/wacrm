@@ -378,6 +378,19 @@
       "unsetRate": "—",
       "empty": "아직 배정된 거래가 없습니다.",
       "emptyHint": "팀원에게 거래가 배정되면 여기에 표시됩니다."
+    },
+    "activityRanking": {
+      "title": "담당자별 활동",
+      "description": "기간별 첫 연락, 성사된 거래, 팔로우업 (담당자별).",
+      "periodToday": "오늘",
+      "periodWeek": "이번 주",
+      "periodMonth": "이번 달",
+      "name": "담당자",
+      "firstContacts": "첫 연락",
+      "dealsClosed": "성사",
+      "followUps": "팔로우업",
+      "empty": "이 기간에 활동이 없습니다.",
+      "emptyHint": "팀원이 메시지를 보내거나 거래를 성사시키면 표시됩니다."
     }
   },
   "Contacts": {
@@ -734,6 +747,10 @@
       "dealSortOrderHint": "이 열 안의 카드 정렬 순서",
       "dealSortNewestFirst": "최신순",
       "dealSortOldestFirst": "오래된순",
+      "stageRoleHint": "이 단계의 특별 역할",
+      "stageRoleNone": "특별 역할 없음",
+      "stageRoleMeetingScheduled": "미팅 예약됨",
+      "stageRolePriceSent": "가격/제안 전달됨",
       "changeColor": "색상 변경",
       "toastFailedSave": "파이프라인을 저장하지 못했습니다",
       "toastSaved": "파이프라인이 저장되었습니다",

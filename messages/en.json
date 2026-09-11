@@ -378,6 +378,19 @@
       "unsetRate": "—",
       "empty": "No deals assigned yet.",
       "emptyHint": "Shows up once deals are assigned to someone on the team."
+    },
+    "activityRanking": {
+      "title": "Rep activity",
+      "description": "First contacts, deals closed, and follow-ups in the period, per rep.",
+      "periodToday": "Today",
+      "periodWeek": "This week",
+      "periodMonth": "This month",
+      "name": "Rep",
+      "firstContacts": "First contact",
+      "dealsClosed": "Closed",
+      "followUps": "Follow-up",
+      "empty": "No activity in this period.",
+      "emptyHint": "Shows up once someone on the team sends a message or closes a deal."
     }
   },
   "Contacts": {
@@ -734,6 +747,10 @@
       "dealSortOrderHint": "Card order within this column",
       "dealSortNewestFirst": "Newest first",
       "dealSortOldestFirst": "Oldest first",
+      "stageRoleHint": "Special role for this stage",
+      "stageRoleNone": "No special role",
+      "stageRoleMeetingScheduled": "Meeting scheduled",
+      "stageRolePriceSent": "Price/proposal sent",
       "changeColor": "Change color",
       "toastFailedSave": "Failed to save pipeline",
       "toastSaved": "Pipeline saved",

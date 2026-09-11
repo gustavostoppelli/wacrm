@@ -159,6 +159,32 @@ export interface SalesRepRankingRow {
   winRate: number | null
 }
 
+/** Period a `TodayActivityRankingRow` set was computed over. */
+export type ActivityPeriod = 'today' | 'week' | 'month'
+
+/**
+ * Per-salesperson activity within a period (today / this week / this
+ * month), grouped by `deals.assigned_to` — same rep identity as
+ * `SalesRepRankingRow`, but activity-based rather than a lifetime
+ * won/lost tally.
+ *
+ *   - firstContacts: brand-new leads this rep sent their very first
+ *     agent message to, within the period.
+ *   - dealsClosed: deals this rep won, within the period
+ *     (`deals.closed_at` falls in it).
+ *   - followUps: agent messages this rep sent within the period, on a
+ *     deal already sitting in (or past) the pipeline's stage marked
+ *     `stage_role = 'price_sent'` — see migration 064. Zero for every
+ *     rep until an admin marks such a stage in Pipeline Settings.
+ */
+export interface TodayActivityRankingRow {
+  userId: string
+  name: string
+  firstContacts: number
+  dealsClosed: number
+  followUps: number
+}
+
 /**
  * One open deal, ranked by how long it has sat in its current stage
  * (oldest first). `isStale` is true once `daysInStage` reaches the

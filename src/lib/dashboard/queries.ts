@@ -6,9 +6,12 @@ import {
   localDayKey,
   mondayIndex,
   startOfLocalDay,
+  startOfLocalMonth,
+  startOfLocalWeek,
 } from './date-utils'
 import type {
   ActivityItem,
+  ActivityPeriod,
   CampaignReportRow,
   ConversationsSeriesPoint,
   FunnelInsightsData,
@@ -22,6 +25,7 @@ import type {
   SalesRepRankingRow,
   StageDwellTime,
   StuckDealRow,
+  TodayActivityRankingRow,
 } from './types'
 import { daysInStage, isStaleInStage } from '../deals/stage-age'
 
@@ -765,7 +769,149 @@ export async function loadSalesRepRanking(db: DB): Promise<SalesRepRankingRow[]>
   return Array.from(buckets.values()).sort((a, b) => b.wonValue - a.wonValue)
 }
 
-// --- 10. Stuck deals (oldest-in-stage first) ----------------------------
+// --- 11. Today/week/month activity ranking ---------------------------------
+
+/**
+ * Per-rep activity within a period, grouped by `deals.assigned_to`:
+ *
+ *   - firstContacts: the deal's very first-ever agent message falls in
+ *     the period (a brand-new lead this rep just reached out to).
+ *   - dealsClosed: `deals.closed_at` (migration 047, auto-stamped on
+ *     status→won/lost) falls in the period and status is 'won'.
+ *   - followUps: an agent message in the period, on a deal whose
+ *     current stage is the pipeline's `stage_role = 'price_sent'`
+ *     stage (migration 064) or any stage after it by `position`. Zero
+ *     for everyone until an admin marks such a stage — deliberately no
+ *     hardcoded stage name, so this works the same for any pipeline.
+ *
+ * Fetches every agent message's `(conversation_id, created_at)` to
+ * determine each conversation's true first-ever agent message,
+ * regardless of period — a lead first messaged 3 months ago can't
+ * become a "first contact" just because that's the oldest row inside
+ * the selected window. Acceptable at current scale; would need a
+ * server-side aggregate (RPC) if the messages table gets large enough
+ * for this full scan to matter.
+ */
+export async function loadTodayActivityRanking(
+  db: DB,
+  period: ActivityPeriod = 'today',
+): Promise<TodayActivityRankingRow[]> {
+  const periodStart =
+    period === 'week' ? startOfLocalWeek() : period === 'month' ? startOfLocalMonth() : startOfLocalDay()
+  const periodStartMs = periodStart.getTime()
+
+  const [dealsRes, profilesRes, stagesRes, closedRes, agentMsgsRes] = await Promise.all([
+    db
+      .from('deals')
+      .select('conversation_id, assigned_to, stage_id')
+      .not('assigned_to', 'is', null)
+      .not('conversation_id', 'is', null),
+    db.from('profiles').select('id, full_name, email'),
+    db.from('pipeline_stages').select('id, pipeline_id, position, stage_role'),
+    db
+      .from('deals')
+      .select('assigned_to')
+      .eq('status', 'won')
+      .not('assigned_to', 'is', null)
+      .gte('closed_at', periodStart.toISOString()),
+    db
+      .from('messages')
+      .select('conversation_id, created_at')
+      .eq('sender_type', 'agent')
+      .order('created_at', { ascending: true }),
+  ])
+
+  if (dealsRes.error || stagesRes.error || closedRes.error || agentMsgsRes.error) {
+    console.error(
+      '[dashboard] loadTodayActivityRanking failed:',
+      dealsRes.error || stagesRes.error || closedRes.error || agentMsgsRes.error,
+    )
+    return []
+  }
+
+  const nameById = new Map(
+    ((profilesRes.data ?? []) as { id: string; full_name: string | null; email: string | null }[]).map(
+      (p) => [p.id, p.full_name || p.email || p.id],
+    ),
+  )
+
+  const buckets = new Map<string, TodayActivityRankingRow>()
+  function bucketFor(userId: string): TodayActivityRankingRow {
+    let b = buckets.get(userId)
+    if (!b) {
+      b = { userId, name: nameById.get(userId) ?? userId, firstContacts: 0, dealsClosed: 0, followUps: 0 }
+      buckets.set(userId, b)
+    }
+    return b
+  }
+
+  for (const row of (closedRes.data ?? []) as { assigned_to: string }[]) {
+    bucketFor(row.assigned_to).dealsClosed += 1
+  }
+
+  // Per pipeline, the earliest position among stages marked
+  // 'price_sent' (normally just one). Every stage at or past that
+  // position, in the same pipeline, counts toward "follow-up".
+  const stages = (stagesRes.data ?? []) as {
+    id: string
+    pipeline_id: string
+    position: number
+    stage_role: string | null
+  }[]
+  const priceSentPositionByPipeline = new Map<string, number>()
+  for (const s of stages) {
+    if (s.stage_role !== 'price_sent') continue
+    const existing = priceSentPositionByPipeline.get(s.pipeline_id)
+    if (existing === undefined || s.position < existing) {
+      priceSentPositionByPipeline.set(s.pipeline_id, s.position)
+    }
+  }
+  const followUpStageIds = new Set(
+    stages
+      .filter((s) => {
+        const threshold = priceSentPositionByPipeline.get(s.pipeline_id)
+        return threshold !== undefined && s.position >= threshold
+      })
+      .map((s) => s.id),
+  )
+
+  const deals = (dealsRes.data ?? []) as { conversation_id: string; assigned_to: string; stage_id: string }[]
+  const assignedToByConversation = new Map(deals.map((d) => [d.conversation_id, d.assigned_to]))
+  const followUpConversationIds = new Set(
+    deals.filter((d) => followUpStageIds.has(d.stage_id)).map((d) => d.conversation_id),
+  )
+
+  const agentMsgs = (agentMsgsRes.data ?? []) as { conversation_id: string; created_at: string }[]
+
+  // Ascending order means the first occurrence per conversation is its
+  // earliest-ever agent message.
+  const firstAgentMsgAtMs = new Map<string, number>()
+  for (const m of agentMsgs) {
+    if (!firstAgentMsgAtMs.has(m.conversation_id)) {
+      firstAgentMsgAtMs.set(m.conversation_id, new Date(m.created_at).getTime())
+    }
+  }
+
+  for (const [conversationId, firstAtMs] of firstAgentMsgAtMs) {
+    if (firstAtMs < periodStartMs) continue
+    const userId = assignedToByConversation.get(conversationId)
+    if (userId) bucketFor(userId).firstContacts += 1
+  }
+
+  for (const m of agentMsgs) {
+    if (new Date(m.created_at).getTime() < periodStartMs) continue
+    if (!followUpConversationIds.has(m.conversation_id)) continue
+    const userId = assignedToByConversation.get(m.conversation_id)
+    if (userId) bucketFor(userId).followUps += 1
+  }
+
+  return Array.from(buckets.values()).sort(
+    (a, b) =>
+      b.firstContacts + b.dealsClosed + b.followUps - (a.firstContacts + a.dealsClosed + a.followUps),
+  )
+}
+
+// --- 12. Stuck deals (oldest-in-stage first) ----------------------------
 
 /**
  * Every OPEN deal ranked by days sitting in its current stage, oldest

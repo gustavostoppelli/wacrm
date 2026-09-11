@@ -49,4 +49,18 @@ export function mondayIndex(d: Date): number {
   return (jsDow + 6) % 7
 }
 
+/** Local midnight of the Monday starting the current calendar week. */
+export function startOfLocalWeek(d: Date = new Date()): Date {
+  const start = startOfLocalDay(d)
+  start.setDate(start.getDate() - mondayIndex(start))
+  return start
+}
+
+/** Local midnight of the 1st of the current calendar month. */
+export function startOfLocalMonth(d: Date = new Date()): Date {
+  const start = startOfLocalDay(d)
+  start.setDate(1)
+  return start
+}
+
 export const DOW_SHORT_MON_FIRST = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const

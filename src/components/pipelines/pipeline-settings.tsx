@@ -126,6 +126,7 @@ export function PipelineSettings({
       stale_after_days: s.stale_after_days ?? null,
       notify_phone: s.notify_phone?.trim() || null,
       deal_sort_order: s.deal_sort_order ?? "newest_first",
+      stage_role: s.stage_role ?? null,
     }));
 
     const [renameRes, stagesRes] = await Promise.all([
@@ -299,6 +300,17 @@ export function PipelineSettings({
                             updated[index] = { ...updated[index], deal_sort_order: v };
                             setLocalStages(updated);
                           }}
+                          onStageRoleChange={(v) => {
+                            // At most one stage per pipeline can carry a
+                            // given role — picking it here clears it from
+                            // wherever else it was set.
+                            const updated = localStages.map((s, i) => {
+                              if (i === index) return { ...s, stage_role: v };
+                              if (v && s.stage_role === v) return { ...s, stage_role: null };
+                              return s;
+                            });
+                            setLocalStages(updated);
+                          }}
                           onRemove={() => handleRemoveStage(stage.id)}
                           colors={STAGE_COLORS}
                           t={t}
@@ -396,6 +408,7 @@ function SortableStageRow({
   onStaleAfterDaysChange,
   onNotifyPhoneChange,
   onDealSortOrderChange,
+  onStageRoleChange,
   onRemove,
   colors,
   t,
@@ -406,6 +419,7 @@ function SortableStageRow({
   onStaleAfterDaysChange: (v: number | null) => void;
   onNotifyPhoneChange: (v: string | null) => void;
   onDealSortOrderChange: (v: "newest_first" | "oldest_first") => void;
+  onStageRoleChange: (v: "meeting_scheduled" | "price_sent" | null) => void;
   onRemove: () => void;
   colors: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -490,6 +504,32 @@ function SortableStageRow({
           <SelectContent>
             <SelectItem value="newest_first">{t("dealSortNewestFirst")}</SelectItem>
             <SelectItem value="oldest_first">{t("dealSortOldestFirst")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex items-center gap-2 pl-6">
+        <Select
+          value={stage.stage_role ?? "none"}
+          onValueChange={(v) =>
+            onStageRoleChange(v === "none" ? null : (v as "meeting_scheduled" | "price_sent"))
+          }
+        >
+          <SelectTrigger
+            title={t("stageRoleHint")}
+            className="h-7 w-full border-border bg-transparent text-xs text-foreground"
+          >
+            <SelectValue>
+              {stage.stage_role === "meeting_scheduled"
+                ? t("stageRoleMeetingScheduled")
+                : stage.stage_role === "price_sent"
+                  ? t("stageRolePriceSent")
+                  : t("stageRoleNone")}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">{t("stageRoleNone")}</SelectItem>
+            <SelectItem value="meeting_scheduled">{t("stageRoleMeetingScheduled")}</SelectItem>
+            <SelectItem value="price_sent">{t("stageRolePriceSent")}</SelectItem>
           </SelectContent>
         </Select>
       </div>

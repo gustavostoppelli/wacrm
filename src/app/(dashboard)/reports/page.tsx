@@ -11,14 +11,17 @@ import {
   loadPipelineFunnel,
   loadSalesRepRanking,
   loadStuckDeals,
+  loadTodayActivityRanking,
 } from "@/lib/dashboard/queries"
 import type {
+  ActivityPeriod,
   CampaignReportRow,
   FunnelInsightsData,
   LostReasonReportRow,
   PipelineFunnelData,
   SalesRepRankingRow,
   StuckDealRow,
+  TodayActivityRankingRow,
 } from "@/lib/dashboard/types"
 import {
   Table,
@@ -33,6 +36,7 @@ import { FunnelInsights } from "@/components/dashboard/funnel-insights"
 import { LeadsBySourceChart } from "@/components/dashboard/leads-by-source-chart"
 import { LostReasonsTable } from "@/components/dashboard/lost-reasons-table"
 import { SalesRepRankingTable } from "@/components/dashboard/sales-rep-ranking-table"
+import { TodayActivityRankingTable } from "@/components/dashboard/today-activity-ranking-table"
 import { StuckDealsTable } from "@/components/dashboard/stuck-deals-table"
 import { BarChart3 } from "lucide-react"
 
@@ -51,6 +55,20 @@ export default function ReportsPage() {
   const [rankingLoading, setRankingLoading] = useState(true)
   const [stuckDeals, setStuckDeals] = useState<StuckDealRow[] | null>(null)
   const [stuckDealsLoading, setStuckDealsLoading] = useState(true)
+  const [activityPeriod, setActivityPeriod] = useState<ActivityPeriod>("today")
+  const [activity, setActivity] = useState<TodayActivityRankingRow[] | null>(null)
+  const [activityLoading, setActivityLoading] = useState(true)
+
+  // Separate effect (own dependency) so switching the period only
+  // re-fetches this one section, not every report on the page.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActivityLoading(true)
+    loadTodayActivityRanking(createClient(), activityPeriod)
+      .then(setActivity)
+      .catch((err) => console.error("[reports] activity ranking load failed:", err))
+      .finally(() => setActivityLoading(false))
+  }, [activityPeriod])
 
   useEffect(() => {
     const db = createClient()
@@ -158,6 +176,13 @@ export default function ReportsPage() {
       </div>
 
       <SalesRepRankingTable rows={ranking} loading={rankingLoading} currency={defaultCurrency} />
+
+      <TodayActivityRankingTable
+        rows={activity}
+        loading={activityLoading}
+        period={activityPeriod}
+        onPeriodChange={setActivityPeriod}
+      />
 
       <LostReasonsTable rows={lostReasons} loading={lostReasonsLoading} currency={defaultCurrency} />
     </div>
