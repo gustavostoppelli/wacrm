@@ -93,11 +93,11 @@ export default function ReportsPage() {
         <p className="mt-1 text-sm text-muted-foreground">{t("description")}</p>
       </div>
 
+      <TodayActivityRankingTable />
+
       <PipelineFunnel data={funnel} loading={funnelLoading} />
 
       <FunnelInsights data={insights} loading={insightsLoading} currency={defaultCurrency} />
-
-      <StuckDealsTable rows={stuckDeals} loading={stuckDealsLoading} currency={defaultCurrency} />
 
       <LeadsBySourceChart rows={rows} loading={loading} />
 
@@ -160,9 +160,9 @@ export default function ReportsPage() {
 
       <SalesRepRankingTable rows={ranking} loading={rankingLoading} currency={defaultCurrency} />
 
-      <TodayActivityRankingTable />
-
       <LostReasonsTable rows={lostReasons} loading={lostReasonsLoading} currency={defaultCurrency} />
+
+      <StuckDealsTable rows={stuckDeals} loading={stuckDealsLoading} currency={defaultCurrency} />
     </div>
   )
 }
