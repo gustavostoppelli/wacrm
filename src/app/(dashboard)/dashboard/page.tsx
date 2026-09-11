@@ -17,16 +17,13 @@ import {
   loadMetrics,
   loadPipelineDonut,
   loadResponseTime,
-  loadTodayActivityRanking,
 } from '@/lib/dashboard/queries'
 import type {
   ActivityItem,
-  ActivityPeriod,
   ConversationsSeriesPoint,
   MetricsBundle,
   PipelineDonutData,
   ResponseTimeSummary,
-  TodayActivityRankingRow,
 } from '@/lib/dashboard/types'
 
 import { MetricCard } from '@/components/dashboard/metric-card'
@@ -68,10 +65,6 @@ export default function DashboardPage() {
   const [activity, setActivity] = useState<ActivityItem[] | null>(null)
   const [activityLoading, setActivityLoading] = useState(true)
 
-  const [activityRankingPeriod, setActivityRankingPeriod] = useState<ActivityPeriod>('today')
-  const [activityRanking, setActivityRanking] = useState<TodayActivityRankingRow[] | null>(null)
-  const [activityRankingLoading, setActivityRankingLoading] = useState(true)
-
   const loadAll = useCallback(() => {
     const db = createClient()
 
@@ -111,17 +104,6 @@ export default function DashboardPage() {
     loadAll()
   }, [loadAll])
 
-  // Own effect (own dependency) so switching the period only re-fetches
-  // this one section, not every dashboard widget.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActivityRankingLoading(true)
-    loadTodayActivityRanking(createClient(), activityRankingPeriod)
-      .then(setActivityRanking)
-      .catch((err) => console.error('[dashboard] activity ranking failed:', err))
-      .finally(() => setActivityRankingLoading(false))
-  }, [activityRankingPeriod])
-
   // Range switch handler — kept in an event callback (not an effect)
   // so the setState calls stay out of the react-hooks/set-state-in-effect
   // rule's way. The cached bucket check means switching back to a
@@ -153,12 +135,7 @@ export default function DashboardPage() {
       {/* Rep activity ranking — same widget as Reports (loadTodayActivityRanking),
           surfaced first here too since it's the daily operational check
           (who made first contact / closed / followed up today). */}
-      <TodayActivityRankingTable
-        rows={activityRanking}
-        loading={activityRankingLoading}
-        period={activityRankingPeriod}
-        onPeriodChange={setActivityRankingPeriod}
-      />
+      <TodayActivityRankingTable />
 
       {/* Metric cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

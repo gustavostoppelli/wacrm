@@ -390,7 +390,8 @@
       "dealsClosed": "Fechados",
       "followUps": "Follow-up",
       "empty": "Nenhuma atividade neste período.",
-      "emptyHint": "Aparece assim que alguém da equipe enviar mensagem ou fechar um negócio."
+      "emptyHint": "Aparece assim que alguém da equipe enviar mensagem ou fechar um negócio.",
+      "emptyColumn": "Ninguém ainda."
     }
   },
   "Contacts": {

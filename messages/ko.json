@@ -390,7 +390,8 @@
       "dealsClosed": "성사",
       "followUps": "팔로우업",
       "empty": "이 기간에 활동이 없습니다.",
-      "emptyHint": "팀원이 메시지를 보내거나 거래를 성사시키면 표시됩니다."
+      "emptyHint": "팀원이 메시지를 보내거나 거래를 성사시키면 표시됩니다.",
+      "emptyColumn": "아직 없습니다."
     }
   },
   "Contacts": {

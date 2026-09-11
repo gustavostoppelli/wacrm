@@ -390,7 +390,8 @@
       "dealsClosed": "Closed",
       "followUps": "Follow-up",
       "empty": "No activity in this period.",
-      "emptyHint": "Shows up once someone on the team sends a message or closes a deal."
+      "emptyHint": "Shows up once someone on the team sends a message or closes a deal.",
+      "emptyColumn": "Nobody yet."
     }
   },
   "Contacts": {
