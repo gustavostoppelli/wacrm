@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/hooks/use-auth"
 import { loadTodayActivityRanking } from "@/lib/dashboard/queries"
 import type { ActivityPeriod, TodayActivityRankingRow } from "@/lib/dashboard/types"
 import {
@@ -33,6 +34,7 @@ type Metric = "firstContacts" | "dealsClosed" | "followUps"
 export function TodayActivityRankingTable() {
   const t = useTranslations("Reports.activityRanking")
   const dbRef = useRef(createClient())
+  const { accountId } = useAuth()
 
   const [firstContactsPeriod, setFirstContactsPeriod] = useState<ActivityPeriod>("today")
   const [followUpsPeriod, setFollowUpsPeriod] = useState<ActivityPeriod>("today")
@@ -43,10 +45,11 @@ export function TodayActivityRankingTable() {
   const inFlight = useRef<Set<ActivityPeriod>>(new Set())
 
   const ensurePeriodLoaded = useCallback((period: ActivityPeriod) => {
+    if (!accountId) return
     if (inFlight.current.has(period)) return
     inFlight.current.add(period)
     setLoadingPeriods((prev) => new Set(prev).add(period))
-    loadTodayActivityRanking(dbRef.current, period)
+    loadTodayActivityRanking(dbRef.current, accountId, period)
       .then((rows) => setCache((prev) => ({ ...prev, [period]: rows })))
       .catch((err) => console.error("[dashboard] activity ranking failed:", err))
       .finally(() => {
@@ -57,7 +60,7 @@ export function TodayActivityRankingTable() {
           return next
         })
       })
-  }, [])
+  }, [accountId])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect

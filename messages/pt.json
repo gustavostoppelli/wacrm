@@ -1726,6 +1726,7 @@
       "quick-replies": "Respostas rápidas",
       "fields": "Campos e etiquetas",
       "deals": "Negócios e moeda",
+      "notifications": "Notificações",
       "members": "Membros da equipe",
       "api": "Chaves de API"
     },
@@ -1849,6 +1850,26 @@
       "saving": "Salvando...",
       "saveFailed": "Falha ao salvar a moeda padrão",
       "saveSuccess": "Moeda padrão atualizada"
+    },
+    "notifications": {
+      "title": "Notificações",
+      "description": "Avisos automáticos por WhatsApp sobre a atividade da equipe.",
+      "dailyDigestTitle": "Resumo diário",
+      "dailyDigestDesc": "Todo dia, por volta das 18h (horário de Brasília), envia por WhatsApp o número de 1º contato, follow-up e negócios fechados de cada vendedor, mais o acumulado do mês.",
+      "enableLabel": "Ativar resumo diário",
+      "enableHint": "Enviado uma vez por dia, depois das 18h.",
+      "phonesLabel": "Números que recebem",
+      "phonesPlaceholder": "Ex: 5521999999999, 5521988888888",
+      "phonesHint": "Separe vários números por vírgula.",
+      "groupLabel": "Grupo do WhatsApp (opcional)",
+      "groupNone": "Nenhum",
+      "groupHint": "Além dos números acima, envia também pra esse grupo (do número conectado da conta).",
+      "groupLoading": "Carregando grupos...",
+      "adminOnlyHint": "Somente admins da conta podem mudar as notificações.",
+      "save": "Salvar",
+      "saving": "Salvando...",
+      "saveFailed": "Falha ao salvar as notificações",
+      "saveSuccess": "Notificações atualizadas"
     },
     "aiConfig": {
       "title": "Configuração do agente",

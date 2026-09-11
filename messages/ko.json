@@ -1726,6 +1726,7 @@
       "quick-replies": "빠른 답장",
       "fields": "필드 & 태그",
       "deals": "딜 & 통화",
+      "notifications": "알림",
       "members": "팀원",
       "api": "API 키"
     },
@@ -1849,6 +1850,26 @@
       "saving": "저장 중...",
       "saveFailed": "기본 통화를 저장하지 못했습니다",
       "saveSuccess": "기본 통화가 업데이트되었습니다"
+    },
+    "notifications": {
+      "title": "알림",
+      "description": "팀 활동에 대한 자동 WhatsApp 알림입니다.",
+      "dailyDigestTitle": "일일 요약",
+      "dailyDigestDesc": "매일 오후 6시경(상파울루 기준) 담당자별 첫 연락, 팔로우업, 성사된 거래 수와 이번 달 누적 합계를 WhatsApp으로 보냅니다.",
+      "enableLabel": "일일 요약 활성화",
+      "enableHint": "하루에 한 번, 오후 6시 이후 발송됩니다.",
+      "phonesLabel": "수신 번호",
+      "phonesPlaceholder": "예: 5521999999999, 5521988888888",
+      "phonesHint": "여러 번호는 쉼표로 구분하세요.",
+      "groupLabel": "WhatsApp 그룹 (선택 사항)",
+      "groupNone": "없음",
+      "groupHint": "위 번호들과 별도로 이 그룹(계정에 연결된 번호 기준)에도 전송됩니다.",
+      "groupLoading": "그룹 불러오는 중...",
+      "adminOnlyHint": "계정 관리자만 알림 설정을 변경할 수 있습니다.",
+      "save": "저장",
+      "saving": "저장 중...",
+      "saveFailed": "알림 설정을 저장하지 못했습니다",
+      "saveSuccess": "알림 설정이 업데이트되었습니다"
     },
     "aiConfig": {
       "title": "에이전트 설정",

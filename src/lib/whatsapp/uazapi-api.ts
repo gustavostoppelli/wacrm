@@ -147,6 +147,29 @@ export async function getInstanceStatus(args: InstanceTokenArgs): Promise<Instan
   }
 }
 
+export interface UazapiGroup {
+  jid: string
+  name: string
+}
+
+/** Groups the connected number is already a participant of — used to
+ *  let an admin pick a group as a daily-digest recipient (Settings →
+ *  Notifications) instead of typing individual phone numbers. */
+export async function listUazapiGroups(args: InstanceTokenArgs): Promise<UazapiGroup[]> {
+  const { baseUrl, instanceToken } = args
+  const response = await fetch(`${trimBaseUrl(baseUrl)}/group/list`, {
+    headers: { token: instanceToken },
+  })
+  if (!response.ok) {
+    await throwUazapiError(response, `UAZAPI error listing groups: ${response.status}`)
+  }
+  const data = await response.json()
+  const groups = (data.groups ?? []) as { JID?: string; Name?: string }[]
+  return groups
+    .filter((g): g is { JID: string; Name?: string } => !!g.JID)
+    .map((g) => ({ jid: g.JID, name: g.Name || g.JID }))
+}
+
 export interface RegisterWebhookArgs extends InstanceTokenArgs {
   webhookUrl: string
 }

@@ -10,6 +10,10 @@ import {
 } from '@/lib/ai/auto-reply'
 import { loadAiConfig } from '@/lib/ai/config'
 import { engineSendText } from '@/lib/flows/meta-send'
+import { loadTodayActivityRanking } from '@/lib/dashboard/queries'
+import type { TodayActivityRankingRow } from '@/lib/dashboard/types'
+import { resolveDefaultChannelForAccount } from '@/lib/whatsapp/resolve-channel'
+import { sendUazapiText } from '@/lib/whatsapp/uazapi-api'
 
 /**
  * Drain due `automation_pending_executions` rows. Meant to be hit
@@ -92,6 +96,7 @@ export async function GET(request: Request) {
   const tasksProcessed = await drainDueTasks(admin)
   const closeDateAlertsProcessed = await drainDueCloseDateAlerts(admin)
   const stageEntryNotificationsProcessed = await drainStageEntryNotifications(admin)
+  const dailyDigestsSent = await drainDailyDigest(admin)
 
   return NextResponse.json({
     processed,
@@ -102,6 +107,7 @@ export async function GET(request: Request) {
     tasks_processed: tasksProcessed,
     close_date_alerts_processed: closeDateAlertsProcessed,
     stage_entry_notifications_processed: stageEntryNotificationsProcessed,
+    daily_digests_sent: dailyDigestsSent,
   })
 }
 
@@ -637,4 +643,152 @@ async function drainStageEntryNotifications(
     }
   }
   return processed
+}
+
+/** `YYYY-MM-DD` and current hour (0-23), both in America/Sao_Paulo —
+ *  the digest's send time ("18h") and its "one per day" dedup key are
+ *  both anchored to that timezone regardless of where the server runs. */
+function brazilTodayAndHour(): { today: string; hour: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date())
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00'
+  return {
+    today: `${get('year')}-${get('month')}-${get('day')}`,
+    // Intl can format midnight as "24" with hour12: false in some
+    // environments — normalize so the >= 18 check below is never
+    // fooled into thinking it's still "before 18h".
+    hour: Number(get('hour')) % 24,
+  }
+}
+
+function formatDigestSection(
+  title: string,
+  rows: TodayActivityRankingRow[],
+  metric: keyof Omit<TodayActivityRankingRow, 'userId' | 'name'>,
+): string {
+  const ranked = rows.filter((r) => r[metric] > 0).sort((a, b) => b[metric] - a[metric])
+  if (ranked.length === 0) return `*${title}*\nNinguém ainda.`
+  const lines = ranked.map((r, i) => `${i + 1}. ${r.name} — ${r[metric]}`)
+  return `*${title}*\n${lines.join('\n')}`
+}
+
+/**
+ * Sends the daily WhatsApp activity digest (migration 065) once per
+ * account per calendar day, after 18:00 America/Sao_Paulo. The 5-minute
+ * cron poll means this can run up to ~12 times between 18:00 and
+ * midnight before `daily_digest_last_sent_date` gets claimed on the
+ * first due run — the claim below (conditional UPDATE + confirm via
+ * the returned row) is what keeps that from sending N times.
+ */
+async function drainDailyDigest(admin: ReturnType<typeof supabaseAdmin>): Promise<number> {
+  const { today, hour } = brazilTodayAndHour()
+  if (hour < 18) return 0
+
+  const { data: accounts } = await admin
+    .from('accounts')
+    .select('id, owner_user_id, daily_digest_phones, daily_digest_group_jid, daily_digest_last_sent_date')
+    .eq('daily_digest_enabled', true)
+
+  if (!accounts || accounts.length === 0) return 0
+
+  let sent = 0
+  for (const account of accounts) {
+    const lastSent = account.daily_digest_last_sent_date as string | null
+    if (lastSent === today) continue // already sent today
+
+    const phones = ((account.daily_digest_phones as string) ?? '')
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)
+    const groupJid = account.daily_digest_group_jid as string | null
+    if (phones.length === 0 && !groupJid) continue
+
+    // Claim: only proceeds if this run is the first to flip the date
+    // for today (the .or() also matches accounts that have never sent
+    // one, where the column is still null).
+    const { data: claim } = await admin
+      .from('accounts')
+      .update({ daily_digest_last_sent_date: today })
+      .eq('id', account.id)
+      .or(`daily_digest_last_sent_date.is.null,daily_digest_last_sent_date.neq.${today}`)
+      .select('id')
+      .maybeSingle()
+    if (!claim) continue
+
+    try {
+      const accountId = account.id as string
+      const ownerUserId = account.owner_user_id as string
+      const [dayRows, monthRows] = await Promise.all([
+        loadTodayActivityRanking(admin, accountId, 'today'),
+        loadTodayActivityRanking(admin, accountId, 'month'),
+      ])
+
+      const [dd, mm, yyyy] = [today.slice(8, 10), today.slice(5, 7), today.slice(0, 4)]
+      const text = [
+        `📊 *Resumo do dia — ${dd}/${mm}/${yyyy}*`,
+        '',
+        formatDigestSection('1º contato hoje', dayRows, 'firstContacts'),
+        '',
+        formatDigestSection('Follow-up hoje', dayRows, 'followUps'),
+        '',
+        formatDigestSection('Fechados hoje', dayRows, 'dealsClosed'),
+        '',
+        `📅 *Acumulado no mês*`,
+        formatDigestSection('1º contato', monthRows, 'firstContacts'),
+        '',
+        formatDigestSection('Follow-up', monthRows, 'followUps'),
+        '',
+        formatDigestSection('Fechados', monthRows, 'dealsClosed'),
+      ].join('\n')
+
+      for (const phone of phones) {
+        try {
+          const recipient = await findOrCreateInternalRecipient(admin, accountId, ownerUserId, phone)
+          if (!recipient) continue
+          await engineSendText({
+            accountId,
+            userId: ownerUserId,
+            conversationId: recipient.conversationId,
+            contactId: recipient.contactId,
+            text,
+            aiGenerated: false,
+          })
+        } catch (err) {
+          console.error('[daily digest] send failed:', phone, err)
+        }
+      }
+
+      // A WhatsApp group isn't a `contacts` row — sending to one goes
+      // straight to the provider with the raw group JID (never through
+      // sanitizePhoneForMeta, which would strip the "@g.us" suffix a
+      // group id needs). UAZAPI-only; `resolveDefaultChannelForAccount`
+      // returns undefined credentials for a Meta channel and this is
+      // just skipped.
+      if (groupJid) {
+        try {
+          const channel = await resolveDefaultChannelForAccount(admin, accountId)
+          if (channel?.provider === 'uazapi' && channel.uazapiBaseUrl && channel.uazapiInstanceToken) {
+            await sendUazapiText({
+              baseUrl: channel.uazapiBaseUrl,
+              instanceToken: channel.uazapiInstanceToken,
+              to: groupJid,
+              text,
+            })
+          }
+        } catch (err) {
+          console.error('[daily digest] group send failed:', groupJid, err)
+        }
+      }
+      sent++
+    } catch (err) {
+      console.error('[daily digest] failed for account:', account.id, err)
+    }
+  }
+  return sent
 }

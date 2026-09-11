@@ -809,48 +809,68 @@ export async function loadSalesRepRanking(db: DB): Promise<SalesRepRankingRow[]>
  */
 export async function loadTodayActivityRanking(
   db: DB,
+  accountId: string,
   period: ActivityPeriod = 'today',
 ): Promise<TodayActivityRankingRow[]> {
   const periodStart =
     period === 'week' ? startOfLocalWeek() : period === 'month' ? startOfLocalMonth() : startOfLocalDay()
   const periodStartMs = periodStart.getTime()
 
-  const [dealsRes, profilesRes, stagesRes, closedRes, agentMsgsRes, conversationsRes, channelsRes] =
-    await Promise.all([
-      db
-        .from('deals')
-        .select('conversation_id, assigned_to, stage_id')
-        .not('assigned_to', 'is', null)
-        .not('conversation_id', 'is', null),
-      db.from('profiles').select('id, user_id, full_name, email'),
-      db.from('pipeline_stages').select('id, pipeline_id, position, stage_role'),
-      db
-        .from('deals')
-        .select('assigned_to')
-        .eq('status', 'won')
-        .not('assigned_to', 'is', null)
-        .gte('closed_at', periodStart.toISOString()),
-      db
-        .from('messages')
-        .select('conversation_id, created_at')
-        .eq('sender_type', 'agent')
-        .order('created_at', { ascending: true }),
-      db.from('conversations').select('id, whatsapp_config_id'),
-      db.from('whatsapp_config').select('id, assigned_to').not('assigned_to', 'is', null),
-    ])
-
-  if (
-    dealsRes.error ||
-    stagesRes.error ||
-    closedRes.error ||
-    agentMsgsRes.error ||
-    conversationsRes.error ||
-    channelsRes.error
-  ) {
+  // `accountId` is explicit (not left to RLS) so this same function
+  // works both from an authenticated browser client (Dashboard/Reports)
+  // and from the cron route's service-role admin client, which has no
+  // signed-in user for RLS to scope by (see the daily digest sender).
+  // `messages` and `pipeline_stages` have no `account_id` column of
+  // their own (scoped only via conversation_id / pipeline_id — see
+  // 001_initial_schema.sql), so those two need their account's id set
+  // resolved first before they can be filtered.
+  const [conversationsRes, pipelinesRes] = await Promise.all([
+    db.from('conversations').select('id, whatsapp_config_id').eq('account_id', accountId),
+    db.from('pipelines').select('id').eq('account_id', accountId),
+  ])
+  if (conversationsRes.error || pipelinesRes.error) {
     console.error(
       '[dashboard] loadTodayActivityRanking failed:',
-      dealsRes.error || stagesRes.error || closedRes.error || agentMsgsRes.error ||
-        conversationsRes.error || channelsRes.error,
+      conversationsRes.error || pipelinesRes.error,
+    )
+    return []
+  }
+  const conversationIds = (conversationsRes.data ?? []).map((c) => c.id as string)
+  const pipelineIds = (pipelinesRes.data ?? []).map((p) => p.id as string)
+
+  const [dealsRes, profilesRes, stagesRes, closedRes, agentMsgsRes, channelsRes] = await Promise.all([
+    db
+      .from('deals')
+      .select('conversation_id, assigned_to, stage_id')
+      .eq('account_id', accountId)
+      .not('assigned_to', 'is', null)
+      .not('conversation_id', 'is', null),
+    db.from('profiles').select('id, user_id, full_name, email').eq('account_id', accountId),
+    pipelineIds.length > 0
+      ? db.from('pipeline_stages').select('id, pipeline_id, position, stage_role').in('pipeline_id', pipelineIds)
+      : Promise.resolve({ data: [], error: null }),
+    db
+      .from('deals')
+      .select('assigned_to')
+      .eq('account_id', accountId)
+      .eq('status', 'won')
+      .not('assigned_to', 'is', null)
+      .gte('closed_at', periodStart.toISOString()),
+    conversationIds.length > 0
+      ? db
+          .from('messages')
+          .select('conversation_id, created_at')
+          .eq('sender_type', 'agent')
+          .in('conversation_id', conversationIds)
+          .order('created_at', { ascending: true })
+      : Promise.resolve({ data: [], error: null }),
+    db.from('whatsapp_config').select('id, assigned_to').eq('account_id', accountId).not('assigned_to', 'is', null),
+  ])
+
+  if (dealsRes.error || stagesRes.error || closedRes.error || agentMsgsRes.error || channelsRes.error) {
+    console.error(
+      '[dashboard] loadTodayActivityRanking failed:',
+      dealsRes.error || stagesRes.error || closedRes.error || agentMsgsRes.error || channelsRes.error,
     )
     return []
   }

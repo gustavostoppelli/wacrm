@@ -1726,6 +1726,7 @@
       "quick-replies": "Quick replies",
       "fields": "Fields & tags",
       "deals": "Deals & currency",
+      "notifications": "Notifications",
       "members": "Team members",
       "api": "API keys"
     },
@@ -1849,6 +1850,26 @@
       "saving": "Saving...",
       "saveFailed": "Failed to save default currency",
       "saveSuccess": "Default currency updated"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Automatic WhatsApp alerts about the team's activity.",
+      "dailyDigestTitle": "Daily digest",
+      "dailyDigestDesc": "Every day around 6pm (São Paulo time), sends a WhatsApp message with each rep's first-contact, follow-up, and closed-deal counts, plus the month-to-date total.",
+      "enableLabel": "Enable daily digest",
+      "enableHint": "Sent once a day, after 6pm.",
+      "phonesLabel": "Recipient numbers",
+      "phonesPlaceholder": "E.g. 5521999999999, 5521988888888",
+      "phonesHint": "Separate multiple numbers with a comma.",
+      "groupLabel": "WhatsApp group (optional)",
+      "groupNone": "None",
+      "groupHint": "In addition to the numbers above, also sends to this group (from the account's connected number).",
+      "groupLoading": "Loading groups...",
+      "adminOnlyHint": "Only account admins can change notifications.",
+      "save": "Save",
+      "saving": "Saving...",
+      "saveFailed": "Failed to save notifications",
+      "saveSuccess": "Notifications updated"
     },
     "aiConfig": {
       "title": "Agent setup",
