@@ -142,6 +142,7 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType }[] = [
   { value: "conversation_assigned" },
   { value: "tag_added" },
   { value: "time_based" },
+  { value: "webhook_received" },
 ]
 
 function cid(): string {
@@ -216,6 +217,12 @@ interface AutomationResources {
   customFields: CustomField[]
   pipelines: PipelineOption[]
   stages: PipelineStageOption[]
+  webhooks: WebhookOption[]
+}
+
+interface WebhookOption {
+  id: string
+  name: string
 }
 
 interface PipelineOption {
@@ -237,6 +244,7 @@ const ResourcesContext = createContext<AutomationResources>({
   customFields: [],
   pipelines: [],
   stages: [],
+  webhooks: [],
 })
 
 function useResources(): AutomationResources {
@@ -250,6 +258,7 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
   const [customFields, setCustomFields] = useState<CustomField[]>([])
   const [pipelines, setPipelines] = useState<PipelineOption[]>([])
   const [stages, setStages] = useState<PipelineStageOption[]>([])
+  const [webhooks, setWebhooks] = useState<WebhookOption[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -260,7 +269,7 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
     // actually be sent (anything else 400s at send time), matching the
     // broadcast picker.
     void (async () => {
-      const [tagsRes, templatesRes, customFieldsRes, pipelinesRes, stagesRes] =
+      const [tagsRes, templatesRes, customFieldsRes, pipelinesRes, stagesRes, webhooksRes] =
         await Promise.all([
           supabase.from("tags").select("*").order("name"),
           supabase
@@ -274,6 +283,7 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
             .from("pipeline_stages")
             .select("id, name, pipeline_id, position")
             .order("position"),
+          supabase.from("inbound_webhooks").select("id, name").order("name"),
         ])
       if (cancelled) return
       setTags((tagsRes.data as TagRecord[] | null) ?? [])
@@ -281,6 +291,7 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
       setCustomFields((customFieldsRes.data as CustomField[] | null) ?? [])
       setPipelines((pipelinesRes.data as PipelineOption[] | null) ?? [])
       setStages((stagesRes.data as PipelineStageOption[] | null) ?? [])
+      setWebhooks((webhooksRes.data as WebhookOption[] | null) ?? [])
     })()
 
     // Members go through the API so we inherit its email-visibility
@@ -304,7 +315,7 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
 
   return (
     <ResourcesContext.Provider
-      value={{ tags, members, templates, customFields, pipelines, stages }}
+      value={{ tags, members, templates, customFields, pipelines, stages, webhooks }}
     >
       {children}
     </ResourcesContext.Provider>
@@ -362,6 +373,45 @@ function TagSelect({
         )}
       </select>
     </div>
+  )
+}
+
+/** Webhook-connection dropdown for the webhook_received trigger. Empty
+ *  selection means "any connection on this account" (see triggerMatches
+ *  in engine.ts) — the sensible default before there's more than one
+ *  connection to tell apart. Falls back to a raw id input if no
+ *  connections exist yet (Settings → Integrações hasn't been used). */
+function WebhookSelect({
+  value,
+  onChange,
+  t,
+}: {
+  value: string
+  onChange: (v: string) => void
+  t: ReturnType<typeof useTranslations>
+}) {
+  const { webhooks } = useResources()
+  if (webhooks.length === 0) {
+    return (
+      <Input
+        placeholder={t("webhooks.placeholder")}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="bg-muted text-foreground"
+      />
+    )
+  }
+  const selected = webhooks.find((w) => w.id === value)
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={SELECT_CLASS}>
+      <option value="">{t("webhooks.any")}</option>
+      {webhooks.map((w) => (
+        <option key={w.id} value={w.id}>
+          {w.name}
+        </option>
+      ))}
+      {value && !selected && <option value={value}>{t("webhooks.unknown", { id: value })}</option>}
+    </select>
   )
 }
 
@@ -862,6 +912,20 @@ function TriggerCard({
                 <TagSelect
                   value={(config.tag_id as string) ?? ""}
                   onChange={(v) => onConfigChange({ ...config, tag_id: v })}
+                  t={t}
+                />
+              </div>
+            )}
+            {type === "webhook_received" && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  {t("webhooks.label")}
+                </label>
+                <WebhookSelect
+                  value={(config.webhook_id as string) ?? ""}
+                  onChange={(v) =>
+                    onConfigChange(v ? { ...config, webhook_id: v } : { ...config, webhook_id: undefined })
+                  }
                   t={t}
                 />
               </div>

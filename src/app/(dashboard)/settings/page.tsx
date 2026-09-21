@@ -21,6 +21,7 @@ import { QuickRepliesManager } from '@/components/settings/quick-replies-manager
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
 import { DealsSettings } from '@/components/settings/deals-settings';
 import { NotificationsSettings } from '@/components/settings/notifications-settings';
+import { WebhooksSettings } from '@/components/settings/webhooks-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
 import {
@@ -98,6 +99,7 @@ function SettingsPageInner() {
     fields: <FieldsAndTagsPanel />,
     deals: <DealsSettings />,
     notifications: <NotificationsSettings />,
+    webhooks: <WebhooksSettings />,
     members: <MembersTab />,
     api: <ApiKeysSettings />,
   };

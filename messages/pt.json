@@ -1060,6 +1060,10 @@
         "time_based": {
           "label": "Baseado em horário",
           "hint": "Em uma programação recorrente"
+        },
+        "webhook_received": {
+          "label": "Webhook recebido",
+          "hint": "Uma das suas conexões de webhook (Configurações → Integrações) recebeu um aviso"
         }
       },
       "trigger": "Gatilho",
@@ -1086,6 +1090,12 @@
         "select": "Selecione uma etiqueta…",
         "placeholder": "ID da etiqueta",
         "unknown": "{id} (etiqueta desconhecida)"
+      },
+      "webhooks": {
+        "label": "Conexão de webhook",
+        "any": "Qualquer conexão",
+        "placeholder": "ID da conexão",
+        "unknown": "{id} (conexão desconhecida)"
       },
       "fields": {
         "name": "Nome",
@@ -1728,6 +1738,7 @@
       "fields": "Campos e etiquetas",
       "deals": "Negócios e moeda",
       "notifications": "Notificações",
+      "webhooks": "Integrações",
       "members": "Membros da equipe",
       "api": "Chaves de API"
     },
@@ -1871,6 +1882,43 @@
       "saving": "Salvando...",
       "saveFailed": "Falha ao salvar as notificações",
       "saveSuccess": "Notificações atualizadas"
+    },
+    "webhooks": {
+      "title": "Integrações",
+      "description": "Conexões via webhook: cole a URL gerada aqui na ferramenta externa (checkout, formulário, o que for) e o FuseHub cria o contato/negócio sozinho. Use como gatilho de Automação pra mandar mensagem, aplicar etiqueta, etc.",
+      "newConnection": "Nova conexão",
+      "empty": "Nenhuma conexão criada ainda.",
+      "askAdminHint": "Peça a um admin da conta pra criar uma conexão.",
+      "disabled": "Desativada",
+      "created": "Criada em {date}",
+      "lastReceived": "Último recebido em {date}",
+      "neverReceived": "Nunca recebeu nada ainda",
+      "loadFailed": "Falha ao carregar as conexões",
+      "networkError": "Erro de conexão. Tente novamente.",
+      "toggleFailed": "Falha ao atualizar a conexão",
+      "deleteFailed": "Falha ao excluir a conexão",
+      "deleteSuccess": "Conexão \"{name}\" excluída",
+      "newTitle": "Nova conexão de webhook",
+      "newDesc": "Escolha um nome e a etapa do funil onde os leads dessa conexão vão entrar.",
+      "nameLabel": "Nome da conexão",
+      "namePlaceholder": "Ex: Vendas do curso X",
+      "pipelineLabel": "Funil",
+      "pipelinePlaceholder": "Escolha um funil",
+      "stageLabel": "Etapa",
+      "stagePlaceholder": "Escolha uma etapa",
+      "stageHint": "Todo lead recebido por essa conexão entra nessa etapa.",
+      "fieldsRequired": "Preencha o nome, o funil e a etapa",
+      "createError": "Falha ao criar a conexão",
+      "creating": "Criando...",
+      "createConnection": "Criar conexão",
+      "cancel": "Cancelar",
+      "copyTitle": "Conexão criada",
+      "copyDesc": "Copie essa URL agora e cole na ferramenta externa — ela não vai aparecer de novo.",
+      "urlLabel": "URL da conexão",
+      "copy": "Copiar",
+      "copySuccess": "URL copiada",
+      "copyFailed": "Falha ao copiar",
+      "done": "Concluído"
     },
     "gettingStarted": {
       "title": "Primeiros passos",

@@ -7,6 +7,7 @@ import type {
   KeywordMatchTriggerConfig,
   InteractiveReplyTriggerConfig,
   TagTriggerConfig,
+  WebhookTriggerConfig,
   SendMessageStepConfig,
   SendButtonsStepConfig,
   SendListStepConfig,
@@ -47,6 +48,8 @@ export interface AutomationContext {
   agent_id?: string
   /** Button / list-row id the customer tapped, for interactive_reply. */
   interactive_reply_id?: string
+  /** Which inbound_webhooks connection fired, for webhook_received. */
+  webhook_id?: string
 }
 
 export interface DispatchInput {
@@ -783,6 +786,15 @@ export function triggerMatches(automation: Automation, ctx: AutomationContext | 
     const cfg = automation.trigger_config as TagTriggerConfig
     const tagId = ctx?.tag_id
     return Boolean(tagId && cfg?.tag_id && cfg.tag_id === tagId)
+  }
+
+  // No webhook_id in trigger_config means "any connection on this
+  // account" — the sensible default for an account with only one
+  // webhook connection configured so far.
+  if (automation.trigger_type === 'webhook_received') {
+    const cfg = automation.trigger_config as WebhookTriggerConfig
+    if (!cfg?.webhook_id) return true
+    return cfg.webhook_id === ctx?.webhook_id
   }
 
   return true

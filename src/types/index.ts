@@ -533,7 +533,12 @@ export type AutomationTriggerType =
   | 'time_based'
   /** Customer tapped a reply button / list row whose id matches; lets
    *  multi-step menus be chained across automations. */
-  | 'interactive_reply';
+  | 'interactive_reply'
+  /** An inbound_webhooks connection (migration 066) received a request —
+   *  e.g. a sale notification from an external checkout/payment tool.
+   *  Optionally scoped to one specific connection via trigger_config's
+   *  webhook_id. */
+  | 'webhook_received';
 
 export type AutomationStepType =
   | 'send_message'
@@ -582,12 +587,21 @@ export interface InteractiveReplyTriggerConfig {
   reply_ids: string[];
 }
 
+export interface WebhookTriggerConfig {
+  /** Scope to one specific inbound_webhooks connection (migration 066).
+   *  Omitted/undefined matches ANY connection on the account — lets a
+   *  first automation just say "on any webhook" before the account has
+   *  more than one connection to tell apart. */
+  webhook_id?: string;
+}
+
 export type AutomationTriggerConfig =
   | Record<string, never>
   | KeywordMatchTriggerConfig
   | TagTriggerConfig
   | TimeBasedTriggerConfig
   | InteractiveReplyTriggerConfig
+  | WebhookTriggerConfig
   | Record<string, unknown>;
 
 export interface SendMessageStepConfig {

@@ -1060,6 +1060,10 @@
         "time_based": {
           "label": "Time-Based",
           "hint": "On a recurring schedule"
+        },
+        "webhook_received": {
+          "label": "Webhook Received",
+          "hint": "One of your webhook connections (Settings → Integrations) received a request"
         }
       },
       "trigger": "Trigger",
@@ -1086,6 +1090,12 @@
         "select": "Select a tag…",
         "placeholder": "Tag id",
         "unknown": "{id} (unknown tag)"
+      },
+      "webhooks": {
+        "label": "Webhook connection",
+        "any": "Any connection",
+        "placeholder": "Connection id",
+        "unknown": "{id} (unknown connection)"
       },
       "fields": {
         "name": "Name",
@@ -1728,6 +1738,7 @@
       "fields": "Fields & tags",
       "deals": "Deals & currency",
       "notifications": "Notifications",
+      "webhooks": "Integrations",
       "members": "Team members",
       "api": "API keys"
     },
@@ -1871,6 +1882,43 @@
       "saving": "Saving...",
       "saveFailed": "Failed to save notifications",
       "saveSuccess": "Notifications updated"
+    },
+    "webhooks": {
+      "title": "Integrations",
+      "description": "Webhook connections: paste the URL generated here into the external tool (checkout, form, whatever it is) and FuseHub creates the contact/deal on its own. Use it as an Automation trigger to send a message, apply a tag, etc.",
+      "newConnection": "New connection",
+      "empty": "No connections created yet.",
+      "askAdminHint": "Ask an account admin to create a connection.",
+      "disabled": "Disabled",
+      "created": "Created {date}",
+      "lastReceived": "Last received {date}",
+      "neverReceived": "Never received anything yet",
+      "loadFailed": "Failed to load connections",
+      "networkError": "Network error. Please try again.",
+      "toggleFailed": "Failed to update connection",
+      "deleteFailed": "Failed to delete connection",
+      "deleteSuccess": "Connection \"{name}\" deleted",
+      "newTitle": "New webhook connection",
+      "newDesc": "Choose a name and the pipeline stage where this connection's leads will land.",
+      "nameLabel": "Connection name",
+      "namePlaceholder": "E.g. Course X sales",
+      "pipelineLabel": "Pipeline",
+      "pipelinePlaceholder": "Choose a pipeline",
+      "stageLabel": "Stage",
+      "stagePlaceholder": "Choose a stage",
+      "stageHint": "Every lead this connection receives lands in this stage.",
+      "fieldsRequired": "Fill in the name, pipeline, and stage",
+      "createError": "Failed to create connection",
+      "creating": "Creating...",
+      "createConnection": "Create connection",
+      "cancel": "Cancel",
+      "copyTitle": "Connection created",
+      "copyDesc": "Copy this URL now and paste it into the external tool — it won't be shown again.",
+      "urlLabel": "Connection URL",
+      "copy": "Copy",
+      "copySuccess": "URL copied",
+      "copyFailed": "Failed to copy",
+      "done": "Done"
     },
     "gettingStarted": {
       "title": "Getting started",

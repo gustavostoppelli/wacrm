@@ -416,6 +416,35 @@ describe("triggerMatches — tag_added", () => {
   });
 });
 
+describe("triggerMatches — webhook_received", () => {
+  function automation(webhookId?: string): Automation {
+    return {
+      id: "a1",
+      account_id: ACCOUNT,
+      user_id: "u1",
+      name: "webhook automation",
+      trigger_type: "webhook_received",
+      trigger_config: webhookId ? { webhook_id: webhookId } : {},
+      is_active: true,
+      execution_count: 0,
+      created_at: "",
+      updated_at: "",
+    };
+  }
+
+  it("matches any connection when unscoped (no webhook_id configured)", () => {
+    expect(triggerMatches(automation(), { webhook_id: "wh-1" })).toBe(true);
+    expect(triggerMatches(automation(), { webhook_id: "wh-2" })).toBe(true);
+    expect(triggerMatches(automation(), undefined)).toBe(true);
+  });
+
+  it("matches only the configured connection when scoped", () => {
+    expect(triggerMatches(automation("wh-1"), { webhook_id: "wh-1" })).toBe(true);
+    expect(triggerMatches(automation("wh-1"), { webhook_id: "wh-2" })).toBe(false);
+    expect(triggerMatches(automation("wh-1"), undefined)).toBe(false);
+  });
+});
+
 describe("tag_added — conversation policy", () => {
   it("records a clear failed step when the contact has no conversation", async () => {
     h.state.owned = { id: "c1" };
