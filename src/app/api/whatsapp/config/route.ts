@@ -7,6 +7,7 @@ import {
   verifyPhoneNumber,
 } from '@/lib/whatsapp/meta-api'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
+import { checkWhatsappChannelLimit } from '@/lib/whatsapp/channel-limit'
 
 /**
  * Resolve the caller's account_id from their profile. Inlined here
@@ -387,6 +388,19 @@ export async function POST(request: Request) {
         )
       }
     } else {
+      // Only a genuinely NEW row (no existing Meta config for this
+      // account) can push the account over its channel cap — the
+      // update branch above always targets the account's one existing
+      // Meta row, never adds a second (see checkWhatsappChannelLimit,
+      // migration 067).
+      const limitCheck = await checkWhatsappChannelLimit(supabase, accountId)
+      if (!limitCheck.ok) {
+        return NextResponse.json(
+          { error: 'channel_limit_reached', limit: limitCheck.limit, count: limitCheck.count },
+          { status: 403 },
+        )
+      }
+
       // Insert with both columns: `account_id` is the tenancy key
       // (NOT NULL post-017, UNIQUE so duplicates trip the constraint
       // up-front), `user_id` is the audit column identifying which

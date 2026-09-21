@@ -1,4 +1,8 @@
 {
+  "Support": {
+    "bubbleLabel": "Chat with our support",
+    "prefilledMessage": "Hi! I need help with FuseHub."
+  },
   "LoginPage": {
     "titleAccept": "Sign in to accept",
     "titleWelcome": "Welcome back",
@@ -1723,7 +1727,20 @@
       "step4_3": "Paste the <strong class=\"text-foreground\">Webhook Callback URL</strong> from above",
       "step4_4": "Enter the same <strong class=\"text-foreground\">Verify Token</strong> you set here",
       "step4_5": "Subscribe to \"messages\" webhook field",
-      "metaDocs": "Meta WhatsApp API Documentation"
+      "metaDocs": "Meta WhatsApp API Documentation",
+      "channelLimit": {
+        "title": "Add another number",
+        "price": "R$ 43",
+        "perMonth": "/mo",
+        "priceHint": "(add as many connections as you want)",
+        "featureQrCode": "1 connection per QR code",
+        "featureUnlimitedAgents": "Unlimited agents",
+        "featureTextOrVoice": "Text or voice message replies",
+        "featureAi": "AI integration",
+        "featureFlows": "Build message flows and chatbots",
+        "cta": "I want to connect my WhatsApp",
+        "prefilledMessage": "Hi! I'd like to add another WhatsApp number to FuseHub."
+      }
     },
     "sections": {
       "overview": "Overview",

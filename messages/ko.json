@@ -1,4 +1,8 @@
 {
+  "Support": {
+    "bubbleLabel": "지원팀과 채팅하기",
+    "prefilledMessage": "안녕하세요! FuseHub 관련 도움이 필요합니다."
+  },
   "LoginPage": {
     "titleAccept": "로그인하여 수락하기",
     "titleWelcome": "다시 오신 것을 환영합니다",
@@ -1723,7 +1727,20 @@
       "step4_3": "위의 <strong class=\"text-foreground\">웹훅 콜백 URL</strong>을 붙여넣기",
       "step4_4": "여기서 설정한 것과 동일한 <strong class=\"text-foreground\">인증 토큰</strong>을 입력",
       "step4_5": "\"messages\" 웹훅 필드를 구독",
-      "metaDocs": "Meta WhatsApp API 문서"
+      "metaDocs": "Meta WhatsApp API 문서",
+      "channelLimit": {
+        "title": "번호를 하나 더 추가하세요",
+        "price": "R$ 43",
+        "perMonth": "/월",
+        "priceHint": "(원하는 만큼 연결을 추가하세요)",
+        "featureQrCode": "QR코드당 1개 연결",
+        "featureUnlimitedAgents": "무제한 상담원",
+        "featureTextOrVoice": "텍스트 또는 음성 메시지 응답",
+        "featureAi": "AI 통합",
+        "featureFlows": "메시지 흐름과 챗봇 만들기",
+        "cta": "제 WhatsApp을 연결하고 싶어요",
+        "prefilledMessage": "안녕하세요! FuseHub에 WhatsApp 번호를 하나 더 추가하고 싶습니다."
+      }
     },
     "sections": {
       "overview": "개요",

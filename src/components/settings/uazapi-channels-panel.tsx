@@ -29,6 +29,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import type { WhatsAppConfig } from '@/types';
+import { ChannelLimitDialog } from './channel-limit-dialog';
 
 type UazapiChannel = Pick<
   WhatsAppConfig,
@@ -64,6 +65,7 @@ export function UazapiChannelsPanel() {
   const [assignedTo, setAssignedTo] = useState('');
   const [creating, setCreating] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
 
   // Whether this account already has a saved UAZAPI server (migration
   // 059) — once true, "Add channel" only asks for a name; a teammate
@@ -185,6 +187,11 @@ export function UazapiChannelsPanel() {
       });
       const data = await res.json();
       if (!res.ok) {
+        if (data.error === 'channel_limit_reached') {
+          setAddOpen(false);
+          setLimitDialogOpen(true);
+          return;
+        }
         toast.error(data.error || 'Failed to connect to UAZAPI');
         return;
       }
@@ -615,6 +622,8 @@ export function UazapiChannelsPanel() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ChannelLimitDialog open={limitDialogOpen} onOpenChange={setLimitDialogOpen} />
     </Card>
   );
 }

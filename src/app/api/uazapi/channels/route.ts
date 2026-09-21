@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { createInstance, registerWebhook } from '@/lib/whatsapp/uazapi-api'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
+import { checkWhatsappChannelLimit } from '@/lib/whatsapp/channel-limit'
 
 /**
  * POST /api/uazapi/channels
@@ -39,6 +40,18 @@ import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 export async function POST(request: Request) {
   try {
     const { supabase, accountId, userId } = await requireRole('admin')
+
+    const limitCheck = await checkWhatsappChannelLimit(supabase, accountId)
+    if (!limitCheck.ok) {
+      return NextResponse.json(
+        {
+          error: 'channel_limit_reached',
+          limit: limitCheck.limit,
+          count: limitCheck.count,
+        },
+        { status: 403 },
+      )
+    }
 
     const body = await request.json()
     const { name, assigned_to } = body as { name?: string; assigned_to?: string }
