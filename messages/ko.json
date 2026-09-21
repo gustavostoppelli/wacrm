@@ -1717,6 +1717,7 @@
     },
     "sections": {
       "overview": "개요",
+      "getting-started": "시작하기",
       "profile": "내 프로필",
       "security": "로그인 & 보안",
       "appearance": "화면 설정",
@@ -1870,6 +1871,56 @@
       "saving": "저장 중...",
       "saveFailed": "알림 설정을 저장하지 못했습니다",
       "saveSuccess": "알림 설정이 업데이트되었습니다"
+    },
+    "gettingStarted": {
+      "title": "시작하기",
+      "description": "FuseHub를 제대로 사용하기 위해 설정해야 할 것들입니다 — 모두 직접 하실 수 있고, 지원팀 도움이 필요 없습니다.",
+      "requiredBadge": "필수",
+      "optionalBadge": "선택",
+      "alsoWorthTitle": "이것도 설정해두면 좋아요",
+      "whatsapp": {
+        "title": "WhatsApp 연결하기",
+        "steps": [
+          "UAZAPI(또는 원하는 UAZAPI 제공업체)에 계정을 만들고 번호를 발급받으세요.",
+          "UAZAPI 대시보드에서 서버 URL과 관리자 토큰을 복사하세요.",
+          "FuseHub에서 설정 → WhatsApp으로 이동해 두 값을 붙여넣으세요.",
+          "\"채널 추가\"를 클릭하고 번호에 이름을 지어주세요 (예: 담당자 이름).",
+          "휴대폰 WhatsApp에서 QR코드를 스캔하세요: WhatsApp → 설정 → 연결된 기기 → 기기 연결.",
+          "완료 — 번호가 \"연결됨\"으로 표시되고 바로 메시지를 주고받을 수 있습니다."
+        ],
+        "actionLabel": "설정 → WhatsApp으로 이동"
+      },
+      "ai": {
+        "title": "AI 에이전트 설정하기",
+        "steps": [
+          "Anthropic(console.anthropic.com) 또는 OpenAI(platform.openai.com) 계정을 만드세요.",
+          "API 키를 발급받으세요 — 보통 계정 메뉴의 \"API Keys\"에 있습니다.",
+          "FuseHub에서 AI 에이전트 → 설정 탭으로 이동하세요.",
+          "제공업체(Anthropic 또는 OpenAI)를 선택하고 키를 붙여넣으세요.",
+          "모델을 선택하고 (기본값으로도 충분합니다) 저장하세요.",
+          "고객에게 자동 응답을 켜기 전에 플레이그라운드에서 먼저 테스트해보세요."
+        ],
+        "actionLabel": "AI 에이전트로 이동"
+      },
+      "calendar": {
+        "title": "Google 캘린더 연결하기",
+        "steps": [
+          "설정 → 캘린더로 이동하세요.",
+          "\"Google로 연결\"을 클릭하세요.",
+          "사용하려는 캘린더가 있는 Google 계정으로 로그인하세요.",
+          "요청된 권한을 승인하세요.",
+          "완료 — CRM에서 예약된 미팅이 캘린더에 바로 표시됩니다."
+        ],
+        "actionLabel": "설정 → 캘린더로 이동"
+      },
+      "deals": {
+        "title": "딜 통화",
+        "desc": "딜과 대시보드 합계에 사용할 통화를 설정하세요."
+      },
+      "members": {
+        "title": "팀원 초대하기",
+        "desc": "담당자와 상담원을 초대해서 함께 FuseHub를 사용하세요."
+      }
     },
     "aiConfig": {
       "title": "에이전트 설정",

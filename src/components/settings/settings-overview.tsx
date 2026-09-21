@@ -117,22 +117,23 @@ export function SettingsOverview({
       setCountsLoading(false);
     })();
 
-    // WhatsApp connection status — slower, independent.
+    // WhatsApp connection status — provider-agnostic (an account can
+    // have Meta and/or UAZAPI channels; a single `.eq('provider',
+    // 'meta')` row check here used to report "not set up" for every
+    // UAZAPI-only account, which is most of them). "Configured" means
+    // at least one channel row exists at all; "connected" means at
+    // least one of them is actually connected right now — same
+    // `.some(...)` fix already applied to the Inbox page's banner.
     (async () => {
       setWhatsappLoading(true);
-      const [row, health] = await Promise.allSettled([
-        supabase
-          .from('whatsapp_config')
-          .select('phone_number_id')
-          .eq('account_id', acctId)
-          .eq('provider', 'meta')
-          .maybeSingle(),
-        fetch('/api/whatsapp/config', { cache: 'no-store' }).then((r) => r.json()),
-      ]);
+      const { data, error } = await supabase
+        .from('whatsapp_config')
+        .select('status')
+        .eq('account_id', acctId);
       if (cancelled) return;
       setWhatsapp({
-        configured: row.status === 'fulfilled' && !!row.value.data?.phone_number_id,
-        connected: health.status === 'fulfilled' && !!health.value?.connected,
+        configured: !error && !!data && data.length > 0,
+        connected: !error && !!data?.some((row) => row.status === 'connected'),
       });
       setWhatsappLoading(false);
     })();

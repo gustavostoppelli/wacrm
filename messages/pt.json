@@ -1717,6 +1717,7 @@
     },
     "sections": {
       "overview": "Visão geral",
+      "getting-started": "Primeiros passos",
       "profile": "Seu perfil",
       "security": "Login e segurança",
       "appearance": "Aparência",
@@ -1870,6 +1871,56 @@
       "saving": "Salvando...",
       "saveFailed": "Falha ao salvar as notificações",
       "saveSuccess": "Notificações atualizadas"
+    },
+    "gettingStarted": {
+      "title": "Primeiros passos",
+      "description": "O que configurar pra começar a usar o FuseHub de verdade — cada passo é feito por você, sem precisar de suporte.",
+      "requiredBadge": "Obrigatório",
+      "optionalBadge": "Opcional",
+      "alsoWorthTitle": "Também vale configurar",
+      "whatsapp": {
+        "title": "Conectar o WhatsApp",
+        "steps": [
+          "Crie uma conta na UAZAPI (ou outro provedor UAZAPI de sua preferência) e contrate um número.",
+          "No painel da UAZAPI, copie a URL do servidor e o token de administrador.",
+          "Aqui no FuseHub, vá em Configurações → WhatsApp e cole essas duas informações.",
+          "Clique em \"Adicionar canal\" e dê um nome pro número (ex: nome do vendedor).",
+          "Escaneie o QR Code com o WhatsApp do celular: WhatsApp → Configurações → Aparelhos conectados → Conectar um aparelho.",
+          "Pronto — o número aparece como \"Conectado\" e já pode enviar e receber mensagens."
+        ],
+        "actionLabel": "Ir para Configurações → WhatsApp"
+      },
+      "ai": {
+        "title": "Configurar o Agente de IA",
+        "steps": [
+          "Crie uma conta na Anthropic (console.anthropic.com) ou na OpenAI (platform.openai.com).",
+          "Gere uma chave de API — geralmente em \"API Keys\" no menu da conta.",
+          "Aqui no FuseHub, vá em Agentes IA → aba Configuração.",
+          "Escolha o provedor (Anthropic ou OpenAI) e cole a chave.",
+          "Escolha o modelo — o padrão sugerido já funciona bem — e salve.",
+          "Teste no Playground antes de ativar a resposta automática pros clientes."
+        ],
+        "actionLabel": "Ir para Agentes IA"
+      },
+      "calendar": {
+        "title": "Conectar o Google Agenda",
+        "steps": [
+          "Vá em Configurações → Agenda.",
+          "Clique em \"Conectar com Google\".",
+          "Faça login com a conta Google que tem a agenda que você quer usar.",
+          "Autorize o acesso solicitado.",
+          "Pronto — reuniões marcadas pelo CRM já aparecem na sua agenda."
+        ],
+        "actionLabel": "Ir para Configurações → Agenda"
+      },
+      "deals": {
+        "title": "Moeda dos negócios",
+        "desc": "Defina a moeda usada nos negócios e nos totais do painel."
+      },
+      "members": {
+        "title": "Convidar a equipe",
+        "desc": "Convide vendedores e atendentes pra usar o FuseHub com você."
+      }
     },
     "aiConfig": {
       "title": "Configuração do agente",

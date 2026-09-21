@@ -1717,6 +1717,7 @@
     },
     "sections": {
       "overview": "Overview",
+      "getting-started": "Getting started",
       "profile": "Your profile",
       "security": "Login & security",
       "appearance": "Appearance",
@@ -1870,6 +1871,56 @@
       "saving": "Saving...",
       "saveFailed": "Failed to save notifications",
       "saveSuccess": "Notifications updated"
+    },
+    "gettingStarted": {
+      "title": "Getting started",
+      "description": "What to set up to actually start using FuseHub — every step is done by you, no support needed.",
+      "requiredBadge": "Required",
+      "optionalBadge": "Optional",
+      "alsoWorthTitle": "Also worth setting up",
+      "whatsapp": {
+        "title": "Connect WhatsApp",
+        "steps": [
+          "Create an account with UAZAPI (or another UAZAPI provider of your choice) and get a number.",
+          "In the UAZAPI dashboard, copy the server URL and the admin token.",
+          "Here in FuseHub, go to Settings → WhatsApp and paste both.",
+          "Click \"Add channel\" and give the number a name (e.g. the rep's name).",
+          "Scan the QR code with WhatsApp on your phone: WhatsApp → Settings → Linked devices → Link a device.",
+          "Done — the number shows \"Connected\" and can already send and receive messages."
+        ],
+        "actionLabel": "Go to Settings → WhatsApp"
+      },
+      "ai": {
+        "title": "Set up the AI Agent",
+        "steps": [
+          "Create an account with Anthropic (console.anthropic.com) or OpenAI (platform.openai.com).",
+          "Generate an API key — usually under \"API Keys\" in the account menu.",
+          "Here in FuseHub, go to AI Agents → Setup tab.",
+          "Pick the provider (Anthropic or OpenAI) and paste the key.",
+          "Pick a model — the suggested default already works well — and save.",
+          "Test it in the Playground before turning on auto-reply for customers."
+        ],
+        "actionLabel": "Go to AI Agents"
+      },
+      "calendar": {
+        "title": "Connect Google Calendar",
+        "steps": [
+          "Go to Settings → Calendar.",
+          "Click \"Connect with Google\".",
+          "Sign in with the Google account that has the calendar you want to use.",
+          "Authorize the requested access.",
+          "Done — meetings booked through the CRM already show up on your calendar."
+        ],
+        "actionLabel": "Go to Settings → Calendar"
+      },
+      "deals": {
+        "title": "Deal currency",
+        "desc": "Set the currency used for deals and dashboard totals."
+      },
+      "members": {
+        "title": "Invite your team",
+        "desc": "Invite reps and agents to use FuseHub alongside you."
+      }
     },
     "aiConfig": {
       "title": "Agent setup",
