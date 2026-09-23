@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -14,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageSquare, CheckCircle, UsersRound } from "lucide-react";
+import { MessageSquare, CheckCircle, UsersRound, ShieldAlert } from "lucide-react";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -34,11 +35,21 @@ function SignupPageInner() {
   // points back at /join/<token> so the user lands on the redeem
   // step after verifying instead of being dropped on /dashboard.
   const inviteToken = searchParams.get("invite");
+  // Required for a brand-new account when there's no team invite —
+  // see migration 068: the account-bootstrap trigger now refuses to
+  // create a new tenant without a matching, unused, unexpired
+  // signup_invitations row. Checking for its presence here is a UX
+  // nicety (a clear message instead of a cryptic signUp() failure);
+  // the trigger is what actually enforces this, so there's nothing to
+  // bypass by messing with this query param.
+  const signupToken = searchParams.get("signup_token");
+  const hasValidEntry = !!inviteToken || !!signupToken;
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -58,6 +69,11 @@ function SignupPageInner() {
       return;
     }
 
+    if (!acceptedTerms) {
+      setError("You must accept the Terms of Use and Privacy Policy");
+      return;
+    }
+
     setLoading(true);
 
     // If we have an invite token, point Supabase's verification
@@ -74,13 +90,27 @@ function SignupPageInner() {
       options: {
         data: {
           full_name: fullName,
+          // Read by handle_new_user (migration 068) to decide whether
+          // this signup may create a brand-new tenant account. Passing
+          // both is harmless — the trigger only needs one to match.
+          ...(inviteToken ? { invite_token: inviteToken } : {}),
+          ...(signupToken ? { signup_token: signupToken } : {}),
         },
         ...(emailRedirectTo ? { emailRedirectTo } : {}),
       },
     });
 
     if (error) {
-      setError(error.message);
+      // The trigger's own error message isn't guaranteed to reach the
+      // client in a friendly form (Supabase Auth generally wraps a
+      // failed post-signup trigger as a generic "Database error saving
+      // new user") — a signup/invite link that's expired or already
+      // used is the only way this page can reach signUp() at all
+      // (hasValidEntry gates the form below), so that's the safe
+      // assumption for the message here.
+      setError(
+        "Este link de cadastro é inválido ou já expirou. Fale com nosso suporte pra receber um novo.",
+      );
       setLoading(false);
       return;
     }
@@ -88,6 +118,41 @@ function SignupPageInner() {
     setSuccess(true);
     setLoading(false);
   };
+
+  // No team invite and no signup link — the trigger would refuse to
+  // create an account anyway (migration 068), so don't even show the
+  // form. Keeps a bare, undiscoverable `/signup` from looking like a
+  // working public signup page to whoever stumbles onto it.
+  if (!hasValidEntry) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <Card className="w-full max-w-md border-border bg-card">
+          <CardHeader className="items-center text-center">
+            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10">
+              <ShieldAlert className="h-6 w-6 text-red-400" />
+            </div>
+            <CardTitle className="text-xl text-foreground">
+              Link de cadastro necessário
+            </CardTitle>
+            <CardDescription className="text-muted-foreground">
+              Pra criar uma conta no FuseHub você precisa de um link de
+              cadastro válido. Fale com nosso suporte pra receber o seu.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/login">
+              <Button
+                variant="outline"
+                className="w-full border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                Voltar pro login
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (success) {
     return (
@@ -215,9 +280,40 @@ function SignupPageInner() {
               />
             </div>
 
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="acceptedTerms"
+                checked={acceptedTerms}
+                onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+                className="mt-0.5"
+              />
+              <Label
+                htmlFor="acceptedTerms"
+                className="cursor-pointer text-xs font-normal leading-snug text-muted-foreground"
+              >
+                I have read and agree to the{" "}
+                <Link
+                  href="/legal/termos-de-uso"
+                  target="_blank"
+                  className="text-primary hover:text-primary/80"
+                >
+                  Terms of Use
+                </Link>{" "}
+                and{" "}
+                <Link
+                  href="/legal/politica-de-privacidade"
+                  target="_blank"
+                  className="text-primary hover:text-primary/80"
+                >
+                  Privacy Policy
+                </Link>
+                .
+              </Label>
+            </div>
+
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || !acceptedTerms}
               className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {loading ? "Creating account..." : "Create account"}
