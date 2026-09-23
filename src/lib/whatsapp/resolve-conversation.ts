@@ -24,7 +24,10 @@ import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 import { SendMessageError } from '@/lib/whatsapp/send-message';
 import { resolveAuditUserId, ContactError } from '@/lib/api/v1/contacts';
-import { resolveDefaultChannelForAccount } from '@/lib/whatsapp/resolve-channel';
+import {
+  resolveChannelById,
+  resolveDefaultChannelForAccount,
+} from '@/lib/whatsapp/resolve-channel';
 
 export interface ResolvedConversation {
   conversationId: string;
@@ -43,7 +46,8 @@ export async function resolveConversationByPhone(
   db: SupabaseClient,
   accountId: string,
   phone: string,
-  name?: string | null
+  name?: string | null,
+  channelId?: string | null
 ): Promise<ResolvedConversation> {
   const sanitized = sanitizePhoneForMeta(phone);
   if (!isValidE164(sanitized)) {
@@ -54,17 +58,29 @@ export async function resolveConversationByPhone(
     );
   }
 
-  // Fail fast (and create nothing) when the account has no WhatsApp
-  // connected — the same error the send would raise anyway. Also
-  // resolves which channel a newly-created conversation should be
-  // stamped with (migration 037).
-  const channel = await resolveDefaultChannelForAccount(db, accountId);
+  // Resolves which channel a newly-created conversation should be
+  // stamped with (migration 037). A caller-supplied `channel_id` (a
+  // multi-channel account routing a specific send through a specific
+  // number — e.g. a dedicated cold-outreach number kept separate from
+  // the main one) always wins over the account default; an id that
+  // doesn't resolve to a channel on THIS account is a caller error,
+  // never silently falls back (that would defeat the whole point of
+  // asking for a specific number). Omitting it keeps today's behavior.
+  const channel = channelId
+    ? await resolveChannelById(db, accountId, channelId)
+    : await resolveDefaultChannelForAccount(db, accountId);
   if (!channel) {
-    throw new SendMessageError(
-      'whatsapp_not_configured',
-      'WhatsApp not configured. Please set up your WhatsApp integration first.',
-      400
-    );
+    throw channelId
+      ? new SendMessageError(
+          'bad_request',
+          "'channel_id' does not match a WhatsApp channel on this account",
+          400
+        )
+      : new SendMessageError(
+          'whatsapp_not_configured',
+          'WhatsApp not configured. Please set up your WhatsApp integration first.',
+          400
+        );
   }
 
   // Audit user for created rows = the single account-wide default used

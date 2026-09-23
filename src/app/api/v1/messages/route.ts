@@ -23,7 +23,20 @@
 //       "params": ["A123"] | { "body": [...] }   // array = positional body; object = structured
 //     },
 //     "reply_to_message_id": "<uuid>",       // optional, must be in the same conversation
-//     "name": "Jane Doe"                     // optional, names a newly-created contact
+//     "name": "Jane Doe",                    // optional, names a newly-created contact
+//     "channel_id": "<uuid>"                 // optional, sends via a specific
+//                                             // WhatsApp channel on this account
+//                                             // instead of the default one — a
+//                                             // multi-channel account routing a
+//                                             // send through a specific number
+//                                             // (e.g. a dedicated cold-outreach
+//                                             // number kept separate from the
+//                                             // main one). Only matters for a
+//                                             // brand-new conversation; a reply
+//                                             // on an existing conversation always
+//                                             // stays on that conversation's
+//                                             // channel. bad_request if it doesn't
+//                                             // match a channel on this account.
 //   }
 //
 // Response (201):
@@ -102,7 +115,8 @@ export async function POST(request: Request) {
       ctx.supabase,
       ctx.accountId,
       to,
-      typeof body.name === 'string' ? body.name : null
+      typeof body.name === 'string' ? body.name : null,
+      typeof body.channel_id === 'string' ? body.channel_id : null
     );
 
     const result = await sendMessageToConversation(

@@ -56,6 +56,30 @@ function toChannel(_db: SupabaseClient, row: ConfigRow): WhatsAppChannel {
 }
 
 /**
+ * Resolve a specific channel by id, scoped to the account (never
+ * leaks a channel across tenants). Used when a caller explicitly
+ * wants a particular number — e.g. the public API's `channel_id` on
+ * `POST /api/v1/messages`, so a multi-channel account can route a
+ * business-initiated send through a specific number instead of
+ * whichever one `resolveDefaultChannelForAccount` would pick.
+ */
+export async function resolveChannelById(
+  db: SupabaseClient,
+  accountId: string,
+  channelId: string
+): Promise<WhatsAppChannel | null> {
+  const { data: row } = await db
+    .from('whatsapp_config')
+    .select('*')
+    .eq('id', channelId)
+    .eq('account_id', accountId)
+    .maybeSingle()
+
+  if (!row) return null
+  return toChannel(db, row)
+}
+
+/**
  * Resolve the channel a conversation should send through. Falls back
  * to the account's first channel when the conversation predates
  * migration 037 (or was created by a path that hasn't been updated to

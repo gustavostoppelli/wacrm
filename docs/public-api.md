@@ -147,6 +147,20 @@ curl -X POST https://your-crm.example.com/api/v1/messages \
 }
 ```
 
+By default a brand-new conversation is created on the account's oldest
+connected WhatsApp channel. On a multi-channel account, pass
+`channel_id` to send through a specific one instead (e.g. a dedicated
+number kept separate from the main one for a specific automation):
+
+```jsonc
+{ "to": "+14155550123", "text": "Hi 👋", "channel_id": "<whatsapp_config uuid>" }
+```
+
+`channel_id` only matters when it creates a new conversation — a reply
+on an existing conversation always goes out on that conversation's own
+channel, regardless of `channel_id`. An id that doesn't match a channel
+on your account is rejected with `bad_request`.
+
 Response (201):
 
 ```json

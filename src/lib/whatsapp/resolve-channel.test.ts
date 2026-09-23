@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
+  resolveChannelById,
   resolveChannelForConversation,
   resolveDefaultChannelForAccount,
 } from './resolve-channel';
@@ -91,6 +92,26 @@ describe('resolveDefaultChannelForAccount', () => {
       uazapiBaseUrl: 'https://free.uazapi.com',
       uazapiInstanceToken: 'uazapi-secret-token',
     });
+  });
+});
+
+describe('resolveChannelById', () => {
+  it('resolves a channel by id when it belongs to the account', async () => {
+    const db = makeDb({ whatsapp_config: [metaRow, uazapiRow] });
+    const channel = await resolveChannelById(db, 'acct-1', 'chan-uazapi');
+    expect(channel).toMatchObject({ id: 'chan-uazapi', provider: 'uazapi' });
+  });
+
+  it('returns null when the channel belongs to a different account', async () => {
+    const db = makeDb({
+      whatsapp_config: [{ ...metaRow, account_id: 'other-acct' }],
+    });
+    expect(await resolveChannelById(db, 'acct-1', 'chan-meta')).toBeNull();
+  });
+
+  it('returns null when no channel matches the id', async () => {
+    const db = makeDb({ whatsapp_config: [metaRow] });
+    expect(await resolveChannelById(db, 'acct-1', 'does-not-exist')).toBeNull();
   });
 });
 

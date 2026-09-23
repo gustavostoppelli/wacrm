@@ -13,6 +13,11 @@ type ContactRow = { id: string; phone: string; name?: string | null };
 
 interface Script {
   config?: { user_id: string } | null; // whatsapp_config.maybeSingle
+  /** Result of a `resolveChannelById` lookup (bare `.eq().eq().maybeSingle()`,
+   *  no `.limit()` — distinct call shape from `config` above, which goes
+   *  through the `.limit()` dual-shape below). `undefined` = channel not
+   *  found (the "channel_id doesn't belong to this account" case). */
+  channelById?: { id: string; provider: 'meta' | 'uazapi' } | undefined;
   contactCandidates?: ContactRow[]; // contacts .like (same every call)
   /** Per-call `.like` results — overrides contactCandidates. Lets a
    *  test simulate "miss, then hit" for the unique-race path. */
@@ -27,6 +32,10 @@ interface Script {
   existingConversationByCall?: (({ id: string } | null))[];
   insertedConversationId?: string; // conversations insert -> single
   insertConversationError?: { code?: string } | null;
+  /** Filled in-place with the payload passed to conversations.insert(),
+   *  when provided — lets a test prove WHICH channel.id was actually
+   *  used to stamp the new conversation. */
+  capturedConversationInsert?: Record<string, unknown>;
 }
 
 function makeDb(script: Script): SupabaseClient {
@@ -37,8 +46,11 @@ function makeDb(script: Script): SupabaseClient {
 
   const builder: Record<string, unknown> = {
     select: () => builder,
-    insert: () => {
+    insert: (payload?: Record<string, unknown>) => {
       mode = 'insert';
+      if (table === 'conversations' && script.capturedConversationInsert && payload) {
+        Object.assign(script.capturedConversationInsert, payload);
+      }
       return builder;
     },
     update: () => {
@@ -82,7 +94,14 @@ function makeDb(script: Script): SupabaseClient {
       likeCalls++;
       return Promise.resolve({ data, error: null });
     },
-    maybeSingle: () => Promise.resolve({ data: null, error: null }),
+    maybeSingle: () => {
+      // resolveChannelById's shape: no `.limit()` in the chain, unlike
+      // the `config`/`resolveDefaultChannelForAccount` path above.
+      if (table === 'whatsapp_config' && mode === 'select') {
+        return Promise.resolve({ data: script.channelById ?? null, error: null });
+      }
+      return Promise.resolve({ data: null, error: null });
+    },
     single: () => {
       if (table === 'contacts' && mode === 'insert') {
         if (script.insertContactError)
@@ -200,6 +219,52 @@ describe('resolveConversationByPhone', () => {
     expect(res.contactId).toBe('c-raced');
     expect(res.contactCreated).toBe(false);
     expect(res.conversationId).toBe('cv-raced');
+  });
+
+  it('uses the requested channel_id instead of the account default when given', async () => {
+    // config resolves to channel id 'cfg-1' (see the whatsapp_config
+    // dual-shape above) — capturing the conversation insert payload
+    // proves the NEW conversation was stamped with the requested
+    // 'chan-sdr', not the account-default 'cfg-1'.
+    const capturedConversationInsert: Record<string, unknown> = {};
+    const db = makeDb({
+      config: { user_id: 'owner-1' },
+      channelById: { id: 'chan-sdr', provider: 'uazapi' },
+      contactCandidates: [],
+      insertedContactId: 'c2',
+      existingConversation: null,
+      insertedConversationId: 'cv2',
+      capturedConversationInsert,
+    });
+    const res = await resolveConversationByPhone(
+      db,
+      'acct',
+      '+14155550199',
+      null,
+      'chan-sdr'
+    );
+    expect(res).toEqual({
+      conversationId: 'cv2',
+      contactId: 'c2',
+      contactCreated: true,
+    });
+    expect(capturedConversationInsert.whatsapp_config_id).toBe('chan-sdr');
+  });
+
+  it('rejects a channel_id that does not belong to the account', async () => {
+    const db = makeDb({
+      config: { user_id: 'owner-1' },
+      channelById: undefined,
+    });
+    await expect(
+      resolveConversationByPhone(
+        db,
+        'acct',
+        '+14155550199',
+        null,
+        'someone-elses-channel'
+      )
+    ).rejects.toThrow(/channel_id/);
   });
 
   it('re-resolves the conversation when the insert loses a unique race', async () => {
