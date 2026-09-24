@@ -2171,7 +2171,8 @@
         "update": "변경사항 저장",
         "activating": "활성화 중...",
         "errorNoLeadTag": "계속하기 전에 리드 태그를 선택하거나 생성하세요.",
-        "errorSaveFailed": "저장할 수 없습니다. 다시 시도해 주세요."
+        "errorSaveFailed": "저장할 수 없습니다. 다시 시도해 주세요.",
+        "errorNeedsAdmin": "SDR AI를 활성화하려면 계정 관리자여야 합니다."
       }
     }
   }

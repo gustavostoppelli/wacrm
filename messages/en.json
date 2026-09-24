@@ -2171,7 +2171,8 @@
         "update": "Save changes",
         "activating": "Activating...",
         "errorNoLeadTag": "Choose or create a lead tag before continuing.",
-        "errorSaveFailed": "Could not save. Please try again."
+        "errorSaveFailed": "Could not save. Please try again.",
+        "errorNeedsAdmin": "You need to be an account admin to activate SDR AI."
       }
     }
   }

@@ -2171,7 +2171,8 @@
         "update": "Salvar alterações",
         "activating": "Ativando...",
         "errorNoLeadTag": "Escolha ou crie uma tag de leads antes de continuar.",
-        "errorSaveFailed": "Não foi possível salvar. Tente novamente."
+        "errorSaveFailed": "Não foi possível salvar. Tente novamente.",
+        "errorNeedsAdmin": "Você precisa ser administrador da conta para ativar o SDR IA."
       }
     }
   }

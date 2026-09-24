@@ -34,6 +34,12 @@ export function StepReview({
       // key). Same distinction documented in my-whatsapp-channel-panel.tsx.
       const userId = user.id;
 
+      // Tags are created before the PUT below; if the PUT fails, the
+      // tags remain but are harmless orphans (resolveOrCreateTagId is
+      // idempotent — a retry finds them again rather than duplicating).
+      // Not rolled back because a partial DB transaction across two
+      // separate calls (tag creation + config PUT) isn't feasible from
+      // a client component.
       const leadTagId =
         draft.leadTagId ??
         (draft.leadTagName
@@ -63,7 +69,9 @@ export function StepReview({
           enabled: true,
         }),
       });
-      if (!res.ok) throw new Error(t("errorSaveFailed"));
+      if (!res.ok) {
+        throw new Error(res.status === 403 ? t("errorNeedsAdmin") : t("errorSaveFailed"));
+      }
 
       router.refresh();
     } catch (err) {
