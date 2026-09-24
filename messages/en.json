@@ -2116,6 +2116,63 @@
     "benefit3": "Never messages the same lead twice — automatic control of who's already been contacted",
     "benefit4": "As soon as the lead responds, the native AI Agent takes over the conversation automatically",
     "cta": "Chat with support",
-    "prefilledMessage": "Hi! I'd like to know more about FuseHub's SDR AI."
+    "prefilledMessage": "Hi! I'd like to know more about FuseHub's SDR AI.",
+    "wizard": {
+      "back": "Back",
+      "next": "Next",
+      "leadSource": {
+        "title": "Where do leads come from?",
+        "description": "Choose the tag that marks the contacts the SDR AI should process.",
+        "selectLabel": "Existing tag",
+        "selectPlaceholder": "Select a tag",
+        "createLabel": "Or create a new tag",
+        "createPlaceholder": "e.g: prospecting"
+      },
+      "channel": {
+        "title": "Sending channel",
+        "description": "Choose the WhatsApp number and the sending method.",
+        "channelLabel": "Number",
+        "channelPlaceholder": "Select a channel",
+        "modeLabel": "Sending method",
+        "modeTemplateTitle": "Approved template (Meta)",
+        "modeTemplateDesc": "Safer, requires a template already approved in WhatsApp Business Manager.",
+        "modeTextTitle": "Free text",
+        "modeTextDesc": "More flexible, with a risk of being banned.",
+        "modeTextWarning": "Sending unsolicited free-text messages can get the number banned. Use a conservative daily cap."
+      },
+      "messages": {
+        "templateTitle": "Approved template",
+        "templateDescription": "Enter the exact name of the template already approved in WhatsApp Business Manager.",
+        "templateNameLabel": "Template name",
+        "templateNamePlaceholder": "e.g: first_contact",
+        "templateLanguageLabel": "Language",
+        "variantsTitle": "Messages (A/B test)",
+        "variantsDescription": "Write up to 3 variations. The system picks one at random for each send.",
+        "variantLabel": "Variant {n}",
+        "variantPlaceholder": "Write the message..."
+      },
+      "guardrails": {
+        "title": "Hours and daily limit",
+        "description": "Define when and how many contacts per day the SDR AI can send.",
+        "hoursStartLabel": "Start (hour)",
+        "hoursEndLabel": "End (hour)",
+        "dailyCapLabel": "Daily send limit",
+        "dailyCapHint": "Recommended to start low (5) and increase gradually."
+      },
+      "review": {
+        "title": "Review",
+        "description": "Check the settings before activating.",
+        "summaryMode": "Sending method",
+        "summaryModeTemplate": "Approved template",
+        "summaryModeText": "Free text",
+        "summaryHours": "Business hours",
+        "summaryDailyCap": "Daily limit",
+        "activate": "Activate SDR AI",
+        "update": "Save changes",
+        "activating": "Activating...",
+        "errorNoLeadTag": "Choose or create a lead tag before continuing.",
+        "errorSaveFailed": "Could not save. Please try again."
+      }
+    }
   }
 }

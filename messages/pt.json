@@ -2116,6 +2116,63 @@
     "benefit3": "Nunca manda duas vezes para o mesmo lead — controle automático de quem já foi contatado",
     "benefit4": "Assim que o lead responde, o Agente de IA nativo assume a conversa sozinho",
     "cta": "Falar com o suporte",
-    "prefilledMessage": "Olá! Quero saber mais sobre o SDR IA do FuseHub."
+    "prefilledMessage": "Olá! Quero saber mais sobre o SDR IA do FuseHub.",
+    "wizard": {
+      "back": "Voltar",
+      "next": "Continuar",
+      "leadSource": {
+        "title": "De onde vêm os leads?",
+        "description": "Escolha a tag que marca os contatos que o SDR IA deve processar.",
+        "selectLabel": "Tag existente",
+        "selectPlaceholder": "Selecione uma tag",
+        "createLabel": "Ou crie uma nova tag",
+        "createPlaceholder": "ex: prospecção"
+      },
+      "channel": {
+        "title": "Canal de envio",
+        "description": "Escolha o número de WhatsApp e a forma de envio.",
+        "channelLabel": "Número",
+        "channelPlaceholder": "Selecione um canal",
+        "modeLabel": "Forma de envio",
+        "modeTemplateTitle": "Template aprovado (Meta)",
+        "modeTemplateDesc": "Mais seguro, exige template já aprovado no WhatsApp Business Manager.",
+        "modeTextTitle": "Texto livre",
+        "modeTextDesc": "Mais flexível, com risco de banimento.",
+        "modeTextWarning": "Enviar mensagens não solicitadas por texto livre pode levar ao banimento do número. Use com um teto diário conservador."
+      },
+      "messages": {
+        "templateTitle": "Template aprovado",
+        "templateDescription": "Informe o nome exato do template já aprovado no WhatsApp Business Manager.",
+        "templateNameLabel": "Nome do template",
+        "templateNamePlaceholder": "ex: primeiro_contato",
+        "templateLanguageLabel": "Idioma",
+        "variantsTitle": "Mensagens (teste A/B)",
+        "variantsDescription": "Escreva até 3 variações. O sistema sorteia uma a cada envio.",
+        "variantLabel": "Variação {n}",
+        "variantPlaceholder": "Escreva a mensagem..."
+      },
+      "guardrails": {
+        "title": "Horário e limite diário",
+        "description": "Define quando e quantos contatos por dia o SDR IA pode enviar.",
+        "hoursStartLabel": "Início (hora)",
+        "hoursEndLabel": "Fim (hora)",
+        "dailyCapLabel": "Limite diário de envios",
+        "dailyCapHint": "Recomendado começar baixo (5) e aumentar aos poucos."
+      },
+      "review": {
+        "title": "Revisão",
+        "description": "Confira as configurações antes de ativar.",
+        "summaryMode": "Forma de envio",
+        "summaryModeTemplate": "Template aprovado",
+        "summaryModeText": "Texto livre",
+        "summaryHours": "Horário comercial",
+        "summaryDailyCap": "Limite diário",
+        "activate": "Ativar SDR IA",
+        "update": "Salvar alterações",
+        "activating": "Ativando...",
+        "errorNoLeadTag": "Escolha ou crie uma tag de leads antes de continuar.",
+        "errorSaveFailed": "Não foi possível salvar. Tente novamente."
+      }
+    }
   }
 }
