@@ -1,0 +1,22 @@
+-- ============================================================
+-- 074_whatsapp_config_phone_number.sql — surface the real connected
+-- number
+--
+-- whatsapp_config never stored the human-readable phone number: Meta
+-- channels only had `phone_number_id` (a Graph API resource id, not a
+-- dialable number) and UAZAPI channels had nothing at all. Every place
+-- that lists channels (Settings → Canais, the SDR IA wizard's channel
+-- picker) could only show the free-text `name` the user typed when
+-- creating the channel — useless for telling two channels apart if
+-- they weren't named descriptively.
+--
+-- This column is populated opportunistically, not required:
+--   - Meta: src/app/api/whatsapp/config/route.ts writes it from
+--     verifyPhoneNumber()'s `display_phone_number` on every save/poll.
+--   - UAZAPI: src/app/api/uazapi/channels/[id]/status/route.ts writes
+--     it from getInstanceStatus()'s `phoneNumber` once actually
+--     connected (best-effort parse of UAZAPI's status payload — may
+--     stay null if that server's response shape doesn't match).
+-- ============================================================
+
+ALTER TABLE whatsapp_config ADD COLUMN IF NOT EXISTS phone_number TEXT;

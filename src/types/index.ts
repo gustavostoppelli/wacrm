@@ -299,6 +299,11 @@ export interface WhatsAppConfig {
   /** User-facing label, e.g. "Vendas". Only meaningful once an account
    *  has more than one channel — optional otherwise. */
   name?: string;
+  /** The connected number's digits, e.g. "5511999998888" (migration
+   *  074). Best-effort: populated from Meta's display_phone_number or
+   *  UAZAPI's status payload once connected — may be null even for a
+   *  connected channel if that provider's response didn't match. */
+  phone_number?: string | null;
   /** Required when provider === 'meta'. */
   phone_number_id?: string;
   waba_id?: string;

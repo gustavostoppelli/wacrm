@@ -92,7 +92,7 @@ export async function GET() {
     // rows).
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('phone_number_id, access_token, status')
+      .select('id, phone_number_id, access_token, status, phone_number')
       .eq('account_id', accountId)
       .eq('provider', 'meta')
       .maybeSingle()
@@ -141,6 +141,12 @@ export async function GET() {
         phoneNumberId: config.phone_number_id,
         accessToken,
       })
+      if (phoneInfo.display_phone_number && phoneInfo.display_phone_number !== config.phone_number) {
+        await supabase
+          .from('whatsapp_config')
+          .update({ phone_number: phoneInfo.display_phone_number })
+          .eq('id', config.id)
+      }
       return NextResponse.json({ connected: true, phone_info: phoneInfo })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown Meta API error'
@@ -365,6 +371,7 @@ export async function POST(request: Request) {
       waba_id: waba_id || null,
       access_token: encryptedAccessToken,
       verify_token: encryptedVerifyToken,
+      phone_number: phoneInfo.display_phone_number ?? null,
       status: registrationError ? 'disconnected' : 'connected',
       connected_at: registrationError ? null : new Date().toISOString(),
       registered_at: registrationError ? null : registeredAt,

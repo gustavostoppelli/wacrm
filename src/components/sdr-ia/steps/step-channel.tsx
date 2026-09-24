@@ -11,6 +11,15 @@ interface Channel {
   id: string;
   name: string | null;
   provider: string;
+  phone_number: string | null;
+}
+
+/** "5511999998888" -> "+55 11 99999-8888" (best-effort; falls back to
+ *  the raw digits with a "+" for shapes this doesn't recognize). */
+function formatPhoneNumber(digits: string): string {
+  const m = digits.match(/^55(\d{2})(\d{4,5})(\d{4})$/);
+  if (m) return `+55 ${m[1]} ${m[2]}-${m[3]}`;
+  return `+${digits}`;
 }
 
 export function StepChannel({
@@ -27,7 +36,7 @@ export function StepChannel({
     const supabase = createClient();
     supabase
       .from("whatsapp_config")
-      .select("id, name, provider")
+      .select("id, name, provider, phone_number")
       .then(({ data }) => setChannels((data as Channel[]) ?? []));
   }, []);
 
@@ -49,7 +58,9 @@ export function StepChannel({
           <option value="">{t("channelPlaceholder")}</option>
           {channels.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.name ?? c.id} ({c.provider})
+              {c.phone_number
+                ? `${formatPhoneNumber(c.phone_number)} — ${c.name ?? c.provider}`
+                : `${c.name ?? c.id} (${c.provider})`}
             </option>
           ))}
         </select>

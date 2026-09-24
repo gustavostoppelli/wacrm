@@ -127,6 +127,25 @@ export interface InstanceStatusResult {
   status: string
   qrcode?: string
   paircode?: string
+  /** The connected number's digits (no `+`, no `@...` suffix), e.g.
+   *  "5511999998888" — so it can be shown to the user instead of the
+   *  opaque instance `name` they typed when creating the channel. Only
+   *  present once actually connected; UAZAPI has no documented field
+   *  name we've confirmed against a live payload for this yet, so this
+   *  checks every plausible shape (`instance.owner`/`instance.wid` as
+   *  a `<digits>@s.whatsapp.net` JID, or a bare `instance.phone`) and
+   *  is undefined if none matched — never throws on a shape mismatch. */
+  phoneNumber?: string
+}
+
+/** Extracts the digits from a WhatsApp JID (`<digits>@s.whatsapp.net`,
+ *  `<digits>@c.us`) or a bare phone string. Returns undefined if the
+ *  input has no digits, so callers can tell "not present" from "present
+ *  but empty" instead of stashing a blank string. */
+function extractPhoneDigits(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined
+  const digits = raw.split('@')[0].replace(/\D/g, '')
+  return digits.length > 0 ? digits : undefined
 }
 
 export async function getInstanceStatus(args: InstanceTokenArgs): Promise<InstanceStatusResult> {
@@ -144,6 +163,12 @@ export async function getInstanceStatus(args: InstanceTokenArgs): Promise<Instan
     status: data.instance?.status ?? 'disconnected',
     qrcode: data.instance?.qrcode,
     paircode: data.instance?.paircode,
+    phoneNumber:
+      extractPhoneDigits(data.instance?.owner) ??
+      extractPhoneDigits(data.instance?.wid) ??
+      extractPhoneDigits(data.instance?.phone) ??
+      extractPhoneDigits(data.owner) ??
+      extractPhoneDigits(data.wid),
   }
 }
 

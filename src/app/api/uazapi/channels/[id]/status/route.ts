@@ -27,7 +27,7 @@ export async function GET(
 
     const { data: channel, error: fetchError } = await supabase
       .from('whatsapp_config')
-      .select('uazapi_base_url, uazapi_instance_token, status, assigned_to')
+      .select('uazapi_base_url, uazapi_instance_token, status, assigned_to, phone_number')
       .eq('id', id)
       .eq('account_id', accountId)
       .eq('provider', 'uazapi')
@@ -46,12 +46,19 @@ export async function GET(
     })
 
     const newStatus = result.connected ? 'connected' : 'disconnected'
-    if (newStatus !== channel.status) {
+    const newPhoneNumber = result.phoneNumber ?? null
+    if (newStatus !== channel.status || newPhoneNumber !== channel.phone_number) {
       await supabase
         .from('whatsapp_config')
         .update({
           status: newStatus,
           connected_at: newStatus === 'connected' ? new Date().toISOString() : null,
+          // Only overwrite with a freshly-parsed number, or clear it on
+          // disconnect — never blank out an already-known number just
+          // because this particular poll's response didn't include it.
+          ...(newPhoneNumber || newStatus === 'disconnected'
+            ? { phone_number: newPhoneNumber }
+            : {}),
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)

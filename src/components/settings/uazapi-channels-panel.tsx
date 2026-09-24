@@ -33,8 +33,23 @@ import { ChannelLimitDialog } from './channel-limit-dialog';
 
 type UazapiChannel = Pick<
   WhatsAppConfig,
-  'id' | 'name' | 'status' | 'uazapi_base_url' | 'connected_at' | 'ai_enabled' | 'assigned_to'
+  | 'id'
+  | 'name'
+  | 'status'
+  | 'uazapi_base_url'
+  | 'connected_at'
+  | 'ai_enabled'
+  | 'assigned_to'
+  | 'phone_number'
 >;
+
+/** "5511999998888" -> "+55 11 99999-8888" (best-effort; falls back to
+ *  the raw digits with a "+" for shapes this doesn't recognize). */
+function formatPhoneNumber(digits: string): string {
+  const m = digits.match(/^55(\d{2})(\d{4,5})(\d{4})$/);
+  if (m) return `+55 ${m[1]} ${m[2]}-${m[3]}`;
+  return `+${digits}`;
+}
 
 interface Member {
   /** auth.users id — matches whatsapp_config.assigned_to, NOT profiles.id. */
@@ -90,7 +105,7 @@ export function UazapiChannelsPanel() {
     setLoading(true);
     const { data, error } = await supabase
       .from('whatsapp_config')
-      .select('id, name, status, uazapi_base_url, connected_at, ai_enabled, assigned_to')
+      .select('id, name, status, uazapi_base_url, connected_at, ai_enabled, assigned_to, phone_number')
       .eq('account_id', acctId)
       .eq('provider', 'uazapi')
       .order('created_at', { ascending: true });
@@ -114,7 +129,11 @@ export function UazapiChannelsPanel() {
         .then((result) => {
           if (typeof result?.status !== 'string') return
           setChannels((prev) =>
-            prev.map((c) => (c.id === ch.id ? { ...c, status: result.status } : c))
+            prev.map((c) =>
+              c.id === ch.id
+                ? { ...c, status: result.status, phone_number: result.phoneNumber ?? c.phone_number }
+                : c
+            )
           )
         })
         .catch((err) => console.error('UAZAPI live status check failed:', err))
@@ -401,6 +420,11 @@ export function UazapiChannelsPanel() {
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">
                     {ch.name || 'UAZAPI channel'}
+                    {ch.phone_number && (
+                      <span className="ml-2 font-normal text-muted-foreground">
+                        {formatPhoneNumber(ch.phone_number)}
+                      </span>
+                    )}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {ch.uazapi_base_url}
