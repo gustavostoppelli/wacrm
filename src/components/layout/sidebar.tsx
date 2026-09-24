@@ -405,6 +405,22 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Always-visible legal links — LGPD requires Terms/Privacy to
+              stay reachable within a click or two from anywhere in the
+              app, not just at signup. */}
+          <div className="mt-2 flex items-center justify-center gap-3 px-3 text-[11px] text-muted-foreground">
+            <Link href="/legal/termos-de-uso" className="hover:text-foreground">
+              Termos de Uso
+            </Link>
+            <span aria-hidden>·</span>
+            <Link
+              href="/legal/politica-de-privacidade"
+              className="hover:text-foreground"
+            >
+              Privacidade
+            </Link>
+          </div>
         </div>
       </aside>
     </>
