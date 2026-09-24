@@ -19,6 +19,7 @@ import {
   Radio,
   Settings,
   Shield,
+  Target,
   User,
   UserCog,
   Users,
@@ -101,6 +102,7 @@ const navItems: NavItem[] = [
   { href: "/automations", labelKey: "automations", icon: Zap },
   { href: "/flows", labelKey: "flows", icon: Workflow, beta: true },
   { href: "/agents", labelKey: "aiAgents", icon: Bot },
+  { href: "/sdr-ia", labelKey: "sdrIa", icon: Target },
 ];
 
 const bottomNavItems = [
