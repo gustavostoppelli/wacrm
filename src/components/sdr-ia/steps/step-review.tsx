@@ -47,14 +47,24 @@ export function StepReview({
           : null);
       if (!leadTagId) throw new Error(t("errorNoLeadTag"));
 
-      // Always resolves to the same fixed system tag name — find-or-create
-      // is what makes this idempotent across repeated wizard runs, not a
-      // branch on `existing` (there's only ever one contacted-tag name).
-      const contactedTagId = await resolveOrCreateTagId(supabase, accountId, userId, "sdr_ia_contatado");
+      // Reuse the existing contacted-tag id when we have one — only
+      // resolve-by-name on first activation. Re-resolving by name on
+      // every save risked landing on a DIFFERENT tag (e.g. if the
+      // lookup ever raced or the tag's name was edited/duplicated),
+      // which would silently make every previously-contacted lead
+      // look untouched again and get re-messaged.
+      const contactedTagId =
+        existing?.contactedTagId ??
+        (await resolveOrCreateTagId(supabase, accountId, userId, "sdr_ia_contatado"));
+
+      // Filter empty variants HERE (not just when creating their tags
+      // below) — an empty string saved to message_variants would later
+      // be picked by the cron's random-variant selection and fail to
+      // send, after the contact is already tagged "contacted".
+      const cleanedVariants = (draft.messageVariants ?? []).filter((v) => v.trim().length > 0);
 
       if (draft.sendMode === "text") {
-        const variants = (draft.messageVariants ?? []).filter((v) => v.trim());
-        for (let i = 0; i < variants.length; i++) {
+        for (let i = 0; i < cleanedVariants.length; i++) {
           await resolveOrCreateTagId(supabase, accountId, userId, variantTagName(i + 1));
         }
       }
@@ -66,6 +76,7 @@ export function StepReview({
           ...draft,
           leadTagId,
           contactedTagId,
+          messageVariants: draft.sendMode === "text" ? cleanedVariants : draft.messageVariants,
           enabled: true,
         }),
       });

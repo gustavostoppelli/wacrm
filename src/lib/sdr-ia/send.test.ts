@@ -98,6 +98,8 @@ describe('sendSdrIaFirstContact', () => {
         dailyCap: 5,
         hoursStart: 9,
         hoursEnd: 18,
+        sentToday: 0,
+        lastSentDate: null,
       },
     })
     expect(spy).toHaveBeenCalledWith({
@@ -131,6 +133,8 @@ describe('sendSdrIaFirstContact', () => {
         dailyCap: 5,
         hoursStart: 9,
         hoursEnd: 18,
+        sentToday: 0,
+        lastSentDate: null,
       },
     })
     expect(spy).toHaveBeenCalledWith(

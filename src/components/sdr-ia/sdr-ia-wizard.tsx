@@ -30,6 +30,7 @@ export function SdrIaWizard() {
   const [step, setStep] = useState(1);
   const [draft, setDraft] = useState<WizardDraft>({
     sendMode: "template",
+    templateLanguage: "pt_BR",
     messageVariants: [],
     dailyCap: 5,
     hoursStart: 9,

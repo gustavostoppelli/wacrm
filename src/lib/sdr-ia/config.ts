@@ -26,6 +26,8 @@ export interface SdrIaConfig {
   dailyCap: number
   hoursStart: number
   hoursEnd: number
+  sentToday: number
+  lastSentDate: string | null
 }
 
 export type SdrIaConfigInput = Omit<SdrIaConfig, 'accountId'>
@@ -54,6 +56,8 @@ function fromRow(row: any): SdrIaConfig {
     dailyCap: row.daily_cap,
     hoursStart: row.hours_start,
     hoursEnd: row.hours_end,
+    sentToday: row.sent_today,
+    lastSentDate: row.last_sent_date,
   }
 }
 

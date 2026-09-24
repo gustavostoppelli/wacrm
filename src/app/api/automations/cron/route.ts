@@ -804,11 +804,13 @@ async function drainDailyDigest(admin: ReturnType<typeof supabaseAdmin>): Promis
  * accounts.sdr_ia_enabled AND sdr_ia_config.enabled true, respecting
  * each account's configured business hours and daily cap. Runs on
  * every cron tick (unlike the daily digest, this has no "once per
- * day" claim — the daily_cap itself is what bounds volume, checked
- * fresh each run via a count of today's sends).
+ * day" claim — each account's `sent_today`/`last_sent_date`
+ * (migration 071) track real per-day volume, incremented atomically
+ * per successful send via the `sdr_ia_register_sent` RPC — not a
+ * per-tick counter.
  */
 async function drainSdrIa(admin: ReturnType<typeof supabaseAdmin>): Promise<number> {
-  const { hour } = brazilTodayAndHour()
+  const { today, hour } = brazilTodayAndHour()
 
   const { data: accounts } = await admin
     .from('accounts')
@@ -827,14 +829,15 @@ async function drainSdrIa(admin: ReturnType<typeof supabaseAdmin>): Promise<numb
     if (hour < config.hoursStart || hour >= config.hoursEnd) continue
     if (!config.leadTagId || !config.contactedTagId || !config.whatsappConfigId) continue
 
-    const remaining = config.dailyCap - sent // per-run cap floor; see note below
+    const sentToday = config.lastSentDate === today ? config.sentToday : 0
+    const remaining = config.dailyCap - sentToday
     if (remaining <= 0) continue
 
     const { data: candidates } = await admin.rpc('sdr_ia_next_candidates', {
       p_account_id: accountId,
       p_lead_tag_id: config.leadTagId,
       p_contacted_tag_id: config.contactedTagId,
-      p_limit: config.dailyCap,
+      p_limit: remaining,
     })
 
     for (const candidate of candidates ?? []) {
@@ -892,6 +895,7 @@ async function drainSdrIa(admin: ReturnType<typeof supabaseAdmin>): Promise<numb
           }
         }
         sent++
+        await admin.rpc('sdr_ia_register_sent', { p_account_id: accountId, p_today: today })
       } catch (err) {
         // The contact is already tagged as contacted (claimed above)
         // but the send itself failed here -- intentionally NOT

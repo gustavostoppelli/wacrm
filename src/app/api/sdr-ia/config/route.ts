@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { getSdrIaStatus, getSdrIaConfig, upsertSdrIaConfig } from '@/lib/sdr-ia/config'
-import type { SdrIaConfigInput } from '@/lib/sdr-ia/config'
+import type { SdrIaConfigInput, SdrIaSendMode } from '@/lib/sdr-ia/config'
 
 async function assertEnabled(supabase: Parameters<typeof getSdrIaStatus>[0], accountId: string) {
   const enabled = await getSdrIaStatus(supabase, accountId)
@@ -102,6 +102,78 @@ export async function PUT(request: Request) {
           { error: 'messageVariants must contain only strings' },
           { status: 400 },
         )
+      }
+      if (patch.messageVariants.some((v) => typeof v === 'string' && v.trim().length === 0)) {
+        return NextResponse.json(
+          { error: 'messageVariants must not contain empty strings' },
+          { status: 400 },
+        )
+      }
+    }
+
+    // Config-completeness gate — only enforced when this PUT is trying
+    // to ACTIVATE (enabled: true, the wizard's final step). Without
+    // this, an incomplete config (e.g. template mode with no template
+    // name) could save successfully and then silently fail every send
+    // in the cron — the contact still gets tagged "contacted" before
+    // the send is attempted, so an incomplete config burns through the
+    // whole daily_cap without ever messaging anyone.
+    if (patch.enabled === true) {
+      const existingConfig = await getSdrIaConfig(supabase, accountId)
+      const effectiveSendMode = (patch.sendMode as SdrIaSendMode | undefined) ?? existingConfig?.sendMode ?? 'template'
+      const effectiveTemplateName = patch.templateName !== undefined ? patch.templateName : existingConfig?.templateName
+      const effectiveTemplateLanguage = patch.templateLanguage !== undefined ? patch.templateLanguage : existingConfig?.templateLanguage
+      const effectiveVariants = (patch.messageVariants !== undefined ? patch.messageVariants : existingConfig?.messageVariants ?? []) as unknown[]
+      const effectiveWhatsappConfigId = patch.whatsappConfigId !== undefined ? patch.whatsappConfigId : existingConfig?.whatsappConfigId
+
+      if (!effectiveWhatsappConfigId) {
+        return NextResponse.json(
+          { error: 'A WhatsApp channel must be selected before activating' },
+          { status: 400 },
+        )
+      }
+      const { data: channel } = await supabase
+        .from('whatsapp_config')
+        .select('provider')
+        .eq('id', effectiveWhatsappConfigId as string)
+        .eq('account_id', accountId)
+        .maybeSingle()
+      if (!channel) {
+        return NextResponse.json(
+          { error: 'Selected WhatsApp channel not found for this account' },
+          { status: 400 },
+        )
+      }
+
+      if (effectiveSendMode === 'template') {
+        if (!effectiveTemplateName || !String(effectiveTemplateName).trim()) {
+          return NextResponse.json(
+            { error: 'templateName is required to activate template mode' },
+            { status: 400 },
+          )
+        }
+        if (!effectiveTemplateLanguage || !String(effectiveTemplateLanguage).trim()) {
+          return NextResponse.json(
+            { error: 'templateLanguage is required to activate template mode' },
+            { status: 400 },
+          )
+        }
+        if (channel.provider !== 'meta') {
+          return NextResponse.json(
+            { error: 'Template mode requires a Meta WhatsApp channel' },
+            { status: 400 },
+          )
+        }
+      } else {
+        const nonEmptyVariants = (effectiveVariants as string[]).filter(
+          (v) => typeof v === 'string' && v.trim().length > 0,
+        )
+        if (nonEmptyVariants.length === 0) {
+          return NextResponse.json(
+            { error: 'At least one non-empty message variant is required to activate text mode' },
+            { status: 400 },
+          )
+        }
       }
     }
 

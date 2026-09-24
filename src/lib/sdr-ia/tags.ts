@@ -16,14 +16,27 @@ export async function resolveOrCreateTagId(
   name: string,
 ): Promise<string> {
   const trimmed = name.trim()
+  // Escape ILIKE wildcard characters (% and _) so a name containing
+  // them is matched literally, not as a pattern — an unescaped `_`
+  // would match ANY single character, so e.g. "sdr-ia-contatado"
+  // would wrongly match "sdr_ia_contatado" (and vice versa).
+  const escaped = trimmed.replace(/[%_\\]/g, (c) => `\\${c}`)
 
-  const { data: existing } = await db
+  const { data: existing, error: lookupError } = await db
     .from('tags')
     .select('id')
     .eq('account_id', accountId)
-    .ilike('name', trimmed)
+    .ilike('name', escaped)
     .maybeSingle()
 
+  if (lookupError) {
+    // maybeSingle() errors when more than one row matches (or on other
+    // DB errors) — never fall through to creating a NEW tag in that
+    // case: resolving "sdr_ia_contatado" to a fresh, empty tag would
+    // make every previously-contacted lead look untouched and get
+    // re-messaged.
+    throw new Error(`Failed to look up tag "${trimmed}": ${lookupError.message}`)
+  }
   if (existing) return existing.id as string
 
   const { data: created, error } = await db
