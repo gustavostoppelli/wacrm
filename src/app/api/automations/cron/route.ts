@@ -839,6 +839,30 @@ async function drainSdrIa(admin: ReturnType<typeof supabaseAdmin>): Promise<numb
 
     for (const candidate of candidates ?? []) {
       const contactId = candidate.contact_id as string
+
+      // Claim BEFORE sending: the unique constraint on
+      // contact_tags(contact_id, tag_id) is the atomic lock. The RPC's
+      // exclusion check above is a plain SELECT, not a lock, so two
+      // overlapping cron invocations (no infra-level overlap guard on
+      // this endpoint) can both fetch the same untagged candidate.
+      // Whichever call's addContactTagIfAbsent lands first wins the
+      // claim; the loser sees `false` and must skip the send entirely
+      // to avoid a duplicate WhatsApp message to the same lead. This
+      // is the expected/normal skip path under concurrent runs, not an
+      // error.
+      let claimed: boolean
+      try {
+        claimed = await addContactTagIfAbsent(admin, {
+          accountId,
+          contactId,
+          tagId: config.contactedTagId,
+        })
+      } catch (err) {
+        console.error('[sdr-ia] failed to claim candidate (tag write):', contactId, err)
+        continue
+      }
+      if (!claimed) continue // already claimed by another run — skip, don't send
+
       try {
         const conversationId = await findOrCreateConversationForChannel(
           admin,
@@ -855,14 +879,6 @@ async function drainSdrIa(admin: ReturnType<typeof supabaseAdmin>): Promise<numb
           config,
         })
 
-        const tagged = await addContactTagIfAbsent(admin, {
-          accountId,
-          contactId,
-          tagId: config.contactedTagId,
-        })
-        if (!tagged) {
-          console.error('[sdr-ia] sent but contacted tag already present (unexpected):', contactId)
-        }
         if (variantIndex !== null) {
           const variantName = variantTagName(variantIndex + 1)
           const { data: variantTag } = await admin
@@ -877,7 +893,18 @@ async function drainSdrIa(admin: ReturnType<typeof supabaseAdmin>): Promise<numb
         }
         sent++
       } catch (err) {
-        console.error('[sdr-ia] failed to contact candidate:', contactId, err)
+        // The contact is already tagged as contacted (claimed above)
+        // but the send itself failed here -- intentionally NOT
+        // un-tagging: a send that times out client-side may still have
+        // gone through provider-side, and un-tagging risks a retry
+        // double-sending a message that already landed. Treat this as
+        // a missed contact to investigate manually, not a retryable
+        // failure.
+        console.error(
+          '[sdr-ia] contact was tagged as contacted but message may not have sent:',
+          contactId,
+          err,
+        )
       }
     }
   }
