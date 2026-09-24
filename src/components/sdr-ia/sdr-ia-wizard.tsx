@@ -5,7 +5,10 @@ import { useTranslations } from "next-intl";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { templateHasVariables } from "@/lib/whatsapp/template-validators";
 import type { SdrIaConfig, SdrIaConfigInput } from "@/lib/sdr-ia/config";
+import type { MessageTemplate } from "@/types";
 import { StepLeadSource } from "./steps/step-lead-source";
 import { StepChannel } from "./steps/step-channel";
 import { StepMessages } from "./steps/step-messages";
@@ -27,7 +30,11 @@ const STEP_COUNT = 5;
  * once the completeness gate on PUT was added). Step 4 (guardrails)
  * always has valid numeric defaults, so it's never blocked.
  */
-function canProceedFromStep(step: number, draft: WizardDraft): boolean {
+function canProceedFromStep(
+  step: number,
+  draft: WizardDraft,
+  usableTemplates: MessageTemplate[],
+): boolean {
   switch (step) {
     case 1:
       return !!(draft.leadTagId || draft.leadTagName?.trim());
@@ -35,7 +42,14 @@ function canProceedFromStep(step: number, draft: WizardDraft): boolean {
       return !!draft.whatsappConfigId;
     case 3:
       if (draft.sendMode === "template") {
-        return !!draft.templateName?.trim();
+        // Must match one of the currently approved, variable-free
+        // templates — not just any non-empty string. A stale
+        // templateName saved back when this step was free text (or a
+        // template that got its approval revoked since) must not let
+        // the user through with a selection that no longer sends.
+        return usableTemplates.some(
+          (tpl) => tpl.name === draft.templateName && (tpl.language ?? "pt_BR") === draft.templateLanguage,
+        );
       }
       return (draft.messageVariants ?? []).some((v) => v.trim().length > 0);
     default:
@@ -62,6 +76,8 @@ export function SdrIaWizard() {
     hoursEnd: 18,
   });
   const [existing, setExisting] = useState<SdrIaConfig | null>(null);
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/sdr-ia/config", { cache: "no-store" })
@@ -75,8 +91,26 @@ export function SdrIaWizard() {
       .catch(() => {});
   }, []);
 
+  // Fetched once here (not inside StepMessages) so the "Continuar"
+  // gate on Step 3 can validate against the real approved-template
+  // list even before the user has navigated there.
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("message_templates")
+      .select("*")
+      .eq("status", "APPROVED")
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        setTemplates((data as MessageTemplate[]) ?? []);
+        setTemplatesLoading(false);
+      });
+  }, []);
+
+  const usableTemplates = templates.filter((tpl) => !templateHasVariables(tpl));
+
   const update = (patch: Partial<WizardDraft>) => setDraft((prev) => ({ ...prev, ...patch }));
-  const canProceed = canProceedFromStep(step, draft);
+  const canProceed = canProceedFromStep(step, draft, usableTemplates);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
@@ -95,7 +129,14 @@ export function SdrIaWizard() {
       <Card className="p-6">
         {step === 1 && <StepLeadSource draft={draft} onChange={update} />}
         {step === 2 && <StepChannel draft={draft} onChange={update} />}
-        {step === 3 && <StepMessages draft={draft} onChange={update} />}
+        {step === 3 && (
+          <StepMessages
+            draft={draft}
+            onChange={update}
+            templates={templates}
+            templatesLoading={templatesLoading}
+          />
+        )}
         {step === 4 && <StepGuardrails draft={draft} onChange={update} />}
         {step === 5 && <StepReview draft={draft} existing={existing} />}
 

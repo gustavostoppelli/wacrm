@@ -72,6 +72,23 @@ export function extractVariableIndices(text: string): number[] {
 }
 
 /**
+ * True if the template has any `{{n}}` variable slot — body, text
+ * header, or a dynamic URL button. Used by SDR IA's wizard: it calls
+ * `engineSendTemplate` with only a name and language (no component
+ * values), so a template expecting variables would send with literal
+ * "{{1}}" text or get rejected by Meta outright.
+ */
+export function templateHasVariables(template: MessageTemplate): boolean {
+  if (extractVariableIndices(template.body_text).length > 0) return true;
+  if (template.header_type === 'text' && template.header_content) {
+    if (extractVariableIndices(template.header_content).length > 0) return true;
+  }
+  return (template.buttons ?? []).some(
+    (b) => b.type === 'URL' && extractVariableIndices(b.url).length > 0,
+  );
+}
+
+/**
  * Meta requires contiguous, 1-indexed variables. `{{1}} {{3}}` is
  * invalid — it must be `{{1}} {{2}}`.
  */

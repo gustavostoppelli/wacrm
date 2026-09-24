@@ -2146,14 +2146,16 @@
       },
       "messages": {
         "templateTitle": "승인된 템플릿",
-        "templateDescription": "WhatsApp Business Manager에서 이미 승인된 템플릿의 정확한 이름을 입력하세요.",
+        "templateDescription": "이미 WhatsApp Business Manager에서 승인된 템플릿을 선택하세요.",
         "templateNameLabel": "템플릿 이름",
         "templateNamePlaceholder": "예: primeiro_contato",
         "templateLanguageLabel": "언어",
         "variantsTitle": "메시지 (A/B 테스트)",
         "variantsDescription": "최대 3개의 변형을 작성하세요. 시스템이 발송마다 하나를 무작위로 선택합니다.",
         "variantLabel": "변형 {n}",
-        "variantPlaceholder": "메시지를 작성하세요..."
+        "variantPlaceholder": "메시지를 작성하세요...",
+        "noUsableTemplates": "변수가 없는 승인된 템플릿을 찾을 수 없습니다. 설정 → 템플릿에서 하나를 만드세요.",
+        "templatesWithVariablesHint": "승인된 템플릿 {n}개를 찾았지만 변수 필드({{1}})가 있어 자동 첫 연락에는 사용할 수 없습니다."
       },
       "guardrails": {
         "title": "시간대 및 일일 한도",

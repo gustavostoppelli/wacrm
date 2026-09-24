@@ -2146,14 +2146,16 @@
       },
       "messages": {
         "templateTitle": "Approved template",
-        "templateDescription": "Enter the exact name of the template already approved in WhatsApp Business Manager.",
+        "templateDescription": "Choose a template already approved in WhatsApp Business Manager.",
         "templateNameLabel": "Template name",
         "templateNamePlaceholder": "e.g: first_contact",
         "templateLanguageLabel": "Language",
         "variantsTitle": "Messages (A/B test)",
         "variantsDescription": "Write up to 3 variations. The system picks one at random for each send.",
         "variantLabel": "Variant {n}",
-        "variantPlaceholder": "Write the message..."
+        "variantPlaceholder": "Write the message...",
+        "noUsableTemplates": "No approved template without variables was found. Create one in Settings → Templates.",
+        "templatesWithVariablesHint": "Found {n} approved template(s), but with variable fields ({{1}}) — they can't be used for the automated first contact, which never fills in variables."
       },
       "guardrails": {
         "title": "Hours and daily limit",
