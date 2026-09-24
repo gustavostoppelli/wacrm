@@ -81,7 +81,21 @@ export function StepReview({
         }),
       });
       if (!res.ok) {
-        throw new Error(res.status === 403 ? t("errorNeedsAdmin") : t("errorSaveFailed"));
+        if (res.status === 403) {
+          throw new Error(t("errorNeedsAdmin"));
+        }
+        // Surface the API's actual validation message (e.g. "Template
+        // mode requires a Meta WhatsApp channel") instead of a generic
+        // "couldn't save" — the specific reason is exactly what tells
+        // the user which wizard step to go back and fix.
+        let serverMessage: string | null = null;
+        try {
+          const body = await res.json();
+          if (typeof body?.error === "string") serverMessage = body.error;
+        } catch {
+          // response wasn't JSON — fall through to the generic message
+        }
+        throw new Error(serverMessage ?? t("errorSaveFailed"));
       }
 
       router.refresh();
