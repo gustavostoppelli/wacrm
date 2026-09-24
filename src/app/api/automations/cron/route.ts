@@ -14,6 +14,10 @@ import { loadTodayActivityRanking } from '@/lib/dashboard/queries'
 import type { TodayActivityRankingRow } from '@/lib/dashboard/types'
 import { resolveDefaultChannelForAccount } from '@/lib/whatsapp/resolve-channel'
 import { sendUazapiText } from '@/lib/whatsapp/uazapi-api'
+import { getSdrIaConfig } from '@/lib/sdr-ia/config'
+import { findOrCreateConversationForChannel, sendSdrIaFirstContact } from '@/lib/sdr-ia/send'
+import { addContactTagIfAbsent } from '@/lib/contacts/tag-write'
+import { variantTagName } from '@/lib/sdr-ia/tags'
 
 /**
  * Drain due `automation_pending_executions` rows. Meant to be hit
@@ -97,6 +101,7 @@ export async function GET(request: Request) {
   const closeDateAlertsProcessed = await drainDueCloseDateAlerts(admin)
   const stageEntryNotificationsProcessed = await drainStageEntryNotifications(admin)
   const dailyDigestsSent = await drainDailyDigest(admin)
+  const sdrIaProcessed = await drainSdrIa(admin)
 
   return NextResponse.json({
     processed,
@@ -108,6 +113,7 @@ export async function GET(request: Request) {
     close_date_alerts_processed: closeDateAlertsProcessed,
     stage_entry_notifications_processed: stageEntryNotificationsProcessed,
     daily_digests_sent: dailyDigestsSent,
+    sdr_ia_processed: sdrIaProcessed,
   })
 }
 
@@ -790,5 +796,91 @@ async function drainDailyDigest(admin: ReturnType<typeof supabaseAdmin>): Promis
       console.error('[daily digest] failed for account:', account.id, err)
     }
   }
+  return sent
+}
+
+/**
+ * Sends SDR IA first-contact messages for every account with both
+ * accounts.sdr_ia_enabled AND sdr_ia_config.enabled true, respecting
+ * each account's configured business hours and daily cap. Runs on
+ * every cron tick (unlike the daily digest, this has no "once per
+ * day" claim — the daily_cap itself is what bounds volume, checked
+ * fresh each run via a count of today's sends).
+ */
+async function drainSdrIa(admin: ReturnType<typeof supabaseAdmin>): Promise<number> {
+  const { hour } = brazilTodayAndHour()
+
+  const { data: accounts } = await admin
+    .from('accounts')
+    .select('id, owner_user_id')
+    .eq('sdr_ia_enabled', true)
+
+  if (!accounts || accounts.length === 0) return 0
+
+  let sent = 0
+  for (const account of accounts) {
+    const accountId = account.id as string
+    const ownerUserId = account.owner_user_id as string
+
+    const config = await getSdrIaConfig(admin, accountId)
+    if (!config || !config.enabled) continue
+    if (hour < config.hoursStart || hour >= config.hoursEnd) continue
+    if (!config.leadTagId || !config.contactedTagId || !config.whatsappConfigId) continue
+
+    const remaining = config.dailyCap - sent // per-run cap floor; see note below
+    if (remaining <= 0) continue
+
+    const { data: candidates } = await admin.rpc('sdr_ia_next_candidates', {
+      p_account_id: accountId,
+      p_lead_tag_id: config.leadTagId,
+      p_contacted_tag_id: config.contactedTagId,
+      p_limit: config.dailyCap,
+    })
+
+    for (const candidate of candidates ?? []) {
+      const contactId = candidate.contact_id as string
+      try {
+        const conversationId = await findOrCreateConversationForChannel(
+          admin,
+          accountId,
+          ownerUserId,
+          contactId,
+          config.whatsappConfigId,
+        )
+        const { variantIndex } = await sendSdrIaFirstContact(admin, {
+          accountId,
+          userId: ownerUserId,
+          contactId,
+          conversationId,
+          config,
+        })
+
+        const tagged = await addContactTagIfAbsent(admin, {
+          accountId,
+          contactId,
+          tagId: config.contactedTagId,
+        })
+        if (!tagged) {
+          console.error('[sdr-ia] sent but contacted tag already present (unexpected):', contactId)
+        }
+        if (variantIndex !== null) {
+          const variantName = variantTagName(variantIndex + 1)
+          const { data: variantTag } = await admin
+            .from('tags')
+            .select('id')
+            .eq('account_id', accountId)
+            .ilike('name', variantName)
+            .maybeSingle()
+          if (variantTag) {
+            await addContactTagIfAbsent(admin, { accountId, contactId, tagId: variantTag.id as string })
+          }
+        }
+        sent++
+      } catch (err) {
+        console.error('[sdr-ia] failed to contact candidate:', contactId, err)
+      }
+    }
+  }
+
   return sent
 }
