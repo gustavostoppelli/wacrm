@@ -837,6 +837,7 @@ async function drainSdrIa(admin: ReturnType<typeof supabaseAdmin>): Promise<numb
       p_account_id: accountId,
       p_lead_tag_id: config.leadTagId,
       p_contacted_tag_id: config.contactedTagId,
+      p_exclusion_tag_id: config.exclusionTagId,
       p_limit: remaining,
     })
 

@@ -2126,7 +2126,10 @@
         "selectLabel": "Existing tag",
         "selectPlaceholder": "Select a tag",
         "createLabel": "Or create a new tag",
-        "createPlaceholder": "e.g: prospecting"
+        "createPlaceholder": "e.g: prospecting",
+        "exclusionLabel": "Exclusion tag (optional)",
+        "exclusionDescription": "If a contact has this tag, SDR AI will never message them — even if not yet marked as contacted. Use it to pull someone a salesperson is already handling manually out of the queue.",
+        "exclusionPlaceholder": "None"
       },
       "channel": {
         "title": "Sending channel",

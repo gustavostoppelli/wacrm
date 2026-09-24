@@ -64,6 +64,24 @@ export function StepLeadSource({
           onChange={(e) => onChange({ leadTagName: e.target.value, leadTagId: undefined })}
         />
       </div>
+
+      <div className="space-y-2 border-t border-border pt-4">
+        <Label htmlFor="exclusionTag">{t("exclusionLabel")}</Label>
+        <p className="text-xs text-muted-foreground">{t("exclusionDescription")}</p>
+        <select
+          id="exclusionTag"
+          value={draft.exclusionTagId ?? ""}
+          onChange={(e) => onChange({ exclusionTagId: e.target.value || null })}
+          className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground"
+        >
+          <option value="">{t("exclusionPlaceholder")}</option>
+          {tags.map((tag) => (
+            <option key={tag.id} value={tag.id}>
+              {tag.name}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 }

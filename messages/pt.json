@@ -2126,7 +2126,10 @@
         "selectLabel": "Tag existente",
         "selectPlaceholder": "Selecione uma tag",
         "createLabel": "Ou crie uma nova tag",
-        "createPlaceholder": "ex: prospecção"
+        "createPlaceholder": "ex: prospecção",
+        "exclusionLabel": "Tag de exclusão (opcional)",
+        "exclusionDescription": "Se um contato tiver essa tag, o SDR IA nunca fala com ele — mesmo que ainda não tenha sido marcado como contatado. Use pra tirar da fila alguém que um vendedor já está atendendo manualmente.",
+        "exclusionPlaceholder": "Nenhuma"
       },
       "channel": {
         "title": "Canal de envio",

@@ -18,6 +18,11 @@ export interface SdrIaConfig {
   enabled: boolean
   leadTagId: string | null
   contactedTagId: string | null
+  /** Optional manual "do not contact" override (migration 072) — a
+   *  human can tag a contact with this to pull them out of the SDR IA
+   *  queue immediately, e.g. when a salesperson reaches a fresh lead
+   *  before the cron does, before contactedTagId would ever apply. */
+  exclusionTagId: string | null
   whatsappConfigId: string | null
   sendMode: SdrIaSendMode
   templateName: string | null
@@ -48,6 +53,7 @@ function fromRow(row: any): SdrIaConfig {
     enabled: !!row.enabled,
     leadTagId: row.lead_tag_id,
     contactedTagId: row.contacted_tag_id,
+    exclusionTagId: row.exclusion_tag_id,
     whatsappConfigId: row.whatsapp_config_id,
     sendMode: row.send_mode,
     templateName: row.template_name,
@@ -83,6 +89,7 @@ export async function upsertSdrIaConfig(
     ...(patch.enabled !== undefined && { enabled: patch.enabled }),
     ...(patch.leadTagId !== undefined && { lead_tag_id: patch.leadTagId }),
     ...(patch.contactedTagId !== undefined && { contacted_tag_id: patch.contactedTagId }),
+    ...(patch.exclusionTagId !== undefined && { exclusion_tag_id: patch.exclusionTagId }),
     ...(patch.whatsappConfigId !== undefined && { whatsapp_config_id: patch.whatsappConfigId }),
     ...(patch.sendMode !== undefined && { send_mode: patch.sendMode }),
     ...(patch.templateName !== undefined && { template_name: patch.templateName }),
