@@ -94,6 +94,7 @@ export async function GET(request: Request) {
   }
 
   const aiProcessed = await drainDueAiReplies(admin)
+  const reactivationsSent = await drainDueReactivations(admin)
   const remindersProcessed = await drainDueMeetingReminders(admin)
   const followupsProcessed = await drainDueFollowups(admin)
   const reactivationsProcessed = await drainLostDealReactivation(admin)
@@ -106,6 +107,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     processed,
     ai_processed: aiProcessed,
+    conversation_reactivations_sent: reactivationsSent,
     reminders_processed: remindersProcessed,
     followups_processed: followupsProcessed,
     reactivations_processed: reactivationsProcessed,
@@ -163,6 +165,56 @@ async function drainDueAiReplies(
       // job is just "did we act on the wake-up", not "did it succeed".
       // Delete rather than keep 'done' rows around indefinitely.
       await admin.from('ai_pending_replies').delete().eq('id', row.id)
+    }
+    processed++
+  }
+  return processed
+}
+
+/**
+ * Drains due `conversation_reactivations` rows (migration 073) — a
+ * lead/gatekeeper gave a specific future time to resume ([[REACTIVATE:
+ * ...]] sentinel) and that moment has arrived. Re-runs the normal
+ * dispatch path, same as `drainDueAiReplies`: dispatchInboundToAiReply
+ * re-checks eligibility (assigned agent, autoreply disabled) itself,
+ * so a conversation a human already took over safely no-ops here
+ * instead of an automated message butting in.
+ */
+async function drainDueReactivations(
+  admin: ReturnType<typeof supabaseAdmin>,
+): Promise<number> {
+  const { data: due } = await admin
+    .from('conversation_reactivations')
+    .select('*')
+    .eq('status', 'pending')
+    .lte('send_at', new Date().toISOString())
+    .order('send_at', { ascending: true })
+    .limit(50)
+
+  if (!due || due.length === 0) return 0
+
+  let processed = 0
+  for (const row of due) {
+    const { data: claim } = await admin
+      .from('conversation_reactivations')
+      .update({ status: 'running' })
+      .eq('id', row.id)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle()
+    if (!claim) continue
+
+    try {
+      await dispatchInboundToAiReply({
+        accountId: row.account_id as string,
+        conversationId: row.conversation_id as string,
+        contactId: row.contact_id as string,
+        configOwnerUserId: row.config_owner_user_id as string,
+      })
+    } finally {
+      // Same "did we act on it" semantics as ai_pending_replies —
+      // delete rather than keep 'done' rows around indefinitely.
+      await admin.from('conversation_reactivations').delete().eq('id', row.id)
     }
     processed++
   }

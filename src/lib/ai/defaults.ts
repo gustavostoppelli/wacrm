@@ -52,6 +52,24 @@ export const MEETING_SENTINEL_RE =
  */
 export const NOTES_SENTINEL_RE = /\[\[NOTES:\s*([^\]]*)\]\]/i
 
+/**
+ * Sentinel the model may emit (in auto-reply mode) when the customer
+ * gave a specific future time to resume the conversation — e.g. a
+ * gatekeeper saying "liga o Dr. às 15h", or a busy lead saying "me
+ * chama amanhã de manhã". Schedules a wake-up (reusing the same
+ * `ai_pending_replies` mechanism the off-hours ack already uses — see
+ * `scheduleReactivation` in auto-reply.ts) so the AI proactively
+ * re-engages at that exact moment instead of waiting for the customer
+ * to write again. Parsed and stripped by `parseGeneration`.
+ *
+ * Shape: [[REACTIVATE: <ISO 8601 date-time with timezone offset> | <short reason>]]
+ * Example: [[REACTIVATE: 2026-10-03T15:00:00-03:00 | Gatekeeper pediu pra ligar às 15h]]
+ * Group 1 is the ISO date-time; group 2 the human-readable reason
+ * (used only for internal notes, never shown to the customer).
+ */
+export const REACTIVATE_SENTINEL_RE =
+  /\[\[REACTIVATE:\s*([^\]|]+?)(?:\s*\|\s*([^\]]*))?\]\]/i
+
 /** Cap on generated reply length — keeps WhatsApp replies short and
  *  bounds token spend on the caller's own key. */
 export const MAX_OUTPUT_TOKENS = 1024
@@ -125,7 +143,10 @@ export function buildSystemPrompt(args: {
       `If, during this reply, the customer agrees to (or reschedules to) a specific meeting or call time, end your reply (after your normal message text) with the tag [[MEETING: <ISO 8601 date-time with the timezone offset above> | <short human-readable description> | <the customer's email, only if they already gave it in this conversation>]] — compute the ISO date-time yourself from the current date/time given above and the timezone offset for ${tz}. Example with email: [[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h | lead@example.com]]. Example without (email not given yet): [[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h]]. Only add this tag once a specific time is actually confirmed — never speculatively, and never just because you offered times. Never invent an email — only include the third part if the customer literally typed it earlier in this conversation. If you can't confidently compute the exact ISO date-time, still add the tag with just the human-readable part after "MEETING:" (no ISO, no "|") rather than skipping it. This tag is stripped before the customer sees it.`,
     )
     parts.push(
-      `Whenever you hand off to a human (${HANDOFF_SENTINEL}) or confirm a meeting ([[MEETING: ...]]), also end your reply with a tag summarizing everything you've learned about this lead in this conversation so far, one field per line: [[NOTES: Field 1: value 1\nField 2: value 2\n...]]. Only include fields actually discussed — never invent one. This lets a human read a clean summary instead of the raw chat log. This tag is stripped before the customer sees it.`,
+      `If the customer can't talk now but gives you a specific future time to try again — a gatekeeper saying to call back at a certain time, or the customer themselves asking you to reach out later — end your reply (after your normal message text) with the tag [[REACTIVATE: <ISO 8601 date-time with the timezone offset above> | <short reason>]], computed the same way as the MEETING tag's date-time. Example: [[REACTIVATE: 2026-10-03T15:00:00-03:00 | Gatekeeper pediu pra ligar às 15h]]. This schedules you to proactively re-engage at that exact moment — you do not need to wait for the customer to write first. Only add this tag when a specific time was actually given; if no time was given, do not add it (follow your business instructions below on whether to keep asking for one). This tag is stripped before the customer sees it.`,
+    )
+    parts.push(
+      `Whenever you hand off to a human (${HANDOFF_SENTINEL}), confirm a meeting ([[MEETING: ...]]), or schedule a reactivation ([[REACTIVATE: ...]]), also end your reply with a tag summarizing everything you've learned about this lead in this conversation so far, one field per line: [[NOTES: Field 1: value 1\nField 2: value 2\n...]]. Only include fields actually discussed — never invent one. This lets a human read a clean summary instead of the raw chat log. This tag is stripped before the customer sees it.`,
     )
   }
 

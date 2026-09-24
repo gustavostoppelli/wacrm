@@ -111,6 +111,14 @@ export interface GenerateResult {
    *  tag, summarizing what's been learned about the lead so far;
    *  null when the model didn't include one this turn. */
   notes: string | null
+  /** ISO 8601 date-time for a customer-stated future time to resume
+   *  the conversation, parsed from an inline [[REACTIVATE: ...]] tag;
+   *  null when the model didn't include one this turn (or the ISO
+   *  part didn't parse). */
+  reactivateAt: string | null
+  /** Short human-readable reason paired with `reactivateAt` (e.g. why
+   *  the reactivation was requested), for internal notes only. */
+  reactivateReason: string | null
   /** Provider token usage for this call, or null when unavailable. */
   usage: AiUsage | null
 }

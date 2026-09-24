@@ -57,6 +57,11 @@ export async function dispatchInboundToAiReply(
     // (a fresh one is scheduled below only if this turn ends in a
     // normal, non-handoff auto-reply).
     await db.from('conversation_followups').delete().eq('conversation_id', conversationId)
+    // Same cancellation as above, for a pending [[REACTIVATE: ...]]
+    // wake-up: the lead already wrote back on their own, so the
+    // scheduled proactive nudge is now redundant (a fresh one is
+    // scheduled below only if this turn's reply itself asks for one).
+    await db.from('conversation_reactivations').delete().eq('conversation_id', conversationId)
 
     const config = await loadAiConfig(db, accountId)
     if (!config || !config.autoReplyEnabled) return
@@ -150,7 +155,7 @@ export async function dispatchInboundToAiReply(
       timezone: config.businessHoursTimezone,
     })
 
-    const { text, handoff, meetingNote, meetingAt, meetingEmail, notes, usage } =
+    const { text, handoff, meetingNote, meetingAt, meetingEmail, notes, reactivateAt, reactivateReason, usage } =
       await generateReply({ config, systemPrompt, messages })
 
     // A meeting time was just confirmed this turn -- move the deal to
@@ -171,6 +176,23 @@ export async function dispatchInboundToAiReply(
         meetingAt,
         meetingEmail,
         config,
+      })
+    }
+
+    // The model asked to proactively re-engage at a specific future
+    // time the customer/gatekeeper just gave. Runs regardless of
+    // handoff — if a human takes the thread over before this fires,
+    // dispatchInboundToAiReply's own eligibility gates (assigned
+    // agent / ai_autoreply_disabled, checked at the top on the
+    // reactivation's own re-entry) safely no-op instead of butting in.
+    if (reactivateAt) {
+      await scheduleReactivation(db, {
+        accountId,
+        conversationId,
+        contactId,
+        configOwnerUserId,
+        sendAt: new Date(reactivateAt),
+        reason: reactivateReason,
       })
     }
 
@@ -564,6 +586,36 @@ export async function scheduleFollowup(
     attempt,
     send_at: sendAt.toISOString(),
     last_outbound_at: lastOutboundAt.toISOString(),
+  })
+}
+
+/**
+ * Schedules a proactive wake-up for a customer-stated future time
+ * (the [[REACTIVATE: ...]] sentinel — e.g. a gatekeeper saying to
+ * call back at 15h). Delete-then-insert like `scheduleFollowup`, so a
+ * later REACTIVATE in the same conversation replaces an earlier one
+ * rather than erroring on the UNIQUE(conversation_id) constraint.
+ */
+export async function scheduleReactivation(
+  db: SupabaseClient,
+  args: {
+    accountId: string
+    conversationId: string
+    contactId: string
+    configOwnerUserId: string
+    sendAt: Date
+    reason: string | null
+  },
+): Promise<void> {
+  const { accountId, conversationId, contactId, configOwnerUserId, sendAt, reason } = args
+  await db.from('conversation_reactivations').delete().eq('conversation_id', conversationId)
+  await db.from('conversation_reactivations').insert({
+    account_id: accountId,
+    conversation_id: conversationId,
+    contact_id: contactId,
+    config_owner_user_id: configOwnerUserId,
+    send_at: sendAt.toISOString(),
+    reason,
   })
 }
 

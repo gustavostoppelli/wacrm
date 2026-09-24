@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
     claim: true as boolean,
     updatePayload: null as Record<string, unknown> | null,
     rpcCalls: [] as { name: string; args: unknown }[],
+    reactivationInserts: [] as Record<string, unknown>[],
   },
 }))
 
@@ -43,6 +44,17 @@ vi.mock('./admin-client', () => ({
         const chain = {
           delete: () => chain,
           insert: () => Promise.resolve({ data: null, error: null }),
+          eq: () => Promise.resolve({ data: null, error: null }),
+        }
+        return chain
+      }
+      if (table === 'conversation_reactivations') {
+        const chain = {
+          delete: () => chain,
+          insert: (payload: Record<string, unknown>) => {
+            h.state.reactivationInserts.push(payload)
+            return Promise.resolve({ data: null, error: null })
+          },
           eq: () => Promise.resolve({ data: null, error: null }),
         }
         return chain
@@ -118,6 +130,7 @@ beforeEach(() => {
   h.state.claim = true
   h.state.updatePayload = null
   h.state.rpcCalls = []
+  h.state.reactivationInserts = []
   h.loadAiConfig.mockResolvedValue(aiConfig())
   h.buildConversationContext.mockResolvedValue([{ role: 'user', content: 'hi' }])
   h.retrieveKnowledge.mockResolvedValue([])
@@ -235,5 +248,33 @@ describe('dispatchInboundToAiReply — handoff', () => {
       ai_autoreply_disabled: true,
       assigned_agent_id: 'agent-7',
     })
+  })
+})
+
+describe('dispatchInboundToAiReply — reactivation', () => {
+  it('schedules a reactivation when the reply includes reactivateAt', async () => {
+    h.generateReply.mockResolvedValue({
+      text: 'Combinado!',
+      handoff: false,
+      reactivateAt: '2026-10-03T15:00:00.000Z',
+      reactivateReason: 'Gatekeeper pediu pra ligar às 15h',
+    })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.state.reactivationInserts).toEqual([
+      expect.objectContaining({
+        account_id: 'acct-1',
+        conversation_id: 'conv-1',
+        contact_id: 'contact-1',
+        config_owner_user_id: 'user-1',
+        send_at: '2026-10-03T15:00:00.000Z',
+        reason: 'Gatekeeper pediu pra ligar às 15h',
+      }),
+    ])
+  })
+
+  it('does not schedule a reactivation when the reply has no reactivateAt', async () => {
+    h.generateReply.mockResolvedValue({ text: 'Hello!', handoff: false })
+    await dispatchInboundToAiReply(ARGS)
+    expect(h.state.reactivationInserts).toHaveLength(0)
   })
 })

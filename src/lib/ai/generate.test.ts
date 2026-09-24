@@ -58,6 +58,8 @@ describe('parseGeneration', () => {
       meetingAt: null,
       meetingEmail: null,
       notes: null,
+      reactivateAt: null,
+      reactivateReason: null,
       usage: null,
     })
   })
@@ -70,6 +72,8 @@ describe('parseGeneration', () => {
       meetingAt: null,
       meetingEmail: null,
       notes: null,
+      reactivateAt: null,
+      reactivateReason: null,
       usage: null,
     })
     expect(parseGeneration('Let me get a human [[HANDOFF]]')).toEqual({
@@ -79,6 +83,8 @@ describe('parseGeneration', () => {
       meetingAt: null,
       meetingEmail: null,
       notes: null,
+      reactivateAt: null,
+      reactivateReason: null,
       usage: null,
     })
   })
@@ -92,6 +98,8 @@ describe('parseGeneration', () => {
       meetingAt: null,
       meetingEmail: null,
       notes: null,
+      reactivateAt: null,
+      reactivateReason: null,
       usage,
     })
   })
@@ -106,6 +114,8 @@ describe('parseGeneration', () => {
       meetingAt: null,
       meetingEmail: null,
       notes: null,
+      reactivateAt: null,
+      reactivateReason: null,
       usage: null,
     })
   })
@@ -122,6 +132,8 @@ describe('parseGeneration', () => {
       meetingAt: new Date('2026-08-19T10:00:00-03:00').toISOString(),
       meetingEmail: null,
       notes: null,
+      reactivateAt: null,
+      reactivateReason: null,
       usage: null,
     })
   })
@@ -138,6 +150,8 @@ describe('parseGeneration', () => {
       meetingAt: new Date('2026-08-21T14:00:00-03:00').toISOString(),
       meetingEmail: null,
       notes: null,
+      reactivateAt: null,
+      reactivateReason: null,
       usage: null,
     })
   })
@@ -156,6 +170,31 @@ describe('parseGeneration', () => {
       '[[MEETING: 2026-08-19T10:00:00-03:00 | Amanhã às 10h | não sei o email]]',
     )
     expect(res.meetingEmail).toBeNull()
+  })
+
+  it('parses a well-formed reactivate sentinel into reactivateAt/reactivateReason', () => {
+    const res = parseGeneration(
+      'Combinado! [[REACTIVATE: 2026-10-03T15:00:00-03:00 | Gatekeeper pediu pra ligar às 15h]]',
+    )
+    expect(res.text).toBe('Combinado!')
+    expect(res.reactivateAt).toBe(new Date('2026-10-03T15:00:00-03:00').toISOString())
+    expect(res.reactivateReason).toBe('Gatekeeper pediu pra ligar às 15h')
+  })
+
+  it('drops a reactivate sentinel with an unparseable date entirely (no fallback)', () => {
+    const res = parseGeneration('Ok! [[REACTIVATE: not-a-date | some reason]]')
+    expect(res.text).toBe('Ok!')
+    expect(res.reactivateAt).toBeNull()
+    expect(res.reactivateReason).toBeNull()
+  })
+
+  it('reactivate and notes sentinels can both be present', () => {
+    const res = parseGeneration(
+      'Combinado! [[REACTIVATE: 2026-10-03T15:00:00-03:00 | liga às 15h]] [[NOTES: Função: Recepcionista]]',
+    )
+    expect(res.text).toBe('Combinado!')
+    expect(res.reactivateAt).toBe(new Date('2026-10-03T15:00:00-03:00').toISOString())
+    expect(res.notes).toBe('Função: Recepcionista')
   })
 
   it('detects + strips a notes sentinel', () => {
@@ -190,6 +229,8 @@ describe('generateReply — OpenAI', () => {
       meetingAt: null,
       meetingEmail: null,
       notes: null,
+      reactivateAt: null,
+      reactivateReason: null,
       usage: { promptTokens: 42, completionTokens: 8, totalTokens: 50 },
     })
     const [url, opts] = fetchMock.mock.calls[0]
@@ -253,6 +294,8 @@ describe('generateReply — Anthropic', () => {
       meetingAt: null,
       meetingEmail: null,
       notes: null,
+      reactivateAt: null,
+      reactivateReason: null,
       usage: { promptTokens: 30, completionTokens: 6, totalTokens: 36 },
     })
     const [url, opts] = fetchMock.mock.calls[0]

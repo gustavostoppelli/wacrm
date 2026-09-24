@@ -2120,6 +2120,7 @@
     "wizard": {
       "back": "Voltar",
       "next": "Continuar",
+      "stepIncomplete": "Preencha os campos obrigatórios pra continuar.",
       "leadSource": {
         "title": "De onde vêm os leads?",
         "description": "Escolha a tag que marca os contatos que o SDR IA deve processar.",

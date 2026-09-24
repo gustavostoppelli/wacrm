@@ -9,6 +9,7 @@ import {
   HANDOFF_SENTINEL,
   MEETING_SENTINEL_RE,
   NOTES_SENTINEL_RE,
+  REACTIVATE_SENTINEL_RE,
   aiRequestTimeoutMs,
 } from './defaults'
 import { generateOpenAi } from './providers/openai'
@@ -97,6 +98,24 @@ export function parseGeneration(
     text = text.replace(MEETING_SENTINEL_RE, '')
   }
 
+  const reactivateMatch = text.match(REACTIVATE_SENTINEL_RE)
+  let reactivateAt: string | null = null
+  let reactivateReason: string | null = null
+  if (reactivateMatch) {
+    const isoRaw = reactivateMatch[1]?.trim() ?? ''
+    const reasonRaw = reactivateMatch[2]?.trim() ?? ''
+    const parsed = new Date(isoRaw)
+    if (!Number.isNaN(parsed.getTime())) {
+      reactivateAt = parsed.toISOString()
+      reactivateReason = reasonRaw || null
+    }
+    // A malformed tag (unparseable ISO) is dropped entirely — unlike
+    // MEETING, there's no useful "label-only" fallback here since the
+    // whole point is an exact wake-up instant; nothing to schedule
+    // without one.
+    text = text.replace(REACTIVATE_SENTINEL_RE, '')
+  }
+
   const notesMatch = text.match(NOTES_SENTINEL_RE)
   const notes = notesMatch ? notesMatch[1].trim() || null : null
   if (notesMatch) text = text.replace(NOTES_SENTINEL_RE, '')
@@ -108,6 +127,8 @@ export function parseGeneration(
     meetingAt,
     meetingEmail,
     notes,
+    reactivateAt,
+    reactivateReason,
     usage,
   }
 }

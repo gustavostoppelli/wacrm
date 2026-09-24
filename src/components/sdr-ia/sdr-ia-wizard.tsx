@@ -19,6 +19,31 @@ export type WizardDraft = Partial<SdrIaConfigInput> & {
 const STEP_COUNT = 5;
 
 /**
+ * Gates the "Continuar" button per step — without this, nothing
+ * stopped a user from clicking through all 5 steps with every field
+ * left empty, reaching Step 5 with no lead tag, no channel, and no
+ * message, only to discover the problem from the server's activation
+ * error (or worse, saving a config that silently never sends anything
+ * once the completeness gate on PUT was added). Step 4 (guardrails)
+ * always has valid numeric defaults, so it's never blocked.
+ */
+function canProceedFromStep(step: number, draft: WizardDraft): boolean {
+  switch (step) {
+    case 1:
+      return !!(draft.leadTagId || draft.leadTagName?.trim());
+    case 2:
+      return !!draft.whatsappConfigId;
+    case 3:
+      if (draft.sendMode === "template") {
+        return !!draft.templateName?.trim();
+      }
+      return (draft.messageVariants ?? []).some((v) => v.trim().length > 0);
+    default:
+      return true;
+  }
+}
+
+/**
  * 5-step config wizard (see docs/superpowers/specs/2026-09-24-sdr-ia-
  * first-party-feature-design.md): lead source, channel, messages,
  * guardrails, review+activate. Draft state lives here; each step is a
@@ -51,6 +76,7 @@ export function SdrIaWizard() {
   }, []);
 
   const update = (patch: Partial<WizardDraft>) => setDraft((prev) => ({ ...prev, ...patch }));
+  const canProceed = canProceedFromStep(step, draft);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
@@ -82,9 +108,17 @@ export function SdrIaWizard() {
             {t("back")}
           </Button>
           {step < STEP_COUNT ? (
-            <Button onClick={() => setStep((s) => Math.min(STEP_COUNT, s + 1))}>
-              {t("next")}
-            </Button>
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                onClick={() => setStep((s) => Math.min(STEP_COUNT, s + 1))}
+                disabled={!canProceed}
+              >
+                {t("next")}
+              </Button>
+              {!canProceed && (
+                <p className="text-xs text-muted-foreground">{t("stepIncomplete")}</p>
+              )}
+            </div>
           ) : null}
         </div>
       </Card>
