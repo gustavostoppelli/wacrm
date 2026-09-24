@@ -2107,5 +2107,15 @@
       "reindexTooltip": "Reprocessar embeddings de todos os documentos (ex.: após adicionar uma chave de embeddings)",
       "loading": "Carregando…"
     }
+  },
+  "SdrIa": {
+    "lockedTitle": "SDR IA — primeiro contato automático com leads frios",
+    "lockedSubtitle": "Deixe a IA iniciar a conversa com quem ainda não falou com você, direto no WhatsApp — sem depender de planilha ou de alguém lembrar de mandar mensagem.",
+    "benefit1": "Contato automático todo dia, dentro do horário comercial que você define",
+    "benefit2": "Teste A/B entre até 3 mensagens diferentes, pra descobrir qual converte mais",
+    "benefit3": "Nunca manda duas vezes para o mesmo lead — controle automático de quem já foi contatado",
+    "benefit4": "Assim que o lead responde, o Agente de IA nativo assume a conversa sozinho",
+    "cta": "Falar com o suporte",
+    "prefilledMessage": "Olá! Quero saber mais sobre o SDR IA do FuseHub."
   }
 }

@@ -2107,5 +2107,15 @@
       "reindexTooltip": "Re-embed all documents (e.g. after adding an embeddings key)",
       "loading": "Loading…"
     }
+  },
+  "SdrIa": {
+    "lockedTitle": "SDR AI — automated first contact with cold leads",
+    "lockedSubtitle": "Let AI start the conversation with people who haven't spoken with you yet, directly on WhatsApp — without relying on spreadsheets or someone remembering to send a message.",
+    "benefit1": "Automatic contact every day, within the business hours you set",
+    "benefit2": "A/B test up to 3 different messages to discover which converts best",
+    "benefit3": "Never messages the same lead twice — automatic control of who's already been contacted",
+    "benefit4": "As soon as the lead responds, the native AI Agent takes over the conversation automatically",
+    "cta": "Chat with support",
+    "prefilledMessage": "Hi! I'd like to know more about FuseHub's SDR AI."
   }
 }
