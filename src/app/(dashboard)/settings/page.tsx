@@ -15,6 +15,7 @@ import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { UazapiChannelsPanel } from '@/components/settings/uazapi-channels-panel';
 import { MyWhatsAppChannelPanel } from '@/components/settings/my-whatsapp-channel-panel';
+import { InstagramConfigPanel } from '@/components/settings/instagram-config-panel';
 import { CalendarConfig } from '@/components/settings/calendar-config';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { QuickRepliesManager } from '@/components/settings/quick-replies-manager';
@@ -93,6 +94,7 @@ function SettingsPageInner() {
     ) : (
       <MyWhatsAppChannelPanel />
     ),
+    instagram: <InstagramConfigPanel />,
     calendar: <CalendarConfig />,
     templates: <TemplateManager />,
     'quick-replies': <QuickRepliesManager />,

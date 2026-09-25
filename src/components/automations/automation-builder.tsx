@@ -143,6 +143,8 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType }[] = [
   { value: "tag_added" },
   { value: "time_based" },
   { value: "webhook_received" },
+  { value: "instagram_comment_received" },
+  { value: "instagram_dm_received" },
 ]
 
 function cid(): string {
@@ -895,6 +897,13 @@ function TriggerCard({
               </p>
             </div>
             {type === "keyword_match" && (
+              <KeywordMatchConfig
+                config={config as unknown as KeywordMatchTriggerConfig}
+                onChange={onConfigChange}
+                t={t}
+              />
+            )}
+            {type === "instagram_comment_received" && (
               <KeywordMatchConfig
                 config={config as unknown as KeywordMatchTriggerConfig}
                 onChange={onConfigChange}
