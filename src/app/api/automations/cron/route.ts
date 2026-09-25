@@ -18,6 +18,8 @@ import { getSdrIaConfig } from '@/lib/sdr-ia/config'
 import { findOrCreateConversationForChannel, sendSdrIaFirstContact } from '@/lib/sdr-ia/send'
 import { addContactTagIfAbsent } from '@/lib/contacts/tag-write'
 import { variantTagName } from '@/lib/sdr-ia/tags'
+import { verifyInstagramToken } from '@/lib/instagram/graph-api'
+import { decrypt } from '@/lib/whatsapp/encryption'
 
 /**
  * Drain due `automation_pending_executions` rows. Meant to be hit
@@ -103,6 +105,7 @@ export async function GET(request: Request) {
   const stageEntryNotificationsProcessed = await drainStageEntryNotifications(admin)
   const dailyDigestsSent = await drainDailyDigest(admin)
   const sdrIaProcessed = await drainSdrIa(admin)
+  const instagramDisconnected = await checkInstagramConnections(admin)
 
   return NextResponse.json({
     processed,
@@ -116,6 +119,7 @@ export async function GET(request: Request) {
     stage_entry_notifications_processed: stageEntryNotificationsProcessed,
     daily_digests_sent: dailyDigestsSent,
     sdr_ia_processed: sdrIaProcessed,
+    instagram_connections_disconnected: instagramDisconnected,
   })
 }
 
@@ -967,4 +971,41 @@ async function drainSdrIa(admin: ReturnType<typeof supabaseAdmin>): Promise<numb
   }
 
   return sent
+}
+
+/**
+ * Periodic health check for Instagram connections (migration 075).
+ * Instagram Page tokens don't have a push-based revocation signal, so
+ * this is the only way to detect "the client removed FuseHub's access
+ * on Meta's side" before the next webhook silently goes nowhere.
+ */
+async function checkInstagramConnections(admin: ReturnType<typeof supabaseAdmin>): Promise<number> {
+  const { data: configs, error } = await admin
+    .from('instagram_config')
+    .select('id, ig_user_id, access_token')
+    .eq('status', 'connected')
+
+  if (error || !configs) {
+    console.error('[cron] failed to load instagram_config for health check:', error)
+    return 0
+  }
+
+  let disconnected = 0
+  for (const config of configs) {
+    let stillValid: boolean
+    try {
+      stillValid = await verifyInstagramToken({
+        igUserId: config.ig_user_id,
+        pageAccessToken: decrypt(config.access_token),
+      })
+    } catch (err) {
+      console.error('[cron] instagram token verification threw for', config.id, err)
+      stillValid = false
+    }
+    if (!stillValid) {
+      await admin.from('instagram_config').update({ status: 'disconnected' }).eq('id', config.id)
+      disconnected++
+    }
+  }
+  return disconnected
 }
