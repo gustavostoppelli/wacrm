@@ -1101,6 +1101,14 @@
         "webhook_received": {
           "label": "Webhook Received",
           "hint": "One of your webhook connections (Settings → Integrations) received a request"
+        },
+        "instagram_comment_received": {
+          "label": "Instagram Comment",
+          "hint": "Someone commented on a post from the connected Instagram account"
+        },
+        "instagram_dm_received": {
+          "label": "Instagram Direct",
+          "hint": "Someone sent a Direct message to the connected Instagram account"
         }
       },
       "trigger": "Trigger",

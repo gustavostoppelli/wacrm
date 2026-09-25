@@ -1101,6 +1101,14 @@
         "webhook_received": {
           "label": "웹훅 수신",
           "hint": "설정 → 통합에서 만든 웹훅 연결 중 하나가 요청을 받았을 때"
+        },
+        "instagram_comment_received": {
+          "label": "인스타그램 댓글",
+          "hint": "연결된 인스타그램 계정의 게시물에 누군가 댓글을 남겼을 때"
+        },
+        "instagram_dm_received": {
+          "label": "인스타그램 다이렉트",
+          "hint": "연결된 인스타그램 계정으로 누군가 다이렉트 메시지를 보냈을 때"
         }
       },
       "trigger": "트리거",
