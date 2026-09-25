@@ -40,7 +40,7 @@ function formatDate(dateStr: string) {
   });
 }
 
-function initials(name?: string, fallback?: string) {
+function initials(name?: string | null, fallback?: string | null) {
   const source = (name || fallback || "?").trim();
   if (!source) return "?";
   return source.charAt(0).toUpperCase();
