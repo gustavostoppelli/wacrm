@@ -72,3 +72,7 @@ CREATE TABLE IF NOT EXISTS instagram_webhook_events (
   event_key TEXT PRIMARY KEY,
   received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE instagram_webhook_events ENABLE ROW LEVEL SECURITY;
+-- No policies — only the service-role webhook handler ever touches
+-- this table, same rationale as asaas_processed_subscriptions (migration 069).
