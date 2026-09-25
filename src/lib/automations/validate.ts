@@ -203,6 +203,18 @@ export function validateTriggerForActivation(
         message: 'reply ids cannot be empty strings',
       })
     }
+  } else if (triggerType === 'instagram_comment_received') {
+    // Keywords are optional here (empty = match everything), but if
+    // present they follow the same "no blank entries" rule as
+    // keyword_match.
+    const k = cfg.keywords
+    if (k !== undefined) {
+      if (!Array.isArray(k)) {
+        issues.push({ path: 'trigger.keywords', message: 'keywords must be an array' })
+      } else if (k.some((v) => typeof v !== 'string' || v.trim() === '')) {
+        issues.push({ path: 'trigger.keywords', message: 'keywords cannot be empty strings' })
+      }
+    }
   }
 
   return issues

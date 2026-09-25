@@ -579,3 +579,44 @@ describe("triggerMatches — keyword_match", () => {
     expect(on(automation({ keywords: ["hi"], match_type: "word" }), "")).toBe(false);
   });
 });
+
+describe("triggerMatches — instagram_comment_received", () => {
+  function automation(cfg: Record<string, unknown> = {}): Automation {
+    return {
+      id: "a1",
+      account_id: ACCOUNT,
+      user_id: "u1",
+      name: "ig comment",
+      trigger_type: "instagram_comment_received",
+      trigger_config: cfg,
+      is_active: true,
+    } as unknown as Automation;
+  }
+
+  it("matches any comment when no keywords are configured", () => {
+    expect(triggerMatches(automation(), { message_text: "qualquer coisa" })).toBe(true);
+    expect(triggerMatches(automation({ keywords: [] }), { message_text: "qualquer coisa" })).toBe(true);
+  });
+
+  it("matches only comments containing a configured keyword", () => {
+    const a = automation({ keywords: ["quero"], match_type: "contains" });
+    expect(triggerMatches(a, { message_text: "eu quero saber mais" })).toBe(true);
+    expect(triggerMatches(a, { message_text: "adorei o post" })).toBe(false);
+  });
+});
+
+describe("triggerMatches — instagram_dm_received", () => {
+  it("always matches — no filter config in this phase", () => {
+    const automation = {
+      id: "a1",
+      account_id: ACCOUNT,
+      user_id: "u1",
+      name: "ig dm",
+      trigger_type: "instagram_dm_received",
+      trigger_config: {},
+      is_active: true,
+    } as unknown as Automation;
+    expect(triggerMatches(automation, { message_text: "oi" })).toBe(true);
+    expect(triggerMatches(automation, undefined)).toBe(true);
+  });
+});

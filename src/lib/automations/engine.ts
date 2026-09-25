@@ -5,6 +5,7 @@ import type {
   AutomationTriggerType,
   ConditionStepConfig,
   KeywordMatchTriggerConfig,
+  InstagramCommentTriggerConfig,
   InteractiveReplyTriggerConfig,
   TagTriggerConfig,
   WebhookTriggerConfig,
@@ -762,6 +763,27 @@ export function triggerMatches(automation: Automation, ctx: AutomationContext | 
       return cfg.keywords.some((raw) =>
         matchesWholeWord(text, raw, cfg.case_sensitive),
       )
+    }
+    const haystack = cfg.case_sensitive ? text : text.toLowerCase()
+    return cfg.keywords.some((raw) => {
+      const k = cfg.case_sensitive ? raw : raw.toLowerCase()
+      return cfg.match_type === 'exact' ? haystack === k : haystack.includes(k)
+    })
+  }
+
+  // Same substring/word matching as keyword_match, but inverted
+  // default: an Instagram comment automation with NO keywords
+  // configured fires on every comment (the common "just tag whoever
+  // comments" case), whereas keyword_match with no keywords matches
+  // nothing (see above) — the config is opt-IN filtering here, not a
+  // required one.
+  if (automation.trigger_type === 'instagram_comment_received') {
+    const cfg = automation.trigger_config as InstagramCommentTriggerConfig
+    if (!cfg?.keywords || cfg.keywords.length === 0) return true
+    const text = (ctx?.message_text ?? '').toString()
+    if (!text) return false
+    if (cfg.match_type === 'word') {
+      return cfg.keywords.some((raw) => matchesWholeWord(text, raw, cfg.case_sensitive))
     }
     const haystack = cfg.case_sensitive ? text : text.toLowerCase()
     return cfg.keywords.some((raw) => {

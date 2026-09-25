@@ -43,6 +43,14 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Webhook Received',
     pillClass: 'border-orange-500/30 bg-orange-500/10 text-orange-300',
   },
+  instagram_comment_received: {
+    label: 'Instagram Comment',
+    pillClass: 'border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-300',
+  },
+  instagram_dm_received: {
+    label: 'Instagram Direct',
+    pillClass: 'border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-300',
+  },
 }
 
 export function triggerMeta(t: AutomationTriggerType | string): TriggerMeta {
