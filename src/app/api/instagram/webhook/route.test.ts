@@ -84,8 +84,11 @@ function sign(body: string): string {
   return "sha256=" + crypto.createHmac("sha256", APP_SECRET).update(body).digest("hex");
 }
 
+const WEBHOOK_VERIFY_TOKEN = "test-verify-token";
+
 beforeEach(() => {
   process.env.META_APP_SECRET = APP_SECRET;
+  process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN = WEBHOOK_VERIFY_TOKEN;
   h.state.configRow = { account_id: "acc-1", user_id: "user-1", access_token: "encrypted:page-token" };
   h.state.insertedEvents = [];
   h.state.eventAlreadyExists = false;
@@ -95,13 +98,30 @@ beforeEach(() => {
 });
 
 describe("GET /api/instagram/webhook", () => {
-  it("echoes hub.challenge on a valid verify request", async () => {
+  it("echoes hub.challenge when hub.verify_token matches", async () => {
     const req = new Request(
-      "https://x.test/api/instagram/webhook?hub.mode=subscribe&hub.challenge=123&hub.verify_token=any",
+      `https://x.test/api/instagram/webhook?hub.mode=subscribe&hub.challenge=123&hub.verify_token=${WEBHOOK_VERIFY_TOKEN}`,
     );
     const res = await GET(req);
     expect(await res.text()).toBe("123");
     expect(res.status).toBe(200);
+  });
+
+  it("rejects a verify request with the wrong hub.verify_token", async () => {
+    const req = new Request(
+      "https://x.test/api/instagram/webhook?hub.mode=subscribe&hub.challenge=123&hub.verify_token=wrong-token",
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects a verify request when INSTAGRAM_WEBHOOK_VERIFY_TOKEN is not configured", async () => {
+    delete process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN;
+    const req = new Request(
+      "https://x.test/api/instagram/webhook?hub.mode=subscribe&hub.challenge=123&hub.verify_token=anything",
+    );
+    const res = await GET(req);
+    expect(res.status).toBe(403);
   });
 });
 

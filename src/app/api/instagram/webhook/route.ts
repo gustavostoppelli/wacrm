@@ -44,9 +44,21 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const mode = searchParams.get('hub.mode')
   const challenge = searchParams.get('hub.challenge')
-  if (mode !== 'subscribe' || !challenge) {
+  const verifyToken = searchParams.get('hub.verify_token')
+
+  if (mode !== 'subscribe' || !challenge || !verifyToken) {
     return NextResponse.json({ error: 'Missing verification parameters' }, { status: 400 })
   }
+
+  // App-level webhook (one Instagram App, not one row per tenant like
+  // whatsapp_config), so — unlike the WhatsApp webhook's per-config DB
+  // lookup — a single shared secret set at deploy time is enough here.
+  const expectedToken = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN
+  if (!expectedToken || verifyToken !== expectedToken) {
+    console.warn('[instagram/webhook] rejected verification request with wrong hub.verify_token')
+    return NextResponse.json({ error: 'Verification failed' }, { status: 403 })
+  }
+
   return new Response(challenge, { status: 200, headers: { 'Content-Type': 'text/plain' } })
 }
 
