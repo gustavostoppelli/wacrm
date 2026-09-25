@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Camera, CheckCircle2, Loader2, Lock } from "lucide-react";
+import { AlertTriangle, Camera, CheckCircle2, Loader2, Lock } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { supportWhatsAppUrl } from "@/lib/support";
@@ -13,6 +13,7 @@ interface InstagramConfig {
   igUsername: string | null;
   status: "connected" | "disconnected";
   connectedAt: string;
+  webhookSubscribedAt: string | null;
 }
 
 interface StatusResponse {
@@ -136,19 +137,30 @@ export function InstagramConfigPanel() {
       </CardHeader>
       <CardContent>
         {config?.status === "connected" ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="size-4 text-emerald-400" />
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  @{config.igUsername ?? config.igUserId}
-                </p>
-                <p className="text-xs text-muted-foreground">Conectado</p>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="size-4 text-emerald-400" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    @{config.igUsername ?? config.igUserId}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Conectado</p>
+                </div>
               </div>
+              <Button variant="outline" size="sm" onClick={disconnect} disabled={disconnecting}>
+                {disconnecting ? "Desconectando..." : "Desconectar"}
+              </Button>
             </div>
-            <Button variant="outline" size="sm" onClick={disconnect} disabled={disconnecting}>
-              {disconnecting ? "Desconectando..." : "Desconectar"}
-            </Button>
+            {!config.webhookSubscribedAt && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                <span>
+                  Conectado, mas a assinatura de webhook falhou — desconecte e reconecte para receber
+                  comentários e Direct.
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           // Anchor styled with `buttonVariants` rather than wrapping in

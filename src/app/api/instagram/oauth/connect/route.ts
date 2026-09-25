@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { buildInstagramAuthorizeUrl } from '@/lib/instagram/graph-api'
+import { getInstagramStatus } from '@/lib/instagram/config'
 import crypto from 'crypto'
 
 /**
@@ -17,7 +18,17 @@ import crypto from 'crypto'
  */
 export async function GET(request: Request) {
   try {
-    const { accountId } = await requireRole('admin')
+    const { accountId, supabase } = await requireRole('admin')
+
+    // Server-side enforcement of the visibility gate — the Settings UI
+    // panel already hides the "Conectar" button for a non-enabled
+    // account, but that's client-side only. Without this check, an
+    // admin could hit this route directly and connect Instagram anyway
+    // (finding IMPORTANT 7).
+    const enabled = await getInstagramStatus(supabase, accountId)
+    if (!enabled) {
+      return NextResponse.json({ error: 'Instagram integration is not enabled for this account' }, { status: 403 })
+    }
 
     const nonce = crypto.randomBytes(16).toString('hex')
     const state = Buffer.from(JSON.stringify({ accountId, nonce })).toString('base64url')

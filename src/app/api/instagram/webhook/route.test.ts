@@ -4,11 +4,12 @@ import crypto from "node:crypto";
 
 const h = vi.hoisted(() => ({
   state: {
-    configRow: null as null | { account_id: string; access_token: string },
+    configRow: null as null | { account_id: string; user_id: string; access_token: string },
     insertedEvents: [] as string[],
     eventAlreadyExists: false,
     runCalls: [] as unknown[],
     contactId: "contact-1",
+    instagramEnabled: true,
   },
 }));
 
@@ -36,6 +37,18 @@ vi.mock("@supabase/supabase-js", () => ({
               );
               return Promise.resolve();
             },
+          }),
+        };
+      }
+      if (table === "accounts") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: { instagram_enabled: h.state.instagramEnabled },
+                error: null,
+              }),
+            }),
           }),
         };
       }
@@ -73,10 +86,11 @@ function sign(body: string): string {
 
 beforeEach(() => {
   process.env.META_APP_SECRET = APP_SECRET;
-  h.state.configRow = { account_id: "acc-1", access_token: "encrypted:page-token" };
+  h.state.configRow = { account_id: "acc-1", user_id: "user-1", access_token: "encrypted:page-token" };
   h.state.insertedEvents = [];
   h.state.eventAlreadyExists = false;
   h.state.runCalls = [];
+  h.state.instagramEnabled = true;
   vi.clearAllMocks();
 });
 
@@ -184,6 +198,82 @@ describe("POST /api/instagram/webhook", () => {
       headers: { "x-hub-signature-256": sign(body) },
     });
     await POST(req);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(runAutomationsForTrigger).not.toHaveBeenCalled();
+  });
+
+  it("skips a comment event from the business's own account (self-reply)", async () => {
+    const body = JSON.stringify({
+      object: "instagram",
+      entry: [
+        {
+          id: "ig-1",
+          changes: [
+            {
+              field: "comments",
+              value: { from: { id: "ig-1" }, id: "comment-self", text: "obrigado pelo contato!" },
+            },
+          ],
+        },
+      ],
+    });
+    const req = new Request("https://x.test/api/instagram/webhook", {
+      method: "POST",
+      body,
+      headers: { "x-hub-signature-256": sign(body) },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(runAutomationsForTrigger).not.toHaveBeenCalled();
+  });
+
+  it("skips a messaging event that is an echo of the business's own sent message", async () => {
+    const body = JSON.stringify({
+      object: "instagram",
+      entry: [
+        {
+          id: "ig-1",
+          messaging: [
+            {
+              sender: { id: "ig-1" },
+              message: { mid: "msg-echo", text: "de nada!", is_echo: true },
+            },
+          ],
+        },
+      ],
+    });
+    const req = new Request("https://x.test/api/instagram/webhook", {
+      method: "POST",
+      body,
+      headers: { "x-hub-signature-256": sign(body) },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(runAutomationsForTrigger).not.toHaveBeenCalled();
+  });
+
+  it("skips dispatch when instagram_enabled is false for the account", async () => {
+    h.state.instagramEnabled = false;
+    const body = JSON.stringify({
+      object: "instagram",
+      entry: [
+        {
+          id: "ig-1",
+          changes: [
+            { field: "comments", value: { from: { id: "igsid-1" }, id: "comment-3", text: "oi" } },
+          ],
+        },
+      ],
+    });
+    const req = new Request("https://x.test/api/instagram/webhook", {
+      method: "POST",
+      body,
+      headers: { "x-hub-signature-256": sign(body) },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
     await new Promise((r) => setTimeout(r, 0));
     expect(runAutomationsForTrigger).not.toHaveBeenCalled();
   });

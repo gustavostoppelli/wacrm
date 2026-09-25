@@ -18,6 +18,10 @@ export interface InstagramConfig {
   igUsername: string | null
   status: 'connected' | 'disconnected'
   connectedAt: string
+  /** Null when the webhook subscription call at connect time failed —
+   *  the connection is saved, but no events will ever arrive for it
+   *  until the account disconnects and reconnects. */
+  webhookSubscribedAt: string | null
 }
 
 export async function getInstagramStatus(db: SupabaseClient, accountId: string): Promise<boolean> {
@@ -38,6 +42,7 @@ function fromRow(row: any): InstagramConfig {
     igUsername: row.ig_username,
     status: row.status,
     connectedAt: row.connected_at,
+    webhookSubscribedAt: row.webhook_subscribed_at ?? null,
   }
 }
 
@@ -47,7 +52,7 @@ export async function getInstagramConfig(
 ): Promise<InstagramConfig | null> {
   const { data } = await db
     .from('instagram_config')
-    .select('account_id, page_id, ig_user_id, ig_username, status, connected_at')
+    .select('account_id, page_id, ig_user_id, ig_username, status, connected_at, webhook_subscribed_at')
     .eq('account_id', accountId)
     .maybeSingle()
   return data ? fromRow(data) : null

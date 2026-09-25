@@ -88,6 +88,19 @@ describe("exchangeForLongLivedToken", () => {
     expect(result.accessToken).toBe("long-token");
     expect(result.expiresInSeconds).toBe(5184000);
   });
+
+  it("returns null expiresInSeconds when Meta omits expires_in (long-lived Page token)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ access_token: "long-token", token_type: "bearer" }),
+      }),
+    );
+    const result = await exchangeForLongLivedToken({ shortLivedToken: "short-token" });
+    expect(result.accessToken).toBe("long-token");
+    expect(result.expiresInSeconds).toBeNull();
+  });
 });
 
 describe("fetchPagesWithInstagram", () => {

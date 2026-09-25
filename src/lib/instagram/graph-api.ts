@@ -89,7 +89,7 @@ export async function exchangeCodeForUserToken(args: {
  *  inherit this long lifetime. */
 export async function exchangeForLongLivedToken(args: {
   shortLivedToken: string;
-}): Promise<{ accessToken: string; expiresInSeconds: number }> {
+}): Promise<{ accessToken: string; expiresInSeconds: number | null }> {
   const clientId = requireEnv("META_APP_ID");
   const clientSecret = requireEnv("META_APP_SECRET");
   const params = new URLSearchParams({
@@ -103,8 +103,17 @@ export async function exchangeForLongLivedToken(args: {
     const body = await res.text().catch(() => "");
     throw new InstagramGraphError(`Instagram long-lived token exchange failed: ${res.status} ${body}`, 502);
   }
-  const data = (await res.json()) as { access_token: string; expires_in: number };
-  return { accessToken: data.access_token, expiresInSeconds: data.expires_in };
+  const data = (await res.json()) as { access_token: string; expires_in?: number };
+  // Meta's fb_exchange_token response can omit `expires_in` entirely for
+  // a long-lived Page-derived token (they often don't expire). Callers
+  // must not blindly do `Date.now() + expiresInSeconds * 1000` on this —
+  // that produces `Date(NaN)`, which throws on `.toISOString()`. Kept
+  // here (closest to the ambiguity's source, Meta's response shape)
+  // rather than pushed onto every caller to re-derive the same guard.
+  const expiresInSeconds = typeof data.expires_in === "number" && Number.isFinite(data.expires_in)
+    ? data.expires_in
+    : null;
+  return { accessToken: data.access_token, expiresInSeconds };
 }
 
 export interface InstagramPage {
