@@ -166,6 +166,16 @@ export async function fetchPagesWithInstagram(args: {
     url = data.paging?.next;
   }
 
+  // TEMP diagnostic (remove after the no_instagram_business_account
+  // investigation): log every Page name/id and whether it has an IG
+  // account, without ever logging a token.
+  console.log(
+    '[instagram/graph-api] fetchPagesWithInstagram raw pages:',
+    JSON.stringify(
+      allPages.map((p) => ({ id: p.id, name: p.name, hasInstagram: Boolean(p.instagram_business_account?.id) })),
+    ),
+  )
+
   return allPages
     .filter((p): p is RawPage & { instagram_business_account: { id: string; username?: string } } =>
       Boolean(p.instagram_business_account?.id),
