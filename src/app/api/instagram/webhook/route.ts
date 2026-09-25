@@ -1,11 +1,12 @@
 // src/app/api/instagram/webhook/route.ts
 import { NextResponse, after } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { findOrCreateInstagramContact } from '@/lib/contacts/instagram-dedupe'
 import { fetchInstagramUsername } from '@/lib/instagram/graph-api'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { getInstagramStatus } from '@/lib/instagram/config'
+import { supabaseAdmin } from '@/lib/instagram/admin-client'
 
 // See docs/superpowers/specs/2026-09-24-instagram-integration-design.md.
 // Payload shapes below follow Meta's documented Instagram Messaging
@@ -16,18 +17,6 @@ import { runAutomationsForTrigger } from '@/lib/automations/engine'
 
 export const maxDuration = 30
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _adminClient: any = null
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    )
-  }
-  return _adminClient
-}
-
 interface CommentChangeValue {
   from?: { id: string; username?: string }
   id: string
@@ -36,7 +25,7 @@ interface CommentChangeValue {
 
 interface MessagingEvent {
   sender?: { id: string }
-  message?: { mid: string; text?: string }
+  message?: { mid: string; text?: string; is_echo?: boolean }
 }
 
 interface InstagramWebhookEntry {
@@ -110,24 +99,46 @@ async function processWebhook(body: InstagramWebhookBody) {
 
     for (const change of entry.changes ?? []) {
       if (change.field !== 'comments') continue
-      await handleEvent(db, {
-        igUserId,
-        igsid: change.value.from?.id,
-        eventKey: `comment:${change.value.id}`,
-        text: change.value.text ?? '',
-        triggerType: 'instagram_comment_received',
-      })
+      // The connected account's own reply to a comment is delivered as
+      // a normal "comments" change too, with `from.id` equal to the
+      // business's own IG user id (`entry.id`). Skip it — otherwise
+      // every staff reply creates a contact for the business itself
+      // and fires automations on it (finding IMPORTANT 4).
+      if (change.value.from?.id === entry.id) continue
+      try {
+        await handleEvent(db, {
+          igUserId,
+          igsid: change.value.from?.id,
+          eventKey: `comment:${change.value.id}`,
+          text: change.value.text ?? '',
+          triggerType: 'instagram_comment_received',
+        })
+      } catch (err) {
+        // Isolate failures per-event — one bad event (e.g. a decrypt or
+        // contact-creation error) must never abort the rest of this
+        // delivery batch, since the dedupe row for THIS event is
+        // already committed and Meta won't retry it (finding
+        // IMPORTANT 5).
+        console.error('[instagram/webhook] handleEvent (comment) failed:', err)
+      }
     }
 
     for (const messagingEvent of entry.messaging ?? []) {
       if (!messagingEvent.message?.mid) continue
-      await handleEvent(db, {
-        igUserId,
-        igsid: messagingEvent.sender?.id,
-        eventKey: `dm:${messagingEvent.message.mid}`,
-        text: messagingEvent.message.text ?? '',
-        triggerType: 'instagram_dm_received',
-      })
+      // Echo of the business's own sent message (staff reply from
+      // within Instagram) — same reasoning as the comment skip above.
+      if (messagingEvent.message.is_echo) continue
+      try {
+        await handleEvent(db, {
+          igUserId,
+          igsid: messagingEvent.sender?.id,
+          eventKey: `dm:${messagingEvent.message.mid}`,
+          text: messagingEvent.message.text ?? '',
+          triggerType: 'instagram_dm_received',
+        })
+      } catch (err) {
+        console.error('[instagram/webhook] handleEvent (dm) failed:', err)
+      }
     }
   }
 }
@@ -158,11 +169,21 @@ async function handleEvent(
 
   const { data: config } = await db
     .from('instagram_config')
-    .select('account_id, access_token')
+    .select('account_id, user_id, access_token')
     .eq('ig_user_id', args.igUserId)
     .maybeSingle()
   if (!config) {
     console.warn('[instagram/webhook] no instagram_config for ig_user_id', args.igUserId)
+    return
+  }
+
+  // Re-check the visibility gate at dispatch time, not just at connect
+  // time — this is what makes Fuse flipping accounts.instagram_enabled
+  // back to false actually take effect for an account that already has
+  // a saved connection (finding IMPORTANT 7).
+  const enabled = await getInstagramStatus(db, config.account_id)
+  if (!enabled) {
+    console.warn('[instagram/webhook] instagram_enabled is false for account', config.account_id)
     return
   }
 
@@ -171,7 +192,7 @@ async function handleEvent(
     () => null,
   )
 
-  const { id: contactId } = await findOrCreateInstagramContact(db, config.account_id, {
+  const { id: contactId } = await findOrCreateInstagramContact(db, config.account_id, config.user_id, {
     igsid: args.igsid,
     username,
   })
