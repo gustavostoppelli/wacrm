@@ -133,6 +133,49 @@ describe("fetchPagesWithInstagram", () => {
       },
     ]);
   });
+
+  it("follows paging.next to find pages beyond the first batch", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [{ id: "page-1", name: "No IG on page 1", access_token: "page-token-1" }],
+          paging: { next: "https://graph.facebook.com/v21.0/me/accounts?after=cursor1" },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: "page-2",
+              name: "Clinica Y",
+              access_token: "page-token-2",
+              instagram_business_account: { id: "ig-2", username: "clinicay" },
+            },
+          ],
+          // No `paging.next` here — this is the last page.
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pages = await fetchPagesWithInstagram({ userAccessToken: "long-token" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1][0])).toBe(
+      "https://graph.facebook.com/v21.0/me/accounts?after=cursor1",
+    );
+    expect(pages).toEqual([
+      {
+        pageId: "page-2",
+        pageName: "Clinica Y",
+        pageAccessToken: "page-token-2",
+        igUserId: "ig-2",
+        igUsername: "clinicay",
+      },
+    ]);
+  });
 });
 
 describe("subscribePageToInstagramWebhooks", () => {

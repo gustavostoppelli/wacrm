@@ -134,23 +134,39 @@ interface RawPage {
   instagram_business_account?: { id: string; username?: string };
 }
 
+// Safety cap on pagination — an agency account can legitimately manage
+// dozens of Pages, but this bounds worst-case calls if Meta ever returns
+// a `paging.next` cursor that doesn't terminate.
+const MAX_PAGES_OF_RESULTS = 10;
+
 /** Step 4: list the user's Facebook Pages, keeping only the ones with
  *  an Instagram Business account linked — a Page without one can't be
- *  used for this integration at all. */
+ *  used for this integration at all. Follows `paging.next` rather than
+ *  trusting Graph API's default page size (25, well under what an
+ *  agency-scale account can administer) — without this, a Page beyond
+ *  the first batch would silently never be considered. */
 export async function fetchPagesWithInstagram(args: {
   userAccessToken: string;
 }): Promise<InstagramPage[]> {
-  const params = new URLSearchParams({
+  const allPages: RawPage[] = [];
+  let url: string | undefined = `${GRAPH_API_BASE}/me/accounts?${new URLSearchParams({
     fields: "id,name,access_token,instagram_business_account{id,username}",
+    limit: "100",
     access_token: args.userAccessToken,
-  });
-  const res = await fetch(`${GRAPH_API_BASE}/me/accounts?${params.toString()}`);
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new InstagramGraphError(`Fetching Facebook Pages failed: ${res.status} ${body}`, 502);
+  }).toString()}`;
+
+  for (let i = 0; i < MAX_PAGES_OF_RESULTS && url; i++) {
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new InstagramGraphError(`Fetching Facebook Pages failed: ${res.status} ${body}`, 502);
+    }
+    const data = (await res.json()) as { data: RawPage[]; paging?: { next?: string } };
+    allPages.push(...data.data);
+    url = data.paging?.next;
   }
-  const data = (await res.json()) as { data: RawPage[] };
-  return data.data
+
+  return allPages
     .filter((p): p is RawPage & { instagram_business_account: { id: string; username?: string } } =>
       Boolean(p.instagram_business_account?.id),
     )
