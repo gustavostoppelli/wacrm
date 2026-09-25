@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { getInstagramStatus, getInstagramConfig } from '@/lib/instagram/config'
+import { supabaseAdmin } from '@/lib/instagram/admin-client'
 
 /**
  * GET /api/instagram/status
@@ -34,8 +35,14 @@ export async function GET() {
  */
 export async function DELETE() {
   try {
-    const { supabase, accountId } = await requireRole('admin')
-    const { error } = await supabase.from('instagram_config').delete().eq('account_id', accountId)
+    const { accountId } = await requireRole('admin')
+    // Service-role client, not the user-session one: migration 075
+    // grants instagram_config only a SELECT RLS policy, so the
+    // user-session client's delete is silently filtered to 0 rows by
+    // RLS with no error — the route would report success while the
+    // connection (and its webhook dispatch) stays live. Scoped to
+    // accountId, same as the callback route's writes.
+    const { error } = await supabaseAdmin().from('instagram_config').delete().eq('account_id', accountId)
     if (error) {
       console.error('[instagram/status DELETE] failed:', error)
       return NextResponse.json({ error: 'Failed to disconnect' }, { status: 500 })

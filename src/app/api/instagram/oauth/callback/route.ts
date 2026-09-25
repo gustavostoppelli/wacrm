@@ -8,6 +8,8 @@ import {
   fetchPagesWithInstagram,
   subscribePageToInstagramWebhooks,
 } from '@/lib/instagram/graph-api'
+import { getInstagramStatus } from '@/lib/instagram/config'
+import { supabaseAdmin } from '@/lib/instagram/admin-client'
 
 /**
  * GET /api/instagram/oauth/callback
@@ -64,6 +66,15 @@ export async function GET(request: Request) {
       return NextResponse.redirect(settingsUrl({ instagram_error: 'account_mismatch' }))
     }
 
+    // Re-check the visibility gate here too, not just at /connect — a
+    // user could reach this callback directly (e.g. a stale bookmark,
+    // or a race with Fuse flipping the flag mid-flow) even if they
+    // never got a valid "Conectar" link (finding IMPORTANT 7).
+    const enabled = await getInstagramStatus(supabase, accountId)
+    if (!enabled) {
+      return NextResponse.redirect(settingsUrl({ instagram_error: 'not_enabled' }))
+    }
+
     const { accessToken: shortLivedToken } = await exchangeCodeForUserToken({ code, origin })
     const { accessToken: longLivedUserToken, expiresInSeconds } = await exchangeForLongLivedToken({
       shortLivedToken,
@@ -76,7 +87,16 @@ export async function GET(request: Request) {
 
     const chosen = pages[0]
 
-    const { error: upsertErr } = await supabase.from('instagram_config').upsert(
+    // Writes below use the service-role client, not the user-session
+    // `supabase` from requireRole: migration 075 only grants
+    // instagram_config a SELECT RLS policy, so the SSR client's
+    // upsert/update/delete are silently blocked (or 42501) under RLS.
+    // `requireRole('admin')` above already did the authorization check
+    // — every write here is still scoped to `accountId` so a bug here
+    // can never touch another tenant's row.
+    const db = supabaseAdmin()
+
+    const { error: upsertErr } = await db.from('instagram_config').upsert(
       {
         account_id: accountId,
         user_id: userId,
@@ -84,7 +104,12 @@ export async function GET(request: Request) {
         ig_user_id: chosen.igUserId,
         ig_username: chosen.igUsername,
         access_token: encrypt(chosen.pageAccessToken),
-        token_expires_at: new Date(Date.now() + expiresInSeconds * 1000).toISOString(),
+        // expiresInSeconds is null when Meta's response omitted
+        // expires_in (common for a long-lived Page-derived token,
+        // which often doesn't expire) — store null rather than
+        // computing Date(NaN), which throws on toISOString().
+        token_expires_at:
+          expiresInSeconds != null ? new Date(Date.now() + expiresInSeconds * 1000).toISOString() : null,
         status: 'connected',
         connected_at: new Date().toISOString(),
       },
@@ -97,14 +122,14 @@ export async function GET(request: Request) {
 
     try {
       await subscribePageToInstagramWebhooks({ pageId: chosen.pageId, pageAccessToken: chosen.pageAccessToken })
-      await supabase
+      await db
         .from('instagram_config')
         .update({ webhook_subscribed_at: new Date().toISOString() })
         .eq('account_id', accountId)
     } catch (err) {
       // Non-fatal: the connection is saved either way. The Settings
-      // panel (Task 8) surfaces "webhook not subscribed yet" if this
-      // column stays null, same spirit as WhatsApp's
+      // panel (Task 8/IMPORTANT 9) surfaces "webhook not subscribed
+      // yet" if this column stays null, same spirit as WhatsApp's
       // last_registration_error.
       console.warn('[instagram/oauth/callback] webhook subscription failed (non-fatal):', err)
     }
