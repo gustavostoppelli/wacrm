@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Camera, CheckCircle2, Loader2, Lock } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -27,6 +27,7 @@ interface StatusResponse {
  * that do have it.
  */
 export function InstagramConfigPanel() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [data, setData] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,8 +55,15 @@ export function InstagramConfigPanel() {
     } else if (error) {
       toast.error(`Falha ao conectar o Instagram: ${error}`);
     }
+    // Clean up OAuth callback params from URL after toasting
+    if (connected || error) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("instagram_connected");
+      params.delete("instagram_error");
+      router.replace(`/settings?${params.toString()}`, { scroll: false });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, []);
 
   async function disconnect() {
     setDisconnecting(true);
