@@ -1,6 +1,7 @@
 import {
   Bell,
   CalendarDays,
+  Camera,
   Coins,
   Compass,
   FileText,
@@ -32,6 +33,7 @@ export const SETTINGS_SECTIONS = [
   'security',
   'appearance',
   'whatsapp',
+  'instagram',
   'calendar',
   'templates',
   'quick-replies',
@@ -62,6 +64,9 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   security: { id: 'security', label: 'Login & security', icon: Shield, group: 'account' },
   appearance: { id: 'appearance', label: 'Appearance', icon: Palette, group: 'account' },
   whatsapp: { id: 'whatsapp', label: 'WhatsApp', icon: PlugZap, group: 'workspace' },
+  // lucide-react 1.28.0 in this repo has no dedicated Instagram glyph;
+  // Camera is the closest stand-in used for the rail icon.
+  instagram: { id: 'instagram', label: 'Instagram', icon: Camera, group: 'workspace' },
   calendar: { id: 'calendar', label: 'Agenda', icon: CalendarDays, group: 'workspace' },
   templates: { id: 'templates', label: 'Templates', icon: FileText, group: 'workspace' },
   'quick-replies': { id: 'quick-replies', label: 'Quick replies', icon: Zap, group: 'workspace' },
