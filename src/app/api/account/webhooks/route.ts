@@ -43,12 +43,22 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { name, pipeline_id, stage_id } = body as {
       name?: string
-      pipeline_id?: string
-      stage_id?: string
+      pipeline_id?: string | null
+      stage_id?: string | null
     }
-    if (!name?.trim() || !pipeline_id || !stage_id) {
+    if (!name?.trim()) {
+      return NextResponse.json({ error: 'name is required' }, { status: 400 })
+    }
+    // pipeline_id/stage_id are optional (migration 077): an account
+    // that wants full control over deal placement leaves both unset
+    // and adds a "Criar negócio" step to the automation reacting to
+    // this connection instead — the route only auto-creates a deal
+    // when both are set. Either both are present or neither is; a
+    // half-filled pair would silently create a deal with a stage from
+    // the wrong pipeline.
+    if ((pipeline_id && !stage_id) || (!pipeline_id && stage_id)) {
       return NextResponse.json(
-        { error: 'name, pipeline_id and stage_id are required' },
+        { error: 'pipeline_id and stage_id must be set together, or both left empty' },
         { status: 400 },
       )
     }
@@ -56,14 +66,16 @@ export async function POST(request: Request) {
     // Belt-and-braces: confirm the stage actually belongs to the named
     // pipeline (a stray id from a stale form shouldn't silently attach
     // to whatever stage that id resolves to under RLS).
-    const { data: stage, error: stageError } = await supabase
-      .from('pipeline_stages')
-      .select('id, pipeline_id')
-      .eq('id', stage_id)
-      .eq('pipeline_id', pipeline_id)
-      .maybeSingle()
-    if (stageError || !stage) {
-      return NextResponse.json({ error: 'Invalid pipeline_id/stage_id' }, { status: 400 })
+    if (pipeline_id && stage_id) {
+      const { data: stage, error: stageError } = await supabase
+        .from('pipeline_stages')
+        .select('id, pipeline_id')
+        .eq('id', stage_id)
+        .eq('pipeline_id', pipeline_id)
+        .maybeSingle()
+      if (stageError || !stage) {
+        return NextResponse.json({ error: 'Invalid pipeline_id/stage_id' }, { status: 400 })
+      }
     }
 
     const { plaintext, hash } = generateInboundWebhookToken()
@@ -76,8 +88,8 @@ export async function POST(request: Request) {
         user_id: userId,
         name: name.trim(),
         token_hash: hash,
-        pipeline_id,
-        stage_id,
+        pipeline_id: pipeline_id || null,
+        stage_id: stage_id || null,
       })
       .select('id')
       .single()

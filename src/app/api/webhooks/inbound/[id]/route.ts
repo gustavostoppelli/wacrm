@@ -112,7 +112,11 @@ async function processInboundWebhook(webhook: any, rawBody: unknown) {
     if (contact) {
       contactId = contact.id as string
 
-      if (parsed.action === 'open') {
+      // Only auto-create a deal when the connection has a fixed
+      // pipeline/stage (migration 077) — a connection left without
+      // one expects the automation itself to add a "Criar negócio"
+      // step instead, so this stays silent to avoid a double deal.
+      if (parsed.action === 'open' && webhook.pipeline_id && webhook.stage_id) {
         const { data: existingOpen } = await admin
           .from('deals')
           .select('id')

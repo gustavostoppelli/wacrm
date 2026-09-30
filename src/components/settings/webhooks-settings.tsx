@@ -49,8 +49,8 @@ import { SettingsPanelHead } from './settings-panel-head';
 interface WebhookRow {
   id: string;
   name: string;
-  pipeline_id: string;
-  stage_id: string;
+  pipeline_id: string | null;
+  stage_id: string | null;
   is_active: boolean;
   last_received_at: string | null;
   created_at: string;
@@ -66,6 +66,10 @@ interface StageOption {
   name: string;
   position: number;
 }
+
+// Radix Select disallows an item with value="" — this sentinel maps
+// to the empty/unset pipeline_id state (migration 077).
+const NONE_VALUE = '__none__';
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -119,6 +123,7 @@ export function WebhooksSettings() {
   }, [load]);
 
   function stageLabel(w: WebhookRow): string {
+    if (!w.pipeline_id || !w.stage_id) return t('noAutoDeal');
     const pipeline = pipelines.find((p) => p.id === w.pipeline_id);
     const stage = stages.find((s) => s.id === w.stage_id);
     if (!pipeline || !stage) return '—';
@@ -297,8 +302,15 @@ function CreateWebhookDialog({
 
   async function handleCreate() {
     const trimmed = name.trim();
-    if (!trimmed || !pipelineId || !stageId) {
+    if (!trimmed) {
       toast.error(t('fieldsRequired'));
+      return;
+    }
+    // Pipeline/stage are optional (migration 077) — either both set
+    // (auto-create a deal there) or both left empty (the account adds
+    // a "Criar negócio" step in the automation instead).
+    if ((pipelineId && !stageId) || (!pipelineId && stageId)) {
+      toast.error(t('pipelineStageTogether'));
       return;
     }
     setSubmitting(true);
@@ -306,7 +318,11 @@ function CreateWebhookDialog({
       const res = await fetch('/api/account/webhooks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmed, pipeline_id: pipelineId, stage_id: stageId }),
+        body: JSON.stringify({
+          name: trimmed,
+          pipeline_id: pipelineId || null,
+          stage_id: stageId || null,
+        }),
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -401,22 +417,25 @@ function CreateWebhookDialog({
                 />
               </div>
 
+              <p className="text-muted-foreground text-xs">{t('pipelineOptionalHint')}</p>
+
               <div className="space-y-1.5">
                 <Label className="text-muted-foreground">{t('pipelineLabel')}</Label>
                 <Select
-                  value={pipelineId}
+                  value={pipelineId || NONE_VALUE}
                   onValueChange={(v) => {
-                    if (!v) return;
-                    setPipelineId(v);
+                    const next = v === NONE_VALUE ? '' : (v ?? '');
+                    setPipelineId(next);
                     setStageId('');
                   }}
                 >
                   <SelectTrigger className="w-full border-border bg-muted text-foreground">
                     <SelectValue>
-                      {pipelines.find((p) => p.id === pipelineId)?.name ?? t('pipelinePlaceholder')}
+                      {pipelines.find((p) => p.id === pipelineId)?.name ?? t('pipelineNone')}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={NONE_VALUE}>{t('pipelineNone')}</SelectItem>
                     {pipelines.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
                         {p.name}
@@ -429,9 +448,9 @@ function CreateWebhookDialog({
               <div className="space-y-1.5">
                 <Label className="text-muted-foreground">{t('stageLabel')}</Label>
                 <Select
-                  value={stageId}
+                  value={stageId || NONE_VALUE}
                   disabled={!pipelineId}
-                  onValueChange={(v) => v && setStageId(v)}
+                  onValueChange={(v) => setStageId(v === NONE_VALUE ? '' : (v ?? ''))}
                 >
                   <SelectTrigger className="w-full border-border bg-muted text-foreground">
                     <SelectValue>
