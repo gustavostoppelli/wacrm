@@ -1138,7 +1138,14 @@
         "newPlaceholder": "New tag name",
         "create": "Create",
         "createFailed": "Failed to create the tag",
-        "created": "Tag \"{name}\" created"
+        "created": "Tag \"{name}\" created",
+        "insertVariable": "Insert variable",
+        "varNome": "Buyer name",
+        "varTelefone": "Phone",
+        "varEmail": "Email",
+        "varProduto": "Product name",
+        "varValor": "Purchase value",
+        "varEvento": "Event type (e.g. PURCHASE_APPROVED)"
       },
       "webhooks": {
         "label": "Webhook connection",

@@ -1138,7 +1138,14 @@
         "newPlaceholder": "Nome da nova etiqueta",
         "create": "Criar",
         "createFailed": "Falha ao criar a etiqueta",
-        "created": "Etiqueta \"{name}\" criada"
+        "created": "Etiqueta \"{name}\" criada",
+        "insertVariable": "Inserir variável",
+        "varNome": "Nome do comprador",
+        "varTelefone": "Telefone",
+        "varEmail": "E-mail",
+        "varProduto": "Nome do produto",
+        "varValor": "Valor da compra",
+        "varEvento": "Tipo de evento (ex: PURCHASE_APPROVED)"
       },
       "webhooks": {
         "label": "Conexão de webhook",

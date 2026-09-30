@@ -1138,7 +1138,14 @@
         "newPlaceholder": "새 태그 이름",
         "create": "생성",
         "createFailed": "태그 생성에 실패했습니다",
-        "created": "태그 \"{name}\"이(가) 생성되었습니다"
+        "created": "태그 \"{name}\"이(가) 생성되었습니다",
+        "insertVariable": "변수 삽입",
+        "varNome": "구매자 이름",
+        "varTelefone": "전화번호",
+        "varEmail": "이메일",
+        "varProduto": "상품명",
+        "varValor": "구매 금액",
+        "varEvento": "이벤트 유형 (예: PURCHASE_APPROVED)"
       },
       "webhooks": {
         "label": "웹훅 연결",

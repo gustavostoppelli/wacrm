@@ -34,6 +34,7 @@ import {
   MousePointerClick,
   List,
   Bell,
+  Braces,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -66,6 +67,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 import { cn } from "@/lib/utils"
 import { DEAL_SOURCES } from "@/lib/deals/source"
+import { validateStepsForActivation, validateTriggerForActivation } from "@/lib/automations/validate"
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)
@@ -340,6 +342,59 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
 
 const SELECT_CLASS =
   "w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+
+// Fixed vocabulary produced by both inbound-webhook parsers (checkout
+// shape and the generic fallback — see src/lib/webhooks/inbound-parse.ts),
+// which is the only place today that populates `ctx.vars` with a stable,
+// known key set. Shown regardless of the automation's actual trigger
+// type (threading trigger_type down to every field that supports
+// interpolation isn't worth it yet) — inserting one of these into a
+// field on a non-webhook automation is harmless, it just interpolates
+// to an empty string at runtime.
+const WEBHOOK_VARS: { key: string; label: string }[] = [
+  { key: "nome", label: "tags.varNome" },
+  { key: "telefone", label: "tags.varTelefone" },
+  { key: "email", label: "tags.varEmail" },
+  { key: "produto", label: "tags.varProduto" },
+  { key: "valor", label: "tags.varValor" },
+  { key: "evento", label: "tags.varEvento" },
+]
+
+function appendVariable(current: string, token: string): string {
+  if (!current) return token
+  return current.endsWith(" ") ? `${current}${token}` : `${current} ${token}`
+}
+
+/** Small helper dropdown next to a title/campaign-style field, listing
+ *  the `{{ vars.* }}` placeholders available from an inbound webhook
+ *  event — added after a user found the raw `{{vars.produto}}` syntax
+ *  impossible to guess without reading the source. */
+function VariablePicker({
+  onInsert,
+  t,
+}: {
+  onInsert: (token: string) => void
+  t: ReturnType<typeof useTranslations>
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground transition-colors hover:border-primary hover:text-primary data-[popup-open]:border-primary data-[popup-open]:text-primary"
+        aria-label={t("tags.insertVariable")}
+      >
+        <Braces className="h-4 w-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {WEBHOOK_VARS.map((v) => (
+          <DropdownMenuItem key={v.key} onClick={() => onInsert(`{{vars.${v.key}}}`)}>
+            <span className="font-mono text-xs">{`{{vars.${v.key}}}`}</span>
+            <span className="ml-2 text-xs text-muted-foreground">{t(v.label)}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 /** Tag dropdown by name + color, storing the tag's id. When no tags
  *  exist yet, offers inline creation (name + color) instead of asking
@@ -750,6 +805,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const [state, setState] = useState<BuilderInitial>(initial)
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [invalidStepCids, setInvalidStepCids] = useState<Set<string>>(new Set())
 
   function patchTop<K extends keyof BuilderInitial>(key: K, value: BuilderInitial[K]) {
     setState((s) => ({ ...s, [key]: value }))
@@ -783,6 +839,24 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   async function save() {
     setSaving(true)
     try {
+      // Run the same checks the server enforces before letting an
+      // automation go active — but here on every save (draft or not),
+      // purely for visual feedback: mark the offending card(s) with a
+      // red ring instead of leaving the user to guess from a toast
+      // after the fact. Never blocks a draft save; only the server's
+      // own 400 (handled below) blocks activation.
+      const issues = [
+        ...validateTriggerForActivation(state.trigger_type, state.trigger_config),
+        ...validateStepsForActivation(state.steps),
+      ]
+      const invalidCids = resolveInvalidStepCids(state.steps, issues)
+      setInvalidStepCids(invalidCids)
+      // Auto-expand the first flagged card so the red ring is visible
+      // without the user having to scroll and click to find it.
+      if (invalidCids.size > 0) {
+        setExpandedId((prev) => prev ?? invalidCids.values().next().value ?? prev)
+      }
+
       const payload = {
         name: state.name || "Untitled automation",
         description: state.description || null,
@@ -890,6 +964,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
               addStepAt={addStepAt}
               deleteStepAt={deleteStepAt}
               moveStepAt={moveStepAt}
+              invalidStepCids={invalidStepCids}
             />
           </ResourcesProvider>
         </div>
@@ -1186,6 +1261,11 @@ interface StepListProps {
   addStepAt: (parent: ParentScope, index: number, type: AutomationStepType) => void
   deleteStepAt: (path: StepPath) => void
   moveStepAt: (path: StepPath, direction: -1 | 1) => void
+  /** Step cids flagged by the last save/activate attempt's validation
+   *  (validateStepsForActivation) — rendered with a red ring so the
+   *  user can spot exactly which card is incomplete without hunting
+   *  through a toast message. Cleared once the step is edited. */
+  invalidStepCids?: Set<string>
 }
 
 function StepList(props: StepListProps) {
@@ -1248,6 +1328,7 @@ function StepRenderer({
   const width = isCondition
     ? "w-full max-w-[400px] sm:w-[400px]"
     : "w-full max-w-[320px] sm:w-80"
+  const isInvalid = props.invalidStepCids?.has(step.cid) ?? false
 
   return (
     <>
@@ -1256,6 +1337,9 @@ function StepRenderer({
           className={cn(
             "rounded-lg border border-border border-l-4 bg-card shadow-lg",
             meta.border,
+            // Flagged by the last save/activate attempt's validation —
+            // a visible ring beats a toast the user already dismissed.
+            isInvalid && "border-destructive ring-2 ring-destructive",
           )}
         >
           <button
@@ -1535,11 +1619,19 @@ function StepEditor({
             t={t}
           />
           <FieldBlock label={t("config.titleLabel")}>
-            <Input
-              value={(cfg.title as string) ?? ""}
-              onChange={(e) => set({ title: e.target.value })}
-              className="bg-muted text-foreground"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                value={(cfg.title as string) ?? ""}
+                onChange={(e) => set({ title: e.target.value })}
+                className="bg-muted text-foreground"
+              />
+              <VariablePicker
+                t={t}
+                onInsert={(token) =>
+                  set({ title: appendVariable((cfg.title as string) ?? "", token) })
+                }
+              />
+            </div>
           </FieldBlock>
           <FieldBlock label={t("config.valueLabel")}>
             <Input
@@ -1564,12 +1656,20 @@ function StepEditor({
             </select>
           </FieldBlock>
           <FieldBlock label={t("config.campaignLabel")}>
-            <Input
-              value={(cfg.campaign as string) ?? ""}
-              onChange={(e) => set({ campaign: e.target.value })}
-              placeholder={t("config.placeholderValue")}
-              className="bg-muted text-foreground"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                value={(cfg.campaign as string) ?? ""}
+                onChange={(e) => set({ campaign: e.target.value })}
+                placeholder={t("config.placeholderValue")}
+                className="bg-muted text-foreground"
+              />
+              <VariablePicker
+                t={t}
+                onInsert={(token) =>
+                  set({ campaign: appendVariable((cfg.campaign as string) ?? "", token) })
+                }
+              />
+            </div>
           </FieldBlock>
           <FieldBlock label={t("config.leadScoreLabel")}>
             <Input
@@ -1914,6 +2014,45 @@ interface ApiStep {
   step_type: string
   step_config: Record<string, unknown>
   branches?: { yes?: ApiStep[]; no?: ApiStep[] }
+}
+
+/** Maps validateStepsForActivation's `steps[0].yes.steps[1].tag_id`-style
+ *  paths back to the client-side step's `cid`, so the failing card can
+ *  be given a visible red ring instead of a toast the user has to
+ *  correlate by hand. Silently returns null for a path that doesn't
+ *  resolve (e.g. `path: 'steps'` for "no steps at all" — there's no
+ *  single card to blame). */
+function pathToStepCid(steps: BuilderStep[], path: string): string | null {
+  let current: BuilderStep[] | undefined = steps
+  let node: BuilderStep | undefined
+  let rest = path
+  while (current) {
+    const stepMatch = rest.match(/^steps\[(\d+)\]/)
+    if (!stepMatch) break
+    node = current[Number(stepMatch[1])]
+    if (!node) return null
+    rest = rest.slice(stepMatch[0].length)
+    const branchMatch = rest.match(/^\.(yes|no)\./)
+    if (branchMatch && node.branches) {
+      current = node.branches[branchMatch[1] as "yes" | "no"]
+      rest = rest.slice(branchMatch[0].length)
+    } else {
+      current = undefined
+    }
+  }
+  return node?.cid ?? null
+}
+
+function resolveInvalidStepCids(
+  steps: BuilderStep[],
+  issues: { path: string }[],
+): Set<string> {
+  const cids = new Set<string>()
+  for (const issue of issues) {
+    const cid = pathToStepCid(steps, issue.path)
+    if (cid) cids.add(cid)
+  }
+  return cids
 }
 
 export function toApiSteps(steps: BuilderStep[]): ApiStep[] {
