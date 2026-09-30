@@ -12,8 +12,7 @@ import { GettingStarted } from '@/components/settings/getting-started';
 import { ProfileForm } from '@/components/settings/profile-form';
 import { SecurityPanel } from '@/components/settings/security-panel';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
-import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
-import { UazapiChannelsPanel } from '@/components/settings/uazapi-channels-panel';
+import { WhatsAppSettingsPanel } from '@/components/settings/whatsapp-settings-panel';
 import { MyWhatsAppChannelPanel } from '@/components/settings/my-whatsapp-channel-panel';
 import { InstagramConfigPanel } from '@/components/settings/instagram-config-panel';
 import { CalendarConfig } from '@/components/settings/calendar-config';
@@ -86,14 +85,7 @@ function SettingsPageInner() {
     // AI toggle, assignment); anyone below that only ever sees the one
     // channel (if any) an admin assigned to them, with just a Connect
     // button — see MyWhatsAppChannelPanel and migration 060.
-    whatsapp: canEditSettings ? (
-      <div className="space-y-6">
-        <WhatsAppConfig />
-        <UazapiChannelsPanel />
-      </div>
-    ) : (
-      <MyWhatsAppChannelPanel />
-    ),
+    whatsapp: canEditSettings ? <WhatsAppSettingsPanel /> : <MyWhatsAppChannelPanel />,
     instagram: <InstagramConfigPanel />,
     calendar: <CalendarConfig />,
     templates: <TemplateManager />,
