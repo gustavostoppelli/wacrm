@@ -83,6 +83,13 @@ function parseCheckoutShape(body: AnyRecord): ParsedInboundWebhook {
       ? 'lost'
       : 'ignore'
 
+  // TEMP diagnostic (remove after confirming Hotmart's real event
+  // strings): log any event that doesn't match a known open/lost set,
+  // so we can add it instead of guessing.
+  if (action === 'ignore') {
+    console.log('[inbound-webhook] unrecognized checkout event, treated as ignore:', event)
+  }
+
   return {
     contactName: name,
     contactPhone: phone,
