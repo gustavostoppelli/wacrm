@@ -1051,6 +1051,7 @@
     "builder": {
       "steps": {
         "send_message": "Enviar mensagem",
+        "send_media": "Enviar imagem/áudio",
         "send_buttons": "Enviar botões",
         "send_list": "Enviar lista",
         "send_template": "Enviar modelo",
@@ -1239,7 +1240,24 @@
         "matchWord": "Palavra inteira",
         "matchWordHint": "Corresponde à palavra-chave apenas como uma palavra isolada, então \"k\" não dispara mais em \"obrigado\". Melhor para palavras-chave curtas em idiomas com espaços; use Contém para idiomas escritos sem espaços.",
         "matchExact": "Exato",
-        "closeConversationHint": "Define o status da conversa como \"fechada\". Não precisa de configuração."
+        "closeConversationHint": "Define o status da conversa como \"fechada\". Não precisa de configuração.",
+        "mediaTypeLabel": "Tipo de mídia",
+        "mediaImageLabel": "Imagem (PNG, JPEG, WebP)",
+        "mediaAudioLabel": "Áudio (OGG, MP3, AAC, AMR)",
+        "mediaFileLabel": "Arquivo",
+        "mediaRemove": "Remover arquivo",
+        "mediaUploading": "Enviando…",
+        "mediaClickToUpload": "Clique para enviar",
+        "mediaUploaded": "Arquivo enviado",
+        "mediaUploadFailed": "Falha ao enviar o arquivo",
+        "mediaCaptionLabel": "Legenda (opcional)",
+        "mediaRecord": "Gravar",
+        "mediaRecordHint": "Gravar áudio pelo microfone",
+        "mediaRecording": "Gravando… {current} / {max}",
+        "mediaCancel": "Cancelar",
+        "mediaStopAndAttach": "Parar e anexar",
+        "mediaMicUnsupported": "Gravação de voz não é compatível com este navegador.",
+        "mediaMicDenied": "Acesso ao microfone negado ou indisponível."
       },
       "inactive": "Desativada",
       "delete": "Excluir"

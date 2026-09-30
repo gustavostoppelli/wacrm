@@ -1051,6 +1051,7 @@
     "builder": {
       "steps": {
         "send_message": "메시지 보내기",
+        "send_media": "이미지/오디오 보내기",
         "send_buttons": "버튼 보내기",
         "send_list": "목록 보내기",
         "send_template": "템플릿 보내기",
@@ -1239,7 +1240,24 @@
         "matchWord": "단어 단위 일치",
         "matchWordHint": "키워드가 독립된 단어일 때만 일치하므로 \"k\"가 \"thanks\"에서 실행되지 않습니다. 공백으로 단어를 구분하는 언어의 짧은 키워드에 적합하며, 공백 없이 표기하는 언어에는 \"포함\"을 사용하세요.",
         "matchExact": "정확히 일치",
-        "closeConversationHint": "대화 상태를 \"닫힘\"으로 설정합니다. 추가 설정이 필요 없습니다."
+        "closeConversationHint": "대화 상태를 \"닫힘\"으로 설정합니다. 추가 설정이 필요 없습니다.",
+        "mediaTypeLabel": "미디어 유형",
+        "mediaImageLabel": "이미지 (PNG, JPEG, WebP)",
+        "mediaAudioLabel": "오디오 (OGG, MP3, AAC, AMR)",
+        "mediaFileLabel": "파일",
+        "mediaRemove": "파일 제거",
+        "mediaUploading": "업로드 중…",
+        "mediaClickToUpload": "클릭하여 업로드",
+        "mediaUploaded": "파일 업로드됨",
+        "mediaUploadFailed": "파일 업로드 실패",
+        "mediaCaptionLabel": "캡션 (선택 사항)",
+        "mediaRecord": "녹음",
+        "mediaRecordHint": "마이크로 오디오 녹음",
+        "mediaRecording": "녹음 중… {current} / {max}",
+        "mediaCancel": "취소",
+        "mediaStopAndAttach": "중지하고 첨부",
+        "mediaMicUnsupported": "이 브라우저에서는 음성 녹음이 지원되지 않습니다.",
+        "mediaMicDenied": "마이크 접근이 거부되었거나 사용할 수 없습니다."
       },
       "inactive": "비활성",
       "delete": "삭제"

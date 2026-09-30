@@ -1051,6 +1051,7 @@
     "builder": {
       "steps": {
         "send_message": "Send Message",
+        "send_media": "Send Image/Audio",
         "send_buttons": "Send Buttons",
         "send_list": "Send List",
         "send_template": "Send Template",
@@ -1239,7 +1240,24 @@
         "matchWord": "Whole word",
         "matchWordHint": "Matches the keyword only as a standalone word, so \"k\" no longer fires on \"thanks\". Best for short keywords in space-separated languages; use Contains for languages written without spaces.",
         "matchExact": "Exact",
-        "closeConversationHint": "Sets the conversation status to \"closed\". No configuration needed."
+        "closeConversationHint": "Sets the conversation status to \"closed\". No configuration needed.",
+        "mediaTypeLabel": "Media type",
+        "mediaImageLabel": "Image (PNG, JPEG, WebP)",
+        "mediaAudioLabel": "Audio (OGG, MP3, AAC, AMR)",
+        "mediaFileLabel": "File",
+        "mediaRemove": "Remove file",
+        "mediaUploading": "Uploading…",
+        "mediaClickToUpload": "Click to upload",
+        "mediaUploaded": "File uploaded",
+        "mediaUploadFailed": "Failed to upload file",
+        "mediaCaptionLabel": "Caption (optional)",
+        "mediaRecord": "Record",
+        "mediaRecordHint": "Record audio from the microphone",
+        "mediaRecording": "Recording… {current} / {max}",
+        "mediaCancel": "Cancel",
+        "mediaStopAndAttach": "Stop and attach",
+        "mediaMicUnsupported": "Voice recording isn't supported in this browser.",
+        "mediaMicDenied": "Microphone access denied or unavailable."
       },
       "inactive": "Inactive",
       "delete": "Delete"

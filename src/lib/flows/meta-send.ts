@@ -140,7 +140,7 @@ export async function engineSendText(
   return { whatsapp_message_id: waMessageId }
 }
 
-interface SendMediaEngineArgs {
+export interface SendMediaEngineArgs {
   accountId: string
   userId: string
   conversationId: string

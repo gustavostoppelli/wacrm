@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -35,12 +36,19 @@ import {
   List,
   Bell,
   Braces,
+  Image as ImageIcon,
+  Upload,
+  X,
+  Paperclip,
+  Mic,
+  Square,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
+import { uploadAccountMedia, MEDIA_MAX_BYTES_BY_KIND } from "@/lib/storage/upload-media"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -104,6 +112,7 @@ interface StepMeta {
 
 const STEP_META: Record<AutomationStepType, StepMeta> = {
   send_message: { label: "send_message", icon: MessageSquare, border: "border-l-primary" },
+  send_media: { label: "send_media", icon: ImageIcon, border: "border-l-primary" },
   send_buttons: { label: "send_buttons", icon: MousePointerClick, border: "border-l-primary" },
   send_list: { label: "send_list", icon: List, border: "border-l-primary" },
   send_template: { label: "send_template", icon: FileText, border: "border-l-primary" },
@@ -121,6 +130,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
 
 const ADDABLE_STEPS: AutomationStepType[] = [
   "send_message",
+  "send_media",
   "send_buttons",
   "send_list",
   "send_template",
@@ -175,6 +185,8 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
   switch (type) {
     case "send_message":
       return { text: "" }
+    case "send_media":
+      return { media_type: "image", media_url: "", caption: "" }
     case "send_buttons":
       return toStepConfig(blankButtonsPayload())
     case "send_list":
@@ -712,6 +724,280 @@ function DealPipelineFields({
           )}
         </select>
       </FieldBlock>
+    </>
+  )
+}
+
+/** Upload target for automation media sends. Reuses the `chat-media`
+ *  bucket (migration 023) rather than creating a dedicated one — it
+ *  already allows both image and Meta-accepted audio MIME types, and
+ *  every write is account-scoped by the same RLS policy `uploadAccountMedia`
+ *  relies on (path `account-<id>/...`). The file never touches the Fuse
+ *  VPS: the browser uploads straight to Supabase Storage, so a future
+ *  client uploading from their own computer works identically. */
+const AUTOMATION_MEDIA_BUCKET = "chat-media"
+
+const MEDIA_ACCEPT: Record<"image" | "audio", string> = {
+  image: "image/png,image/jpeg,image/webp",
+  audio: "audio/ogg,audio/mpeg,audio/aac,audio/mp4,audio/amr",
+}
+
+/** Same encoder worker + cap the Inbox composer's voice-note recorder
+ *  uses (src/components/inbox/message-composer.tsx) — recording here
+ *  reuses that exact client-side Ogg/Opus pipeline, just wired to this
+ *  step's own upload target instead of a live conversation. */
+const OPUS_ENCODER_PATH = "/opus/encoderWorker.min.js"
+const MAX_RECORDING_SECONDS = 5 * 60
+
+function formatRecordingDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toString().padStart(2, "0")}`
+}
+
+/** Media-type select + upload widget for the `send_media` step. Mirrors
+ *  the Flows builder's SendMediaForm (node-config-form.tsx), trimmed to
+ *  the two kinds WhatsApp automations need here (image, audio) — video
+ *  and document weren't requested and Meta ignores captions on audio
+ *  either way, so the caption field only shows for images. Audio also
+ *  offers recording straight from the mic (same opus-recorder pipeline
+ *  as the inbox composer) as an alternative to picking a file. */
+function SendMediaFields({
+  mediaType,
+  mediaUrl,
+  caption,
+  onChange,
+  t,
+}: {
+  mediaType: "image" | "audio"
+  mediaUrl: string
+  caption: string
+  onChange: (patch: Record<string, unknown>) => void
+  t: ReturnType<typeof useTranslations>
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileName = mediaUrl ? mediaUrl.split("/").pop() ?? "" : ""
+
+  const [recording, setRecording] = useState(false)
+  const [recordSeconds, setRecordSeconds] = useState(0)
+  const recorderRef = useRef<import("opus-recorder").default | null>(null)
+  const cancelledRef = useRef(false)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) clearInterval(timerRef.current)
+      cancelledRef.current = true
+      void recorderRef.current?.stop().catch(() => {})
+    }
+  }, [])
+
+  const uploadFile = async (file: File, limit: number) => {
+    if (file.size > limit) {
+      toast.error(`Arquivo de ${(file.size / 1024 / 1024).toFixed(1)} MB — limite é ${(limit / 1024 / 1024).toFixed(0)} MB.`)
+      return
+    }
+    setUploading(true)
+    try {
+      const { publicUrl } = await uploadAccountMedia(AUTOMATION_MEDIA_BUCKET, file)
+      onChange({ media_url: publicUrl })
+      toast.success(t("config.mediaUploaded"))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("config.mediaUploadFailed"))
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleFile = (file: File) => uploadFile(file, MEDIA_MAX_BYTES_BY_KIND[mediaType])
+
+  const finalizeRecording = async (bytes: Uint8Array) => {
+    const file = new File([bytes as unknown as BlobPart], `voice-${Date.now()}.ogg`, {
+      type: "audio/ogg",
+    })
+    if (file.size === 0) return // cancelled / empty take
+    await uploadFile(file, MEDIA_MAX_BYTES_BY_KIND.audio)
+  }
+
+  const startRecording = async () => {
+    if (uploading || recording) return
+    if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === "undefined") {
+      toast.error(t("config.mediaMicUnsupported"))
+      return
+    }
+    try {
+      const { default: Recorder } = await import("opus-recorder")
+      const recorder = new Recorder({
+        encoderPath: OPUS_ENCODER_PATH,
+        numberOfChannels: 1,
+        encoderApplication: 2048,
+        encoderSampleRate: 48000,
+        streamPages: false,
+      })
+      cancelledRef.current = false
+      recorder.ondataavailable = (bytes) => {
+        if (cancelledRef.current) return
+        void finalizeRecording(bytes)
+      }
+      recorderRef.current = recorder
+      await recorder.start()
+      setRecording(true)
+      setRecordSeconds(0)
+      timerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000)
+    } catch {
+      void recorderRef.current?.stop().catch(() => {})
+      recorderRef.current = null
+      toast.error(t("config.mediaMicDenied"))
+    }
+  }
+
+  const clearTimer = () => {
+    if (timerRef.current !== null) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }
+
+  const stopRecording = () => {
+    clearTimer()
+    setRecording(false)
+    void recorderRef.current?.stop().catch(() => {})
+  }
+
+  const cancelRecording = () => {
+    cancelledRef.current = true
+    clearTimer()
+    setRecording(false)
+    void recorderRef.current?.stop().catch(() => {})
+  }
+
+  useEffect(() => {
+    if (recording && recordSeconds >= MAX_RECORDING_SECONDS) stopRecording()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recording, recordSeconds])
+
+  return (
+    <>
+      <FieldBlock label={t("config.mediaTypeLabel")}>
+        <select
+          value={mediaType}
+          onChange={(e) =>
+            onChange({ media_type: e.target.value, media_url: "" })
+          }
+          className={SELECT_CLASS}
+        >
+          <option value="image">{t("config.mediaImageLabel")}</option>
+          <option value="audio">{t("config.mediaAudioLabel")}</option>
+        </select>
+      </FieldBlock>
+      <FieldBlock label={t("config.mediaFileLabel")}>
+        {mediaUrl ? (
+          <div className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-xs">
+            <Paperclip className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <a
+              href={mediaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="min-w-0 flex-1 truncate text-foreground hover:text-primary"
+              title={fileName || mediaUrl}
+            >
+              {fileName || mediaUrl}
+            </a>
+            <button
+              type="button"
+              onClick={() => onChange({ media_url: "" })}
+              className="rounded p-1 text-muted-foreground hover:bg-background hover:text-foreground"
+              aria-label={t("config.mediaRemove")}
+              disabled={uploading}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : recording ? (
+          <div className="flex items-center gap-3 rounded-md border border-border bg-muted px-3 py-2">
+            <span className="flex h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-red-500" />
+            <span className="flex-1 text-xs text-foreground">
+              {t("config.mediaRecording", {
+                current: formatRecordingDuration(recordSeconds),
+                max: formatRecordingDuration(MAX_RECORDING_SECONDS),
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={cancelRecording}
+              className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-card hover:text-foreground"
+            >
+              {t("config.mediaCancel")}
+            </button>
+            <button
+              type="button"
+              onClick={stopRecording}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+              title={t("config.mediaStopAndAttach")}
+            >
+              <Square className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-stretch gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-dashed border-border bg-card px-3 py-4 text-xs text-muted-foreground transition-colors hover:border-primary hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {t("config.mediaUploading")}
+                </>
+              ) : (
+                <>
+                  <Upload className="h-3.5 w-3.5" />
+                  {t("config.mediaClickToUpload")}
+                </>
+              )}
+            </button>
+            {mediaType === "audio" && (
+              <button
+                type="button"
+                onClick={() => void startRecording()}
+                disabled={uploading}
+                className="flex shrink-0 items-center justify-center gap-2 rounded-md border border-dashed border-border bg-card px-4 py-4 text-xs text-muted-foreground transition-colors hover:border-primary hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                title={t("config.mediaRecordHint")}
+              >
+                <Mic className="h-3.5 w-3.5" />
+                {t("config.mediaRecord")}
+              </button>
+            )}
+          </div>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={MEDIA_ACCEPT[mediaType]}
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) void handleFile(f)
+            e.target.value = ""
+          }}
+        />
+      </FieldBlock>
+      {mediaType === "image" && (
+        <FieldBlock label={t("config.mediaCaptionLabel")}>
+          <div className="flex items-center gap-2">
+            <Textarea
+              value={caption}
+              onChange={(e) => onChange({ caption: e.target.value })}
+              className="min-h-16 bg-muted text-foreground"
+              rows={2}
+            />
+            <VariablePicker t={t} onInsert={(token) => onChange({ caption: appendVariable(caption, token) })} />
+          </div>
+        </FieldBlock>
+      )}
     </>
   )
 }
@@ -1533,6 +1819,16 @@ function StepEditor({
           />
         </FieldBlock>
       )
+    case "send_media":
+      return (
+        <SendMediaFields
+          mediaType={(cfg.media_type as "image" | "audio") ?? "image"}
+          mediaUrl={(cfg.media_url as string) ?? ""}
+          caption={(cfg.caption as string) ?? ""}
+          onChange={(patch) => set(patch)}
+          t={t}
+        />
+      )
     case "send_buttons":
     case "send_list":
       // The whole step_config IS the interactive payload; the shared
@@ -1823,6 +2119,11 @@ function previewFor(step: BuilderStep): string {
   switch (step.step_type) {
     case "send_message":
       return (step.step_config.text as string) || "no text yet"
+    case "send_media": {
+      const url = step.step_config.media_url as string
+      const kind = (step.step_config.media_type as string) || "image"
+      return url ? `${kind}: ${url.split("/").pop()}` : "no file yet"
+    }
     case "send_buttons":
     case "send_list":
       return interactivePayloadPreviewText(asInteractive(step.step_config)) || "no body yet"

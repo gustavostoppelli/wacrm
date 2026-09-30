@@ -561,6 +561,7 @@ export type AutomationTriggerType =
 
 export type AutomationStepType =
   | 'send_message'
+  | 'send_media'
   | 'send_buttons'
   | 'send_list'
   | 'send_template'
@@ -634,6 +635,22 @@ export type AutomationTriggerConfig =
 
 export interface SendMessageStepConfig {
   text: string;
+}
+
+/**
+ * `send_media` sends an image or audio message via WhatsApp. `media_url`
+ * is a public URL (uploaded to the `chat-media` Supabase Storage bucket
+ * from the builder) that Meta/UAZAPI fetches at send time — never a raw
+ * file, since the engine runs server-side with no access to the
+ * account owner's device. Every future client uploads from their own
+ * computer into this same shared, account-scoped bucket, so nothing
+ * here depends on the Fuse VPS's local disk.
+ */
+export interface SendMediaStepConfig {
+  media_type: 'image' | 'audio';
+  media_url: string;
+  /** Ignored by Meta for audio; supports `{{ vars.* }}` interpolation like send_message. */
+  caption?: string;
 }
 
 /**
@@ -722,6 +739,7 @@ export interface SendWebhookStepConfig {
 
 export type AutomationStepConfig =
   | SendMessageStepConfig
+  | SendMediaStepConfig
   | SendButtonsStepConfig
   | SendListStepConfig
   | SendTemplateStepConfig

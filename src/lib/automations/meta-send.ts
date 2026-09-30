@@ -2,6 +2,8 @@ import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive'
 import {
   engineSendInteractiveButtons,
   engineSendInteractiveList,
+  engineSendMedia as flowsEngineSendMedia,
+  type SendMediaEngineArgs,
 } from '@/lib/flows/meta-send'
 import { resolveChannelForConversation } from '@/lib/whatsapp/resolve-channel'
 import { getProviderForChannel } from '@/lib/whatsapp/provider'
@@ -99,6 +101,20 @@ export async function engineSendInteractive(
     footerText: payload.footer,
     sections: payload.sections,
   })
+}
+
+/**
+ * Send an image / audio message from the automation engine.
+ *
+ * Delegates to the Flows sender (same rationale as engineSendInteractive
+ * above): media sending already handles the account-scoped contact
+ * lookup, phone-variant retry, and `messages` insert, and both engines
+ * need identical behaviour here.
+ */
+export async function engineSendMedia(
+  args: SendMediaEngineArgs,
+): Promise<{ whatsapp_message_id: string }> {
+  return flowsEngineSendMedia(args)
 }
 
 type SendInput =
