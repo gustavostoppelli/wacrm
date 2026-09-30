@@ -1134,7 +1134,11 @@
       "tags": {
         "select": "Select a tag…",
         "placeholder": "Tag id",
-        "unknown": "{id} (unknown tag)"
+        "unknown": "{id} (unknown tag)",
+        "newPlaceholder": "New tag name",
+        "create": "Create",
+        "createFailed": "Failed to create the tag",
+        "created": "Tag \"{name}\" created"
       },
       "webhooks": {
         "label": "Webhook connection",
@@ -1230,7 +1234,8 @@
         "matchExact": "Exact",
         "closeConversationHint": "Sets the conversation status to \"closed\". No configuration needed."
       },
-      "inactive": "Inactive"
+      "inactive": "Inactive",
+      "delete": "Delete"
     },
     "templates": {
       "welcome_message": {

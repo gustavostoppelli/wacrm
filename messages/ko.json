@@ -1134,7 +1134,11 @@
       "tags": {
         "select": "태그 선택…",
         "placeholder": "태그 id",
-        "unknown": "{id} (알 수 없는 태그)"
+        "unknown": "{id} (알 수 없는 태그)",
+        "newPlaceholder": "새 태그 이름",
+        "create": "생성",
+        "createFailed": "태그 생성에 실패했습니다",
+        "created": "태그 \"{name}\"이(가) 생성되었습니다"
       },
       "webhooks": {
         "label": "웹훅 연결",
@@ -1230,7 +1234,8 @@
         "matchExact": "정확히 일치",
         "closeConversationHint": "대화 상태를 \"닫힘\"으로 설정합니다. 추가 설정이 필요 없습니다."
       },
-      "inactive": "비활성"
+      "inactive": "비활성",
+      "delete": "삭제"
     },
     "templates": {
       "welcome_message": {

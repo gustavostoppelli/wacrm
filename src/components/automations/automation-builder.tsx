@@ -63,6 +63,7 @@ import {
 } from "@/components/interactive/interactive-builder"
 import { interactivePayloadPreviewText } from "@/lib/whatsapp/interactive"
 import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/hooks/use-auth"
 import { cn } from "@/lib/utils"
 import { DEAL_SOURCES } from "@/lib/deals/source"
 
@@ -220,6 +221,10 @@ interface AutomationResources {
   pipelines: PipelineOption[]
   stages: PipelineStageOption[]
   webhooks: WebhookOption[]
+  /** Appends a tag created inline (e.g. from TagSelect's empty-state
+   *  "create tag" affordance) so it's immediately selectable without a
+   *  full reload. */
+  addTag: (tag: TagRecord) => void
 }
 
 interface WebhookOption {
@@ -247,6 +252,7 @@ const ResourcesContext = createContext<AutomationResources>({
   pipelines: [],
   stages: [],
   webhooks: [],
+  addTag: () => {},
 })
 
 function useResources(): AutomationResources {
@@ -315,9 +321,17 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  function addTag(tag: TagRecord) {
+    setTags((prev) =>
+      prev.some((t) => t.id === tag.id)
+        ? prev
+        : [...prev, tag].sort((a, b) => a.name.localeCompare(b.name)),
+    )
+  }
+
   return (
     <ResourcesContext.Provider
-      value={{ tags, members, templates, customFields, pipelines, stages, webhooks }}
+      value={{ tags, members, templates, customFields, pipelines, stages, webhooks, addTag }}
     >
       {children}
     </ResourcesContext.Provider>
@@ -327,8 +341,11 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
 const SELECT_CLASS =
   "w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
 
-/** Tag dropdown by name + color, storing the tag's id. Falls back to a
- *  raw id input when no tags exist yet. */
+/** Tag dropdown by name + color, storing the tag's id. When no tags
+ *  exist yet, offers inline creation (name + color) instead of asking
+ *  for a raw UUID — a brand-new account has no tags to pick from, and
+ *  there was previously no way to create one without leaving the
+ *  automation builder (Settings → Campos e etiquetas). */
 function TagSelect({
   value,
   onChange,
@@ -338,15 +355,60 @@ function TagSelect({
   onChange: (v: string) => void
   t: ReturnType<typeof useTranslations>
 }) {
-  const { tags } = useResources()
+  const { tags, addTag } = useResources()
+  const { user, accountId } = useAuth()
+  const [newTagName, setNewTagName] = useState("")
+  const [creating, setCreating] = useState(false)
+
+  async function handleCreateTag() {
+    const name = newTagName.trim()
+    if (!name || !user || !accountId) return
+    setCreating(true)
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("tags")
+        .insert({ user_id: user.id, account_id: accountId, name })
+        .select()
+        .single()
+      if (error || !data) {
+        toast.error(t("tags.createFailed"))
+        return
+      }
+      const created = data as TagRecord
+      addTag(created)
+      onChange(created.id)
+      setNewTagName("")
+      toast.success(t("tags.created", { name: created.name }))
+    } finally {
+      setCreating(false)
+    }
+  }
+
   if (tags.length === 0) {
     return (
-      <Input
-        placeholder={t("tags.placeholder")}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="bg-muted text-foreground"
-      />
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder={t("tags.newPlaceholder")}
+          value={newTagName}
+          onChange={(e) => setNewTagName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault()
+              void handleCreateTag()
+            }
+          }}
+          className="bg-muted text-foreground"
+        />
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => void handleCreateTag()}
+          disabled={creating || !newTagName.trim()}
+        >
+          {t("tags.create")}
+        </Button>
+      </div>
     )
   }
   const selected = tags.find((t) => t.id === value)

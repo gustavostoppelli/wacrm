@@ -1134,7 +1134,11 @@
       "tags": {
         "select": "Selecione uma etiqueta…",
         "placeholder": "ID da etiqueta",
-        "unknown": "{id} (etiqueta desconhecida)"
+        "unknown": "{id} (etiqueta desconhecida)",
+        "newPlaceholder": "Nome da nova etiqueta",
+        "create": "Criar",
+        "createFailed": "Falha ao criar a etiqueta",
+        "created": "Etiqueta \"{name}\" criada"
       },
       "webhooks": {
         "label": "Conexão de webhook",
@@ -1230,7 +1234,8 @@
         "matchExact": "Exato",
         "closeConversationHint": "Define o status da conversa como \"fechada\". Não precisa de configuração."
       },
-      "inactive": "Desativada"
+      "inactive": "Desativada",
+      "delete": "Excluir"
     },
     "templates": {
       "welcome_message": {
