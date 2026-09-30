@@ -127,7 +127,7 @@ async function processInboundWebhook(webhook: any, rawBody: unknown) {
           .maybeSingle()
 
         if (!existingOpen) {
-          await admin.from('deals').insert({
+          const { error: dealError } = await admin.from('deals').insert({
             account_id: webhook.account_id,
             user_id: webhook.user_id,
             pipeline_id: webhook.pipeline_id,
@@ -140,6 +140,12 @@ async function processInboundWebhook(webhook: any, rawBody: unknown) {
             campaign: parsed.campaign,
             status: 'open',
           })
+          // TEMP diagnostic (remove once the silent-failure investigation
+          // is done): this insert had no error handling at all before —
+          // a constraint violation would fail invisibly.
+          if (dealError) {
+            console.error('[inbound-webhook] deal insert failed:', dealError)
+          }
         }
       } else if (parsed.action === 'lost') {
         await admin
