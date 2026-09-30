@@ -43,7 +43,8 @@ const sections: LegalSection[] = [
       {
         type: "list",
         items: [
-          "Viabilizar o funcionamento do CRM (armazenamento, organização de funil, automações, integração com WhatsApp e ferramentas de enriquecimento de leads);",
+          "Viabilizar o funcionamento do CRM (armazenamento, organização de funil, automações, integração com WhatsApp, Instagram e ferramentas de enriquecimento de leads);",
+          "No caso da integração com Instagram: ler comentários públicos e mensagens diretas recebidas na conta Instagram Business conectada pelo Cliente, exclusivamente para permitir que o Cliente configure automações que reagem a esses eventos. A Fuse não publica conteúdo nem envia respostas automáticas em nome da conta do Cliente nesta funcionalidade;",
           "Processar pagamentos e gerenciar assinaturas;",
           "Prestar suporte técnico;",
           "Cumprir obrigações legais e regulatórias;",
@@ -83,7 +84,7 @@ const sections: LegalSection[] = [
         items: [
           "Provedor de banco de dados, autenticação e armazenamento de arquivos em nuvem;",
           "Provedor de infraestrutura de hospedagem em nuvem, com servidores localizados no Brasil;",
-          "Provedor de integração com WhatsApp Business API / plataformas de anúncios, quando o Cliente ativa essas integrações;",
+          "Provedor de integração com WhatsApp Business API, Instagram (Meta Graph API) e plataformas de anúncios, quando o Cliente ativa essas integrações;",
           "Provedor de enriquecimento/coleta de leads, quando o Cliente utiliza essas funcionalidades;",
           "Processador de pagamentos, para processamento de cobranças;",
           "Autoridades públicas, mediante ordem judicial ou requisição legal.",
@@ -192,7 +193,7 @@ export default function PoliticaDePrivacidadePage() {
   return (
     <LegalPage
       title="Política de Privacidade — FuseHub"
-      updatedAt="24 de setembro de 2026"
+      updatedAt="30 de setembro de 2026"
       intro={[]}
       sections={sections}
       otherDocHref="/legal/termos-de-uso"
