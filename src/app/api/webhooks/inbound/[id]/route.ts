@@ -136,8 +136,17 @@ async function processInboundWebhook(webhook: any, rawBody: unknown) {
             title: parsed.dealTitle || parsed.contactName || phone,
             value: parsed.dealValue ?? 0,
             currency: parsed.dealCurrency || null,
-            source: webhook.name,
-            campaign: parsed.campaign,
+            // 'deals.source' has a CHECK constraint (DEAL_SOURCES,
+            // src/lib/deals/source.ts) allowing only a fixed PT-BR
+            // vocabulary — the connection's free-text name (e.g. a
+            // client-chosen "[COMPRA APROVADA] Curso X") never matches
+            // it and always violated the constraint until now. 'Outro'
+            // is the closest valid category for "an external webhook
+            // connection"; the connection's own name is preserved in
+            // campaign instead, alongside whatever product name the
+            // payload carried.
+            source: 'Outro',
+            campaign: parsed.campaign ? `${parsed.campaign} (${webhook.name})` : webhook.name,
             status: 'open',
           })
           // TEMP diagnostic (remove once the silent-failure investigation

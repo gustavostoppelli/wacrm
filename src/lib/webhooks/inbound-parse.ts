@@ -156,11 +156,5 @@ function parseGeneric(body: AnyRecord): ParsedInboundWebhook {
 
 export function parseInboundWebhookPayload(body: unknown): ParsedInboundWebhook {
   const record = (typeof body === 'object' && body !== null ? body : {}) as AnyRecord
-  const isCheckout = looksLikeCheckoutShape(record)
-  // TEMP diagnostic (remove once the shape-mismatch investigation is
-  // done): confirms which parser a real delivery took, and dumps the
-  // raw body when it fell through to the generic parser so we can see
-  // the actual shape instead of guessing.
-  console.log('[inbound-webhook] parsed as', isCheckout ? 'checkout' : 'generic', 'raw body:', JSON.stringify(record))
-  return isCheckout ? parseCheckoutShape(record) : parseGeneric(record)
+  return looksLikeCheckoutShape(record) ? parseCheckoutShape(record) : parseGeneric(record)
 }
