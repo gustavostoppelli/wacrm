@@ -788,11 +788,13 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
           className="min-w-0 flex-1 rounded-md bg-transparent px-2 py-1 text-sm font-semibold text-foreground placeholder:text-muted-foreground focus:bg-muted focus:outline-none sm:text-base"
         />
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="hidden sm:inline">{t("active")}</span>
+          <span className="hidden sm:inline">
+            {state.is_active ? t("active") : t("inactive")}
+          </span>
           <Switch
             checked={state.is_active}
             onCheckedChange={(v) => patchTop("is_active", !!v)}
-            aria-label={t("activeAria")}
+            aria-label={state.is_active ? t("active") : t("inactive")}
           />
         </div>
         <Button

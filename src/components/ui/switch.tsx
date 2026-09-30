@@ -35,8 +35,14 @@ function Switch({
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
         className={cn(
-          "pointer-events-none block h-4 w-4 rounded-full bg-card shadow-sm ring-0 transition-transform",
+          "pointer-events-none block h-4 w-4 rounded-full shadow-sm ring-0 transition-transform",
           "data-[checked]:translate-x-4 data-[unchecked]:translate-x-0",
+          // Red dot when off, not just a neutral card-colored one —
+          // every use of this switch in the app is an enable/disable
+          // toggle (automation, webhook connection, WhatsApp channel,
+          // notification, AI reply), so "off" is never a neutral state
+          // worth blending in; it should read as "click to turn on".
+          "data-[unchecked]:bg-destructive data-[checked]:bg-card",
         )}
       />
     </SwitchPrimitive.Root>

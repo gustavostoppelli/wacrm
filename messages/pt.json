@@ -1120,7 +1120,7 @@
       "replyIdsHelp": "IDs de botão/item de lista separados por vírgula, exatos. Use os mesmos IDs definidos em uma etapa Enviar botões / Enviar lista.",
       "schedule": "Agendamento",
       "scheduleHint": "Expressão cron (ex.: 0 9 * * 1-5)",
-      "active": "Ativa",
+      "active": "Ativada",
       "activeAria": "Ativa",
       "save": "Salvar",
       "saveDraft": "Salvar rascunho",
@@ -1229,7 +1229,8 @@
         "matchWordHint": "Corresponde à palavra-chave apenas como uma palavra isolada, então \"k\" não dispara mais em \"obrigado\". Melhor para palavras-chave curtas em idiomas com espaços; use Contém para idiomas escritos sem espaços.",
         "matchExact": "Exato",
         "closeConversationHint": "Define o status da conversa como \"fechada\". Não precisa de configuração."
-      }
+      },
+      "inactive": "Desativada"
     },
     "templates": {
       "welcome_message": {
