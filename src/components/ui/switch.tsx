@@ -15,7 +15,16 @@ function Switch({
     <SwitchPrimitive.Root
       data-slot="switch"
       className={cn(
-        "inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors",
+        "inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors",
+        // A transparent border relied on the track color alone for
+        // contrast against the page. In dark mode, --background/--card/
+        // --muted are all within a few percent of each other in
+        // lightness, so an unchecked switch was nearly invisible (user-
+        // reported: the automation builder's "Ativa" toggle couldn't be
+        // seen at all in dark mode). A real border color, always
+        // present, keeps the control visibly outlined in both themes
+        // regardless of how close the fill color is to the background.
+        "border-border data-[checked]:border-primary",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "data-[checked]:bg-primary data-[unchecked]:bg-muted",
