@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Copy, Loader2, Plus, Trash2, Webhook } from 'lucide-react';
+import { Copy, Loader2, Pencil, Plus, Trash2, Webhook } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { Badge } from '@/components/ui/badge';
@@ -89,6 +89,7 @@ export function WebhooksSettings() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [editingWebhook, setEditingWebhook] = useState<WebhookRow | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -240,6 +241,14 @@ export function WebhooksSettings() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => setEditingWebhook(w)}
+                        disabled={busyId === w.id}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleDelete(w)}
                         disabled={busyId === w.id}
                         className="border-red-500/40 bg-red-500/10 text-red-300 hover:border-red-500/60 hover:bg-red-500/20 hover:text-red-200"
@@ -262,7 +271,154 @@ export function WebhooksSettings() {
         stages={stages}
         onCreated={load}
       />
+
+      <EditDestinationDialog
+        webhook={editingWebhook}
+        onOpenChange={(open) => !open && setEditingWebhook(null)}
+        pipelines={pipelines}
+        stages={stages}
+        onSaved={load}
+      />
     </section>
+  );
+}
+
+// ------------------------------------------------------------
+// Edit dialog — change (or clear) an existing connection's fixed
+// deal destination without rotating its URL/token (migration 077 +
+// the PATCH endpoint's pipeline_id/stage_id support).
+// ------------------------------------------------------------
+
+function EditDestinationDialog({
+  webhook,
+  onOpenChange,
+  pipelines,
+  stages,
+  onSaved,
+}: {
+  webhook: WebhookRow | null;
+  onOpenChange: (open: boolean) => void;
+  pipelines: PipelineOption[];
+  stages: StageOption[];
+  onSaved: () => void;
+}) {
+  const t = useTranslations('Settings.webhooks');
+  const [pipelineId, setPipelineId] = useState('');
+  const [stageId, setStageId] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (webhook) {
+      setPipelineId(webhook.pipeline_id ?? '');
+      setStageId(webhook.stage_id ?? '');
+    }
+  }, [webhook]);
+
+  const stagesForPipeline = stages.filter((s) => s.pipeline_id === pipelineId);
+
+  async function handleSave() {
+    if (!webhook) return;
+    if ((pipelineId && !stageId) || (!pipelineId && stageId)) {
+      toast.error(t('pipelineStageTogether'));
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/account/webhooks/${webhook.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pipeline_id: pipelineId || null,
+          stage_id: stageId || null,
+        }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        toast.error(payload.error || t('createError'));
+        return;
+      }
+      toast.success(t('copySuccess'));
+      onSaved();
+      onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={!!webhook} onOpenChange={onOpenChange}>
+      <DialogContent className="border-border bg-popover sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-popover-foreground">{webhook?.name}</DialogTitle>
+          <DialogDescription className="text-muted-foreground">
+            {t('pipelineOptionalHint')}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-muted-foreground">{t('pipelineLabel')}</Label>
+            <Select
+              value={pipelineId || NONE_VALUE}
+              onValueChange={(v) => {
+                const next = v === NONE_VALUE ? '' : (v ?? '');
+                setPipelineId(next);
+                setStageId('');
+              }}
+            >
+              <SelectTrigger className="w-full border-border bg-muted text-foreground">
+                <SelectValue>
+                  {pipelines.find((p) => p.id === pipelineId)?.name ?? t('pipelineNone')}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE_VALUE}>{t('pipelineNone')}</SelectItem>
+                {pipelines.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-muted-foreground">{t('stageLabel')}</Label>
+            <Select
+              value={stageId || NONE_VALUE}
+              disabled={!pipelineId}
+              onValueChange={(v) => setStageId(v === NONE_VALUE ? '' : (v ?? ''))}
+            >
+              <SelectTrigger className="w-full border-border bg-muted text-foreground">
+                <SelectValue>
+                  {stagesForPipeline.find((s) => s.id === stageId)?.name ?? t('stagePlaceholder')}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {stagesForPipeline.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="border-border text-muted-foreground hover:bg-muted"
+          >
+            {t('cancel')}
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="size-4 animate-spin" /> : t('done')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
