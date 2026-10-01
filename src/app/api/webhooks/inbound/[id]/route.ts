@@ -2,7 +2,7 @@ import { NextResponse, after } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
-import { normalizePhone } from '@/lib/whatsapp/phone-utils'
+import { normalizePhone, looksLikePhoneNumber } from '@/lib/whatsapp/phone-utils'
 import { hashInboundWebhookToken, timingSafeHexEqual } from '@/lib/webhooks/inbound-tokens'
 import { parseInboundWebhookPayload } from '@/lib/webhooks/inbound-parse'
 
@@ -65,18 +65,6 @@ async function processInboundWebhook(webhook: any, rawBody: unknown) {
   const admin = supabaseAdmin()
   const parsed = parseInboundWebhookPayload(rawBody)
 
-  // TEMP diagnostic (remove once the contact-name mismatch is root-
-  // caused): the deal title gets the right buyer name from parsed.vars
-  // but the contact row keeps ending up with a phone-looking name, on
-  // a FRESH contact (not a create-race) — need to see the raw payload
-  // and parsed.contactName side by side to find where they diverge.
-  console.log('[inbound-webhook] diag raw body:', JSON.stringify(rawBody))
-  console.log('[inbound-webhook] diag parsed:', JSON.stringify({
-    contactName: parsed.contactName,
-    contactPhone: parsed.contactPhone,
-    vars: parsed.vars,
-  }))
-
   admin
     .from('inbound_webhooks')
     .update({ last_received_at: new Date().toISOString() })
@@ -121,7 +109,7 @@ async function processInboundWebhook(webhook: any, rawBody: unknown) {
         contact = newContact
       }
     }
-    if (contact && parsed.contactName && parsed.contactName !== contact.name) {
+    if (contact && parsed.contactName && parsed.contactName !== contact.name && !looksLikePhoneNumber(parsed.contactName)) {
       await admin
         .from('contacts')
         .update({ name: parsed.contactName, updated_at: new Date().toISOString() })

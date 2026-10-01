@@ -2,11 +2,30 @@ import { describe, expect, it } from "vitest";
 import {
   isRecipientNotAllowedError,
   isValidE164,
+  looksLikePhoneNumber,
   normalizePhone,
   phoneVariants,
   phonesMatch,
   sanitizePhoneForMeta,
 } from "./phone-utils";
+
+describe("looksLikePhoneNumber", () => {
+  it("recognizes bare and formatted phone numbers", () => {
+    expect(looksLikePhoneNumber("5521994033033")).toBe(true);
+    expect(looksLikePhoneNumber("+55 (21) 99403-3033")).toBe(true);
+    expect(looksLikePhoneNumber("99999999900")).toBe(true);
+  });
+
+  it("does not flag real names, even ones containing digits", () => {
+    expect(looksLikePhoneNumber("Gustavo Stoppelli")).toBe(false);
+    expect(looksLikePhoneNumber("Estética Roseli Araújo")).toBe(false);
+    expect(looksLikePhoneNumber("Studio 7")).toBe(false);
+  });
+
+  it("requires at least 8 digits to avoid false positives on short numeric names", () => {
+    expect(looksLikePhoneNumber("1234567")).toBe(false);
+  });
+});
 
 describe("sanitizePhoneForMeta", () => {
   it("strips +, spaces, and dashes leaving only digits", () => {

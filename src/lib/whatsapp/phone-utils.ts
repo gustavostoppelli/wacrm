@@ -18,6 +18,21 @@ export function normalizePhone(phone: string): string {
 }
 
 /**
+ * True when `value` is a bare phone number (mostly/only digits) rather
+ * than a human name. Guards every "sync this contact's display name"
+ * call site against downgrading a real name to a phone-shaped
+ * placeholder: WhatsApp doesn't always report a pushName on a given
+ * inbound message, and an outbound-echo event (a rep replying from
+ * their own phone's native app) never has one at all — both paths
+ * fall back to the raw phone number as "name", which must never
+ * silently overwrite a contact's already-known real name.
+ */
+export function looksLikePhoneNumber(value: string): boolean {
+  const digits = value.replace(/[\s()+-]/g, '')
+  return digits.length >= 8 && /^\d+$/.test(digits)
+}
+
+/**
  * Compare two phone numbers accounting for trunk prefix differences.
  * e.g. "370063949836" (with trunk 0) matches "37063949836" (without trunk 0)
  * by comparing the last 8 digits.

@@ -1095,11 +1095,15 @@ export function MessageThread({
               className={cn(
                 "inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
                 openDealId
-                  ? "bg-emerald-600/15 text-emerald-400 hover:bg-emerald-600/25"
+                  ? "bg-muted text-muted-foreground hover:bg-border"
                   : "bg-emerald-600 text-white hover:bg-emerald-700",
               )}
             >
-              <DollarSign className="h-3.5 w-3.5" />
+              {openDealId ? (
+                <Check className="h-3.5 w-3.5 text-emerald-500" />
+              ) : (
+                <DollarSign className="h-3.5 w-3.5" />
+              )}
               <span className="hidden sm:inline">
                 {dealBusy
                   ? t("dealBusy")

@@ -24,6 +24,7 @@ import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
 import { resolvePipelineAndStage, DealError } from '@/lib/api/v1/deals'
+import { looksLikePhoneNumber } from '@/lib/whatsapp/phone-utils'
 import type { ContentType } from '@/types'
 
 export interface NormalizedInboundMessage {
@@ -695,7 +696,12 @@ async function findOrCreateContact(
   const existingContact = await findExistingContact(supabaseAdmin(), accountId, phone)
 
   if (existingContact) {
-    if (name && name !== existingContact.name) {
+    // Never downgrade an already-known real name to a bare phone
+    // number — a later message without a WhatsApp pushName (common),
+    // or an outbound-echo event (a rep replying from their own
+    // phone's native app, which never has a counterparty pushName at
+    // all), both fall back to `name === phone` here.
+    if (name && name !== existingContact.name && !looksLikePhoneNumber(name)) {
       await supabaseAdmin()
         .from('contacts')
         .update({ name, updated_at: new Date().toISOString() })

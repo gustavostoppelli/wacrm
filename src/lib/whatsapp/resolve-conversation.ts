@@ -21,7 +21,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe';
-import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
+import { sanitizePhoneForMeta, isValidE164, looksLikePhoneNumber } from '@/lib/whatsapp/phone-utils';
 import { SendMessageError } from '@/lib/whatsapp/send-message';
 import { resolveAuditUserId, ContactError } from '@/lib/api/v1/contacts';
 import {
@@ -106,7 +106,9 @@ export async function resolveConversationByPhone(
   const existing = await findExistingContact(db, accountId, sanitized);
   if (existing) {
     contactId = existing.id;
-    if (name && name !== existing.name) {
+    // Never downgrade an already-known real name to a bare phone
+    // number (see the matching guard in inbound-message.ts).
+    if (name && name !== existing.name && !looksLikePhoneNumber(name)) {
       await db
         .from('contacts')
         .update({ name, updated_at: new Date().toISOString() })
