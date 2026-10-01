@@ -1811,12 +1811,20 @@ function StepEditor({
     case "send_message":
       return (
         <FieldBlock label={t("config.messageText")}>
-          <Textarea
-            value={(cfg.text as string) ?? ""}
-            onChange={(e) => set({ text: e.target.value })}
-            placeholder={t("config.placeholderMessageText")}
-            className="min-h-24 bg-muted text-foreground"
-          />
+          <div className="flex items-start gap-2">
+            <Textarea
+              value={(cfg.text as string) ?? ""}
+              onChange={(e) => set({ text: e.target.value })}
+              placeholder={t("config.placeholderMessageText")}
+              className="min-h-24 bg-muted text-foreground"
+            />
+            <VariablePicker
+              t={t}
+              onInsert={(token) =>
+                set({ text: appendVariable((cfg.text as string) ?? "", token) })
+              }
+            />
+          </div>
         </FieldBlock>
       )
     case "send_media":
