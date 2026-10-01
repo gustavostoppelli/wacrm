@@ -65,6 +65,18 @@ async function processInboundWebhook(webhook: any, rawBody: unknown) {
   const admin = supabaseAdmin()
   const parsed = parseInboundWebhookPayload(rawBody)
 
+  // TEMP diagnostic (remove once the contact-name mismatch is root-
+  // caused): the deal title gets the right buyer name from parsed.vars
+  // but the contact row keeps ending up with a phone-looking name, on
+  // a FRESH contact (not a create-race) — need to see the raw payload
+  // and parsed.contactName side by side to find where they diverge.
+  console.log('[inbound-webhook] diag raw body:', JSON.stringify(rawBody))
+  console.log('[inbound-webhook] diag parsed:', JSON.stringify({
+    contactName: parsed.contactName,
+    contactPhone: parsed.contactPhone,
+    vars: parsed.vars,
+  }))
+
   admin
     .from('inbound_webhooks')
     .update({ last_received_at: new Date().toISOString() })
