@@ -205,7 +205,17 @@
       "selectConversation": "Selecione uma conversa",
       "selectConversationHint": "Escolha uma conversa à esquerda para começar a conversar",
       "today": "Hoje",
-      "yesterday": "Ontem"
+      "yesterday": "Ontem",
+      "createDealLabel": "Criar negócio",
+      "dealCreatedLabel": "Negócio criado",
+      "dealBusy": "Aguarde...",
+      "createDealHint": "Criar um negócio para este contato",
+      "dealCreatedHint": "Clique para remover o negócio criado",
+      "confirmRemoveDeal": "Remover o negócio aberto deste contato?",
+      "dealCreated": "Negócio criado",
+      "dealCreateFailed": "Não foi possível criar o negócio",
+      "dealRemoved": "Negócio removido",
+      "dealRemoveFailed": "Não foi possível remover o negócio"
     },
     "sessionTimer": {
       "expired": "Expirado",
@@ -318,12 +328,7 @@
       "deals": "Negócios",
       "noTags": "Sem etiquetas",
       "noDeals": "Sem negócios",
-      "addNotePlaceholder": "Adicionar anotação...",
-      "createDeal": "Criar negócio",
-      "creatingDeal": "Criando...",
-      "dealCreated": "Negócio criado",
-      "dealAlreadyExists": "Este contato já tem um negócio aberto",
-      "createDealFailed": "Não foi possível criar o negócio"
+      "addNotePlaceholder": "Adicionar anotação..."
     },
     "aiBanner": {
       "pausedTitle": "O assistente de IA está pausado aqui",

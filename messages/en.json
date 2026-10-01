@@ -205,7 +205,17 @@
       "selectConversation": "Select a conversation",
       "selectConversationHint": "Choose a conversation from the left to start messaging",
       "today": "Today",
-      "yesterday": "Yesterday"
+      "yesterday": "Yesterday",
+      "createDealLabel": "Create deal",
+      "dealCreatedLabel": "Deal created",
+      "dealBusy": "Please wait...",
+      "createDealHint": "Create a deal for this contact",
+      "dealCreatedHint": "Click to remove the created deal",
+      "confirmRemoveDeal": "Remove this contact's open deal?",
+      "dealCreated": "Deal created",
+      "dealCreateFailed": "Couldn't create the deal",
+      "dealRemoved": "Deal removed",
+      "dealRemoveFailed": "Couldn't remove the deal"
     },
     "sessionTimer": {
       "expired": "Expired",
@@ -318,12 +328,7 @@
       "deals": "Deals",
       "noTags": "No tags",
       "noDeals": "No deals",
-      "addNotePlaceholder": "Add a note...",
-      "createDeal": "Create deal",
-      "creatingDeal": "Creating...",
-      "dealCreated": "Deal created",
-      "dealAlreadyExists": "This contact already has an open deal",
-      "createDealFailed": "Couldn't create the deal"
+      "addNotePlaceholder": "Add a note..."
     },
     "aiBanner": {
       "pausedTitle": "AI assistant is paused here",

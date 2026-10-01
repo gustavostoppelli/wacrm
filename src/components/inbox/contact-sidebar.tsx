@@ -20,14 +20,12 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 
 interface ContactSidebarProps {
   contact: Contact | null;
-  conversationId?: string | null;
 }
 
-export function ContactSidebar({ contact, conversationId }: ContactSidebarProps) {
+export function ContactSidebar({ contact }: ContactSidebarProps) {
   const tSidebar = useTranslations("Inbox.sidebar");
   const tThread = useTranslations("Inbox.messageThread");
 
@@ -38,7 +36,6 @@ export function ContactSidebar({ contact, conversationId }: ContactSidebarProps)
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
-  const [creatingDeal, setCreatingDeal] = useState(false);
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -122,33 +119,6 @@ export function ContactSidebar({ contact, conversationId }: ContactSidebarProps)
     setAddingNote(false);
   }, [contact, newNote, accountId]);
 
-  const handleCreateDeal = useCallback(async () => {
-    if (!contact || creatingDeal) return;
-    setCreatingDeal(true);
-    try {
-      const res = await fetch("/api/deals/create-from-contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contact_id: contact.id,
-          conversation_id: conversationId ?? undefined,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error ?? tSidebar("createDealFailed"));
-        return;
-      }
-      toast.success(
-        data.already_existed ? tSidebar("dealAlreadyExists") : tSidebar("dealCreated"),
-      );
-      await fetchContactData();
-    } catch {
-      toast.error(tSidebar("createDealFailed"));
-    } finally {
-      setCreatingDeal(false);
-    }
-  }, [contact, conversationId, creatingDeal, fetchContactData, tSidebar]);
 
   if (!contact) {
     return (
@@ -248,16 +218,6 @@ export function ContactSidebar({ contact, conversationId }: ContactSidebarProps)
               {tSidebar("deals")}
             </div>
             <div className="mt-2 space-y-2">
-              {!deals.some((d) => d.status === "open") && (
-                <Button
-                  onClick={handleCreateDeal}
-                  disabled={creatingDeal}
-                  className="w-full bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
-                >
-                  <Plus className="mr-1.5 h-4 w-4" />
-                  {creatingDeal ? tSidebar("creatingDeal") : tSidebar("createDeal")}
-                </Button>
-              )}
               {deals.length === 0 ? (
                 <p className="px-1 text-xs text-muted-foreground">{tSidebar("noDeals")}</p>
               ) : (

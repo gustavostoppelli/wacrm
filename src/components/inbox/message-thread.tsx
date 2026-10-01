@@ -27,6 +27,7 @@ import {
   RefreshCw,
   PanelRightOpen,
   PanelRightClose,
+  DollarSign,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { useTranslations } from "next-intl";
@@ -187,6 +188,8 @@ export function MessageThread({
   // doesn't feel like a no-op. Cleared via the timer ref on unmount.
   const [isRefreshing, setIsRefreshing] = useState(false);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [openDealId, setOpenDealId] = useState<string | null>(null);
+  const [dealBusy, setDealBusy] = useState(false);
   useEffect(() => {
     return () => {
       if (refreshTimerRef.current !== null) {
@@ -460,6 +463,72 @@ export function MessageThread({
         if (error) console.error("Failed to reset unread_count:", error);
       });
   }, [conversationId, hasUnread]);
+
+  // "Criar negócio" header toggle — reflects whether this contact has an
+  // open deal. Re-checks whenever the open conversation changes.
+  useEffect(() => {
+    let cancelled = false;
+    if (!contact) {
+      setOpenDealId(null);
+      return;
+    }
+    const supabase = createClient();
+    supabase
+      .from("deals")
+      .select("id")
+      .eq("contact_id", contact.id)
+      .eq("status", "open")
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setOpenDealId(data?.id ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [contact]);
+
+  const handleToggleDeal = useCallback(async () => {
+    if (!contact || dealBusy) return;
+    setDealBusy(true);
+    try {
+      if (openDealId) {
+        // Un-create: this is a real delete, so ask once before discarding
+        // a deal — the toggle itself stays a single click either way.
+        if (!window.confirm(t("confirmRemoveDeal"))) return;
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("deals")
+          .delete()
+          .eq("id", openDealId)
+          .select("id");
+        if (error || !data || data.length === 0) {
+          toast.error(t("dealRemoveFailed"));
+          return;
+        }
+        toast.success(t("dealRemoved"));
+        setOpenDealId(null);
+      } else {
+        const res = await fetch("/api/deals/create-from-contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contact_id: contact.id,
+            conversation_id: conversationId ?? undefined,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error(data.error ?? t("dealCreateFailed"));
+          return;
+        }
+        toast.success(t("dealCreated"));
+        setOpenDealId(data.deal_id);
+      }
+    } finally {
+      setDealBusy(false);
+    }
+  }, [contact, conversationId, openDealId, dealBusy, t]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -1009,6 +1078,35 @@ export function MessageThread({
               <RefreshCw
                 className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")}
               />
+            </button>
+          )}
+
+          {/* Criar negócio toggle — always visible in the header (not
+              buried in the scrollable contact sidebar), since turning a
+              conversation into a deal is a frequent, deliberate action
+              now that no deal is ever created automatically. */}
+          {contact && (
+            <button
+              type="button"
+              onClick={handleToggleDeal}
+              disabled={dealBusy}
+              aria-pressed={!!openDealId}
+              title={openDealId ? t("dealCreatedHint") : t("createDealHint")}
+              className={cn(
+                "inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                openDealId
+                  ? "bg-emerald-600/15 text-emerald-400 hover:bg-emerald-600/25"
+                  : "bg-emerald-600 text-white hover:bg-emerald-700",
+              )}
+            >
+              <DollarSign className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">
+                {dealBusy
+                  ? t("dealBusy")
+                  : openDealId
+                    ? t("dealCreatedLabel")
+                    : t("createDealLabel")}
+              </span>
             </button>
           )}
 
