@@ -63,6 +63,10 @@ const CHECKOUT_LOST_EVENTS = new Set([
   'PURCHASE_CANCELLED',
   'PURCHASE_REFUNDED',
   'PURCHASE_CHARGEBACK',
+  // Hotmart's real event name for a chargeback/dispute ("pedido de
+  // reembolso" contestado) — confirmed against a live test payload
+  // 2026-10-01; 'PURCHASE_CHARGEBACK' above was an unconfirmed guess.
+  'PURCHASE_PROTEST',
   'PURCHASE_EXPIRED',
   'PURCHASE_DELAYED',
 ])
