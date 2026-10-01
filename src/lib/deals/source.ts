@@ -15,6 +15,7 @@ export const DEAL_SOURCES = [
   'Indicação',
   'Instagram / Orgânico',
   'WhatsApp Direto',
+  'Webhook',
   'Evento / Parceria',
   'Outro',
 ] as const;

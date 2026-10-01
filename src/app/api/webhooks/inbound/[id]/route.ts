@@ -140,18 +140,14 @@ async function processInboundWebhook(webhook: any, rawBody: unknown) {
             // src/lib/deals/source.ts) allowing only a fixed PT-BR
             // vocabulary — the connection's free-text name (e.g. a
             // client-chosen "[COMPRA APROVADA] Curso X") never matches
-            // it and always violated the constraint until now. 'Outro'
-            // is the closest valid category for "an external webhook
-            // connection"; the connection's own name is preserved in
-            // campaign instead, alongside whatever product name the
-            // payload carried.
-            source: 'Outro',
+            // it. 'Webhook' (migration 078) is the accurate category
+            // for "an external system posted to our webhook"; the
+            // connection's own name is preserved in campaign instead,
+            // alongside whatever product name the payload carried.
+            source: 'Webhook',
             campaign: parsed.campaign ? `${parsed.campaign} (${webhook.name})` : webhook.name,
             status: 'open',
           })
-          // TEMP diagnostic (remove once the silent-failure investigation
-          // is done): this insert had no error handling at all before —
-          // a constraint violation would fail invisibly.
           if (dealError) {
             console.error('[inbound-webhook] deal insert failed:', dealError)
           }
