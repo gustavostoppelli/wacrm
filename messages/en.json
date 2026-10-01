@@ -1267,7 +1267,13 @@
         "mediaCancel": "Cancel",
         "mediaStopAndAttach": "Stop and attach",
         "mediaMicUnsupported": "Voice recording isn't supported in this browser.",
-        "mediaMicDenied": "Microphone access denied or unavailable."
+        "mediaMicDenied": "Microphone access denied or unavailable.",
+        "testSendLabel": "Test phone number",
+        "testSendPlaceholder": "+1 415 555 1234",
+        "testSendButton": "Send test",
+        "testSendSending": "Sending...",
+        "testSendSuccess": "Test message sent",
+        "testSendFailed": "Couldn't send the test"
       },
       "inactive": "Inactive",
       "delete": "Delete"

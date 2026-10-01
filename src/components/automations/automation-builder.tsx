@@ -755,6 +755,69 @@ function formatRecordingDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`
 }
 
+/** "Testar número de telefone" — sends this step's current content
+ *  (text or media) to a real phone number right now, same idea as
+ *  ClickFunnels' test-send button. No trigger event needed: `{{
+ *  vars.* }}` tokens get filled with readable sample data server-side
+ *  (there's no real contact/purchase to pull from for a preview). */
+function TestSendButton({
+  stepType,
+  stepConfig,
+  t,
+}: {
+  stepType: "send_message" | "send_media"
+  stepConfig: Record<string, unknown>
+  t: ReturnType<typeof useTranslations>
+}) {
+  const [phone, setPhone] = useState("")
+  const [sending, setSending] = useState(false)
+
+  const handleSend = async () => {
+    if (!phone.trim() || sending) return
+    setSending(true)
+    try {
+      const res = await fetch("/api/automations/test-send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phone.trim(), step_type: stepType, step_config: stepConfig }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(data.error ?? t("config.testSendFailed"))
+        return
+      }
+      toast.success(t("config.testSendSuccess"))
+    } catch {
+      toast.error(t("config.testSendFailed"))
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <FieldBlock label={t("config.testSendLabel")}>
+      <div className="flex items-center gap-2">
+        <Input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder={t("config.testSendPlaceholder")}
+          className="bg-muted text-foreground"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleSend}
+          disabled={sending || !phone.trim()}
+          className="shrink-0"
+        >
+          {sending ? t("config.testSendSending") : t("config.testSendButton")}
+        </Button>
+      </div>
+    </FieldBlock>
+  )
+}
+
 /** Media-type select + upload widget for the `send_media` step. Mirrors
  *  the Flows builder's SendMediaForm (node-config-form.tsx), trimmed to
  *  the two kinds WhatsApp automations need here (image, audio) — video
@@ -1810,32 +1873,38 @@ function StepEditor({
   switch (step.step_type) {
     case "send_message":
       return (
-        <FieldBlock label={t("config.messageText")}>
-          <div className="flex items-start gap-2">
-            <Textarea
-              value={(cfg.text as string) ?? ""}
-              onChange={(e) => set({ text: e.target.value })}
-              placeholder={t("config.placeholderMessageText")}
-              className="min-h-24 bg-muted text-foreground"
-            />
-            <VariablePicker
-              t={t}
-              onInsert={(token) =>
-                set({ text: appendVariable((cfg.text as string) ?? "", token) })
-              }
-            />
-          </div>
-        </FieldBlock>
+        <>
+          <FieldBlock label={t("config.messageText")}>
+            <div className="flex items-start gap-2">
+              <Textarea
+                value={(cfg.text as string) ?? ""}
+                onChange={(e) => set({ text: e.target.value })}
+                placeholder={t("config.placeholderMessageText")}
+                className="min-h-24 bg-muted text-foreground"
+              />
+              <VariablePicker
+                t={t}
+                onInsert={(token) =>
+                  set({ text: appendVariable((cfg.text as string) ?? "", token) })
+                }
+              />
+            </div>
+          </FieldBlock>
+          <TestSendButton stepType="send_message" stepConfig={cfg} t={t} />
+        </>
       )
     case "send_media":
       return (
-        <SendMediaFields
-          mediaType={(cfg.media_type as "image" | "audio") ?? "image"}
-          mediaUrl={(cfg.media_url as string) ?? ""}
-          caption={(cfg.caption as string) ?? ""}
-          onChange={(patch) => set(patch)}
-          t={t}
-        />
+        <>
+          <SendMediaFields
+            mediaType={(cfg.media_type as "image" | "audio") ?? "image"}
+            mediaUrl={(cfg.media_url as string) ?? ""}
+            caption={(cfg.caption as string) ?? ""}
+            onChange={(patch) => set(patch)}
+            t={t}
+          />
+          <TestSendButton stepType="send_media" stepConfig={cfg} t={t} />
+        </>
       )
     case "send_buttons":
     case "send_list":

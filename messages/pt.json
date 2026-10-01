@@ -1267,7 +1267,13 @@
         "mediaCancel": "Cancelar",
         "mediaStopAndAttach": "Parar e anexar",
         "mediaMicUnsupported": "Gravação de voz não é compatível com este navegador.",
-        "mediaMicDenied": "Acesso ao microfone negado ou indisponível."
+        "mediaMicDenied": "Acesso ao microfone negado ou indisponível.",
+        "testSendLabel": "Testar número de telefone",
+        "testSendPlaceholder": "(11) 91234-5678",
+        "testSendButton": "Enviar teste",
+        "testSendSending": "Enviando...",
+        "testSendSuccess": "Mensagem de teste enviada",
+        "testSendFailed": "Não foi possível enviar o teste"
       },
       "inactive": "Desativada",
       "delete": "Excluir"
