@@ -466,12 +466,13 @@ async function ensureDealForContact(
     .maybeSingle()
   if (existing) return
 
-  // Per-account opt-out (migration 079). Default true preserves this
-  // function's original behaviour for every existing account; an
-  // account whose deals already come from elsewhere (e.g. Capacita's
-  // Hotmart-webhook pipeline) can turn this off so a WhatsApp message
-  // never spawns a duplicate "WhatsApp Direto" card — the Inbox's
-  // manual "Criar negócio" button still works regardless of this flag.
+  // Per-account toggle (migration 079), default false for everyone: a
+  // WhatsApp message no longer auto-creates a deal on its own for any
+  // account, Fuse's own included — a stray/spam message must never
+  // silently spawn a "WhatsApp Direto" card. The Inbox's manual "Criar
+  // negócio" button (unaffected by this flag) is the deliberate,
+  // one-click replacement; an account can still opt back into the old
+  // automatic behaviour by flipping this column to true.
   const { data: accountFlags } = await db
     .from('accounts')
     .select('auto_create_deal_on_first_message')
