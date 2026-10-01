@@ -52,6 +52,11 @@ const CHECKOUT_OPEN_EVENTS = new Set([
   'PURCHASE_PIX_GENERATED',
   'PIX_GENERATED',
   'ABANDONED_CART',
+  // Hotmart's real event name for cart abandonment (confirmed against
+  // a live test payload 2026-10-01) — 'ABANDONED_CART' above was a
+  // guess that never actually arrives on the wire; kept alongside in
+  // case a different platform sends that name instead.
+  'PURCHASE_OUT_OF_SHOPPING_CART',
 ])
 const CHECKOUT_LOST_EVENTS = new Set([
   'PURCHASE_CANCELED',
