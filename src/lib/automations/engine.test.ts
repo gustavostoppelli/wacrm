@@ -13,6 +13,9 @@ const h = vi.hoisted(() => ({
     upsertCalls: [] as { table: string; payload: unknown }[],
     logInserts: [] as Record<string, unknown>[],
     logUpdates: [] as Record<string, unknown>[],
+    conversation: null as { id: string } | null,
+    conversationInserts: [] as Record<string, unknown>[],
+    whatsappConfig: null as Record<string, unknown> | null,
   },
 }));
 
@@ -58,6 +61,14 @@ vi.mock("./admin-client", () => {
       return { data: { steps_executed: [], status: "success" }, error: null };
     }
     if (table === "automation_steps") return { data: state.steps, error: null };
+    if (table === "conversations") {
+      if (type === "insert") {
+        state.conversationInserts.push(ops.payload as Record<string, unknown>);
+        return { data: { id: "new-conv-1" }, error: null };
+      }
+      return { data: state.conversation ? [state.conversation] : [], error: null };
+    }
+    if (table === "whatsapp_config") return { data: state.whatsappConfig, error: null };
     return { data: null, error: null };
   }
 
@@ -105,6 +116,7 @@ vi.mock("./meta-send", () => ({
 }));
 
 import { runAutomationsForTrigger, triggerMatches } from "./engine";
+import { engineSendText } from "./meta-send";
 import type { Automation, KeywordMatchTriggerConfig } from "@/types";
 
 const ACCOUNT = "acct-1";
@@ -119,6 +131,9 @@ beforeEach(() => {
   h.state.upsertCalls = [];
   h.state.logInserts = [];
   h.state.logUpdates = [];
+  h.state.conversation = null;
+  h.state.conversationInserts = [];
+  h.state.whatsappConfig = null;
 });
 
 describe("runAutomationsForTrigger — tenant isolation", () => {
@@ -476,6 +491,80 @@ describe("tag_added — conversation policy", () => {
     expect(h.state.logUpdates).toContainEqual(expect.objectContaining({
       status: "failed",
       error_message: "tag_added automation cannot send: contact has no existing conversation",
+    }));
+  });
+});
+
+describe("webhook_received — conversation policy", () => {
+  it("creates a conversation and sends when the contact has never messaged (e.g. a fresh Hotmart buyer)", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.whatsappConfig = { id: "wc1", account_id: ACCOUNT, provider: "uazapi" };
+    h.state.automations = [{
+      id: "a1",
+      account_id: ACCOUNT,
+      user_id: "u1",
+      name: "webhook automation",
+      trigger_type: "webhook_received",
+      trigger_config: {},
+      is_active: true,
+    }];
+    h.state.steps = [{
+      id: "s1",
+      automation_id: "a1",
+      step_type: "send_message",
+      position: 0,
+      parent_step_id: null,
+      step_config: { text: "Parabéns pela sua inscrição!" },
+    }];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "webhook_received",
+      contactId: "c1",
+      context: {},
+    });
+
+    expect(h.state.conversationInserts).toHaveLength(1);
+    expect(h.state.conversationInserts[0]).toMatchObject({
+      account_id: ACCOUNT,
+      contact_id: "c1",
+      whatsapp_config_id: "wc1",
+    });
+    expect(engineSendText).toHaveBeenCalled();
+    expect(h.state.logUpdates).toContainEqual(expect.objectContaining({ status: "success" }));
+  });
+
+  it("still fails clearly when the account has no WhatsApp configured at all", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.whatsappConfig = null;
+    h.state.automations = [{
+      id: "a1",
+      account_id: ACCOUNT,
+      user_id: "u1",
+      name: "webhook automation",
+      trigger_type: "webhook_received",
+      trigger_config: {},
+      is_active: true,
+    }];
+    h.state.steps = [{
+      id: "s1",
+      automation_id: "a1",
+      step_type: "send_message",
+      position: 0,
+      parent_step_id: null,
+      step_config: { text: "Hi" },
+    }];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "webhook_received",
+      contactId: "c1",
+      context: {},
+    });
+
+    expect(h.state.logUpdates).toContainEqual(expect.objectContaining({
+      status: "failed",
+      error_message: "cannot send: WhatsApp not configured for this account",
     }));
   });
 });

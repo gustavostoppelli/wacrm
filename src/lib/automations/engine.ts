@@ -709,27 +709,68 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
  * Pick the conversation a send-type step should use. Prefer the id the
  * webhook handed us (it's the one that just got the inbound message);
  * fall back to the contact's conversation for resumed/wait paths and
- * manual engine POSTs. Throws if none exists — send steps have
- * no meaningful target without a conversation.
+ * manual engine POSTs.
+ *
+ * `tag_added` keeps the old hard refusal: a bulk "add this tag to many
+ * contacts" action must never let a chained send silently start a
+ * conversation with someone who's never engaged — that's indiscriminate
+ * outbound messaging, not a reply. Every other trigger (chiefly
+ * `webhook_received` — e.g. a Hotmart purchase) legitimately targets ONE
+ * specific contact the automation author chose to message, so a missing
+ * conversation there means "first outreach to a known lead", not spam:
+ * find-or-create it instead of refusing, mirroring the same pattern
+ * `resolveConversationByPhone` / `findOrCreateInternalRecipient` already
+ * use elsewhere. A Meta Cloud API account that's truly outside the 24h
+ * window still gets a real, accurate failure from Meta's own API at
+ * send time; a UAZAPI account (no such window) just sends.
  */
 async function resolveConversationId(args: ExecuteArgs): Promise<string> {
   const fromCtx = args.context.conversation_id
   if (fromCtx) return fromCtx
   if (!args.contactId) throw new Error('cannot resolve conversation: no contact')
-  const { data, error } = await supabaseAdmin()
+  const db = supabaseAdmin()
+
+  const { data: existing, error } = await db
     .from('conversations')
     .select('id')
     .eq('account_id', args.automation.account_id)
     .eq('contact_id', args.contactId)
-    .maybeSingle()
+    .order('created_at', { ascending: true })
+    .limit(1)
   if (error) throw new Error(`conversation lookup failed: ${error.message}`)
-  if (!data?.id) {
-    const prefix = args.triggerEvent === 'tag_added'
-      ? 'tag_added automation cannot send'
-      : 'cannot send'
-    throw new Error(`${prefix}: contact has no existing conversation`)
+  if (existing && existing.length > 0) return existing[0].id as string
+
+  if (args.triggerEvent === 'tag_added') {
+    throw new Error('tag_added automation cannot send: contact has no existing conversation')
   }
-  return data.id as string
+
+  const channel = await resolveDefaultChannelForAccount(db, args.automation.account_id)
+  if (!channel) throw new Error('cannot send: WhatsApp not configured for this account')
+
+  const { data: created, error: createErr } = await db
+    .from('conversations')
+    .insert({
+      account_id: args.automation.account_id,
+      user_id: args.automation.user_id,
+      contact_id: args.contactId,
+      whatsapp_config_id: channel.id,
+    })
+    .select('id')
+    .single()
+  if (createErr || !created) {
+    if (isUniqueViolation(createErr)) {
+      const { data: raced } = await db
+        .from('conversations')
+        .select('id')
+        .eq('account_id', args.automation.account_id)
+        .eq('contact_id', args.contactId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+      if (raced && raced.length > 0) return raced[0].id as string
+    }
+    throw new Error(`cannot send: failed to create conversation (${createErr?.message ?? 'unknown error'})`)
+  }
+  return created.id as string
 }
 
 /** Letter, digit or underscore in any script — the "inside a word" test. */
