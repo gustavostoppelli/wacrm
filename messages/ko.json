@@ -1152,6 +1152,7 @@
         "created": "태그 \"{name}\"이(가) 생성되었습니다",
         "insertVariable": "변수 삽입",
         "varNome": "구매자 이름",
+        "varPrimeiroNome": "구매자 이름(이름만)",
         "varTelefone": "전화번호",
         "varEmail": "이메일",
         "varProduto": "상품명",

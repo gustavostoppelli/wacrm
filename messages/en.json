@@ -1152,6 +1152,7 @@
         "created": "Tag \"{name}\" created",
         "insertVariable": "Insert variable",
         "varNome": "Buyer name",
+        "varPrimeiroNome": "Buyer first name",
         "varTelefone": "Phone",
         "varEmail": "Email",
         "varProduto": "Product name",

@@ -1152,6 +1152,7 @@
         "created": "Etiqueta \"{name}\" criada",
         "insertVariable": "Inserir variável",
         "varNome": "Nome do comprador",
+        "varPrimeiroNome": "Primeiro nome do comprador",
         "varTelefone": "Telefone",
         "varEmail": "E-mail",
         "varProduto": "Nome do produto",

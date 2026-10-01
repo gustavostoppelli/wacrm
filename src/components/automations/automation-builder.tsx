@@ -365,6 +365,7 @@ const SELECT_CLASS =
 // to an empty string at runtime.
 const WEBHOOK_VARS: { key: string; label: string }[] = [
   { key: "nome", label: "tags.varNome" },
+  { key: "primeiro_nome", label: "tags.varPrimeiroNome" },
   { key: "telefone", label: "tags.varTelefone" },
   { key: "email", label: "tags.varEmail" },
   { key: "produto", label: "tags.varProduto" },
@@ -377,17 +378,43 @@ function appendVariable(current: string, token: string): string {
   return current.endsWith(" ") ? `${current}${token}` : `${current} ${token}`
 }
 
-/** Small helper dropdown next to a title/campaign-style field, listing
- *  the `{{ vars.* }}` placeholders available from an inbound webhook
- *  event — added after a user found the raw `{{vars.produto}}` syntax
- *  impossible to guess without reading the source. */
+/** Small helper dropdown next to a title/campaign/message-style field,
+ *  listing the `{{ vars.* }}` placeholders available from an inbound
+ *  webhook event — added after a user found the raw `{{vars.produto}}`
+ *  syntax impossible to guess without reading the source.
+ *
+ *  Inserts at the field's current cursor position (not the end of the
+ *  text) — `inputRef` must point at the actual `<input>`/`<textarea>`
+ *  DOM node so the picker can read `selectionStart`/`selectionEnd` and
+ *  restore the caret right after the inserted token. Falls back to
+ *  appending when the ref isn't attached yet. */
 function VariablePicker({
-  onInsert,
+  value,
+  onChange,
+  inputRef,
   t,
 }: {
-  onInsert: (token: string) => void
+  value: string
+  onChange: (next: string) => void
+  inputRef: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>
   t: ReturnType<typeof useTranslations>
 }) {
+  const handleInsert = (token: string) => {
+    const el = inputRef.current
+    if (!el) {
+      onChange(appendVariable(value, token))
+      return
+    }
+    const start = el.selectionStart ?? value.length
+    const end = el.selectionEnd ?? value.length
+    onChange(value.slice(0, start) + token + value.slice(end))
+    const caret = start + token.length
+    requestAnimationFrame(() => {
+      el.focus()
+      el.setSelectionRange(caret, caret)
+    })
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -398,7 +425,7 @@ function VariablePicker({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {WEBHOOK_VARS.map((v) => (
-          <DropdownMenuItem key={v.key} onClick={() => onInsert(`{{vars.${v.key}}}`)}>
+          <DropdownMenuItem key={v.key} onClick={() => handleInsert(`{{vars.${v.key}}}`)}>
             <span className="font-mono text-xs">{`{{vars.${v.key}}}`}</span>
             <span className="ml-2 text-xs text-muted-foreground">{t(v.label)}</span>
           </DropdownMenuItem>
@@ -839,6 +866,7 @@ function SendMediaFields({
   t: ReturnType<typeof useTranslations>
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const captionRef = useRef<HTMLTextAreaElement>(null)
   const [uploading, setUploading] = useState(false)
   const fileName = mediaUrl ? mediaUrl.split("/").pop() ?? "" : ""
 
@@ -1052,12 +1080,18 @@ function SendMediaFields({
         <FieldBlock label={t("config.mediaCaptionLabel")}>
           <div className="flex items-center gap-2">
             <Textarea
+              ref={captionRef}
               value={caption}
               onChange={(e) => onChange({ caption: e.target.value })}
               className="min-h-16 bg-muted text-foreground"
               rows={2}
             />
-            <VariablePicker t={t} onInsert={(token) => onChange({ caption: appendVariable(caption, token) })} />
+            <VariablePicker
+              t={t}
+              value={caption}
+              onChange={(next) => onChange({ caption: next })}
+              inputRef={captionRef}
+            />
           </div>
         </FieldBlock>
       )}
@@ -1870,6 +1904,14 @@ function StepEditor({
   const set = (patch: Record<string, unknown>) =>
     onChange({ ...step, step_config: { ...cfg, ...patch } })
 
+  // Refs for the handful of fields that pair a text input with a
+  // VariablePicker — declared unconditionally here (not inside each
+  // switch case) since this component always runs the same hooks
+  // regardless of which step_type it renders.
+  const messageTextRef = useRef<HTMLTextAreaElement>(null)
+  const dealTitleRef = useRef<HTMLInputElement>(null)
+  const dealCampaignRef = useRef<HTMLInputElement>(null)
+
   switch (step.step_type) {
     case "send_message":
       return (
@@ -1877,6 +1919,7 @@ function StepEditor({
           <FieldBlock label={t("config.messageText")}>
             <div className="flex items-start gap-2">
               <Textarea
+                ref={messageTextRef}
                 value={(cfg.text as string) ?? ""}
                 onChange={(e) => set({ text: e.target.value })}
                 placeholder={t("config.placeholderMessageText")}
@@ -1884,9 +1927,9 @@ function StepEditor({
               />
               <VariablePicker
                 t={t}
-                onInsert={(token) =>
-                  set({ text: appendVariable((cfg.text as string) ?? "", token) })
-                }
+                value={(cfg.text as string) ?? ""}
+                onChange={(next) => set({ text: next })}
+                inputRef={messageTextRef}
               />
             </div>
           </FieldBlock>
@@ -1994,15 +2037,16 @@ function StepEditor({
           <FieldBlock label={t("config.titleLabel")}>
             <div className="flex items-center gap-2">
               <Input
+                ref={dealTitleRef}
                 value={(cfg.title as string) ?? ""}
                 onChange={(e) => set({ title: e.target.value })}
                 className="bg-muted text-foreground"
               />
               <VariablePicker
                 t={t}
-                onInsert={(token) =>
-                  set({ title: appendVariable((cfg.title as string) ?? "", token) })
-                }
+                value={(cfg.title as string) ?? ""}
+                onChange={(next) => set({ title: next })}
+                inputRef={dealTitleRef}
               />
             </div>
           </FieldBlock>
@@ -2031,6 +2075,7 @@ function StepEditor({
           <FieldBlock label={t("config.campaignLabel")}>
             <div className="flex items-center gap-2">
               <Input
+                ref={dealCampaignRef}
                 value={(cfg.campaign as string) ?? ""}
                 onChange={(e) => set({ campaign: e.target.value })}
                 placeholder={t("config.placeholderValue")}
@@ -2038,9 +2083,9 @@ function StepEditor({
               />
               <VariablePicker
                 t={t}
-                onInsert={(token) =>
-                  set({ campaign: appendVariable((cfg.campaign as string) ?? "", token) })
-                }
+                value={(cfg.campaign as string) ?? ""}
+                onChange={(next) => set({ campaign: next })}
+                inputRef={dealCampaignRef}
               />
             </div>
           </FieldBlock>

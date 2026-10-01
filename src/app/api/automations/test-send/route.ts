@@ -19,6 +19,7 @@ import { sendMessageToConversation, SendMessageError } from '@/lib/whatsapp/send
 
 const SAMPLE_VARS: Record<string, string> = {
   nome: 'Fulana de Tal',
+  primeiro_nome: 'Fulana',
   email: 'cliente@email.com',
   produto: 'Produto Exemplo',
   valor: '197',

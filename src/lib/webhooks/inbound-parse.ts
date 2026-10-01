@@ -80,6 +80,11 @@ function parseCheckoutShape(body: AnyRecord): ParsedInboundWebhook {
   const price = (purchase.price ?? {}) as AnyRecord
 
   const name = asString(buyer.name)
+  // Hotmart's buyer object carries first/last name separately from the
+  // full `name` field (confirmed against a live payload 2026-10-01) —
+  // exposed as its own `{{ vars.primeiro_nome }}` so a message can open
+  // with just "Parabéns, Maria!" instead of the full legal name.
+  const firstName = asString(buyer.first_name)
   const phone = asString(buyer.checkout_phone ?? buyer.phone)
   const email = asString(buyer.email)
   const productName = asString(product.name)
@@ -111,6 +116,7 @@ function parseCheckoutShape(body: AnyRecord): ParsedInboundWebhook {
     vars: {
       evento: event,
       nome: name ?? '',
+      primeiro_nome: firstName ?? '',
       telefone: phone ?? '',
       email: email ?? '',
       produto: productName ?? '',
@@ -135,6 +141,7 @@ function parseGeneric(body: AnyRecord): ParsedInboundWebhook {
   }
 
   const name = asString(pick('name', 'nome', 'full_name', 'nome_completo'))
+  const firstName = asString(pick('first_name', 'primeiro_nome', 'nome_primeiro'))
   const phone = asString(pick('phone', 'telefone', 'celular', 'whatsapp', 'checkout_phone'))
   const email = asString(pick('email', 'e-mail'))
   const title = asString(pick('title', 'produto', 'product', 'product_name'))
@@ -154,6 +161,7 @@ function parseGeneric(body: AnyRecord): ParsedInboundWebhook {
     vars: {
       evento: event ?? '',
       nome: name ?? '',
+      primeiro_nome: firstName ?? '',
       telefone: phone ?? '',
       email: email ?? '',
       produto: title ?? '',
