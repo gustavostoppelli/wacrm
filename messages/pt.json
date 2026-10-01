@@ -318,7 +318,12 @@
       "deals": "Negócios",
       "noTags": "Sem etiquetas",
       "noDeals": "Sem negócios",
-      "addNotePlaceholder": "Adicionar anotação..."
+      "addNotePlaceholder": "Adicionar anotação...",
+      "createDeal": "Criar negócio",
+      "creatingDeal": "Criando...",
+      "dealCreated": "Negócio criado",
+      "dealAlreadyExists": "Este contato já tem um negócio aberto",
+      "createDealFailed": "Não foi possível criar o negócio"
     },
     "aiBanner": {
       "pausedTitle": "O assistente de IA está pausado aqui",

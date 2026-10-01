@@ -318,7 +318,12 @@
       "deals": "Deals",
       "noTags": "No tags",
       "noDeals": "No deals",
-      "addNotePlaceholder": "Add a note..."
+      "addNotePlaceholder": "Add a note...",
+      "createDeal": "Create deal",
+      "creatingDeal": "Creating...",
+      "dealCreated": "Deal created",
+      "dealAlreadyExists": "This contact already has an open deal",
+      "createDealFailed": "Couldn't create the deal"
     },
     "aiBanner": {
       "pausedTitle": "AI assistant is paused here",

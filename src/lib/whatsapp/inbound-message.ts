@@ -466,6 +466,19 @@ async function ensureDealForContact(
     .maybeSingle()
   if (existing) return
 
+  // Per-account opt-out (migration 079). Default true preserves this
+  // function's original behaviour for every existing account; an
+  // account whose deals already come from elsewhere (e.g. Capacita's
+  // Hotmart-webhook pipeline) can turn this off so a WhatsApp message
+  // never spawns a duplicate "WhatsApp Direto" card — the Inbox's
+  // manual "Criar negócio" button still works regardless of this flag.
+  const { data: accountFlags } = await db
+    .from('accounts')
+    .select('auto_create_deal_on_first_message')
+    .eq('id', accountId)
+    .maybeSingle()
+  if (accountFlags?.auto_create_deal_on_first_message === false) return
+
   // A `referral` object means this contact's first message came from
   // tapping a Click-to-WhatsApp ad (or an ad's "Send message" CTA) —
   // attribute it the same way as the other paid-traffic bridges

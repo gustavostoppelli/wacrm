@@ -318,7 +318,12 @@
       "deals": "딜",
       "noTags": "태그 없음",
       "noDeals": "딜 없음",
-      "addNotePlaceholder": "메모 추가..."
+      "addNotePlaceholder": "메모 추가...",
+      "createDeal": "딜 생성",
+      "creatingDeal": "생성 중...",
+      "dealCreated": "딜이 생성되었습니다",
+      "dealAlreadyExists": "이 연락처에는 이미 열린 딜이 있습니다",
+      "createDealFailed": "딜을 생성하지 못했습니다"
     },
     "aiBanner": {
       "pausedTitle": "이 대화에서 AI 어시스턴트가 일시 중지됨",
