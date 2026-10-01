@@ -95,6 +95,12 @@ async function processInboundWebhook(webhook: any, rawBody: unknown) {
 
       if (createError) {
         if (isUniqueViolation(createError)) {
+          // Lost the create race to a concurrent request (e.g. two
+          // webhook deliveries for the same new buyer landing close
+          // together) — re-resolve the winning row. It was very likely
+          // inserted with name=phone (whichever request got there first
+          // may not have had a name yet either), so still apply the
+          // same name-sync check below instead of leaving it stale.
           contact = await findExistingContact(admin, webhook.account_id, phone)
         } else {
           console.error('[inbound-webhook] error creating contact:', createError)
@@ -102,11 +108,13 @@ async function processInboundWebhook(webhook: any, rawBody: unknown) {
       } else {
         contact = newContact
       }
-    } else if (parsed.contactName && parsed.contactName !== contact.name) {
+    }
+    if (contact && parsed.contactName && parsed.contactName !== contact.name) {
       await admin
         .from('contacts')
         .update({ name: parsed.contactName, updated_at: new Date().toISOString() })
         .eq('id', contact.id)
+      contact = { ...contact, name: parsed.contactName }
     }
 
     if (contact) {
