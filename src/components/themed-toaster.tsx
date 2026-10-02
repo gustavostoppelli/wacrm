@@ -38,7 +38,11 @@ export function ThemedToaster() {
   return (
     <Toaster
       theme={isClient ? mode : DEFAULT_MODE}
-      position="top-right"
+      // bottom-right, not top-right: on pages with action buttons in the
+      // top-right corner (e.g. the automation builder's Save/Ativar),
+      // a toast there sat on top of the button for its whole duration,
+      // blocking the next click.
+      position="bottom-right"
       toastOptions={{
         style: {
           background: "var(--popover)",
