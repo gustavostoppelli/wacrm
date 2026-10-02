@@ -1151,6 +1151,7 @@
         "createFailed": "태그 생성에 실패했습니다",
         "created": "태그 \"{name}\"이(가) 생성되었습니다",
         "insertVariable": "변수 삽입",
+        "insertEmoji": "이모지 삽입",
         "varNome": "구매자 이름",
         "varPrimeiroNome": "구매자 이름(이름만)",
         "varTelefone": "전화번호",

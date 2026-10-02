@@ -42,6 +42,7 @@ import {
   Paperclip,
   Mic,
   Square,
+  Smile,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -378,16 +379,37 @@ function appendVariable(current: string, token: string): string {
   return current.endsWith(" ") ? `${current}${token}` : `${current} ${token}`
 }
 
+/** Splices `token` into `value` at the field's current cursor position
+ *  (not the end of the text) and restores focus + caret right after
+ *  it. `inputRef` must point at the actual `<input>`/`<textarea>` DOM
+ *  node; falls back to appending when the ref isn't attached yet.
+ *  Shared by VariablePicker and EmojiPicker — same insert mechanics,
+ *  different token source. */
+function insertAtCursor(
+  inputRef: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>,
+  value: string,
+  token: string,
+  onChange: (next: string) => void,
+): void {
+  const el = inputRef.current
+  if (!el) {
+    onChange(appendVariable(value, token))
+    return
+  }
+  const start = el.selectionStart ?? value.length
+  const end = el.selectionEnd ?? value.length
+  onChange(value.slice(0, start) + token + value.slice(end))
+  const caret = start + token.length
+  requestAnimationFrame(() => {
+    el.focus()
+    el.setSelectionRange(caret, caret)
+  })
+}
+
 /** Small helper dropdown next to a title/campaign/message-style field,
  *  listing the `{{ vars.* }}` placeholders available from an inbound
  *  webhook event — added after a user found the raw `{{vars.produto}}`
- *  syntax impossible to guess without reading the source.
- *
- *  Inserts at the field's current cursor position (not the end of the
- *  text) — `inputRef` must point at the actual `<input>`/`<textarea>`
- *  DOM node so the picker can read `selectionStart`/`selectionEnd` and
- *  restore the caret right after the inserted token. Falls back to
- *  appending when the ref isn't attached yet. */
+ *  syntax impossible to guess without reading the source. */
 function VariablePicker({
   value,
   onChange,
@@ -399,21 +421,7 @@ function VariablePicker({
   inputRef: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>
   t: ReturnType<typeof useTranslations>
 }) {
-  const handleInsert = (token: string) => {
-    const el = inputRef.current
-    if (!el) {
-      onChange(appendVariable(value, token))
-      return
-    }
-    const start = el.selectionStart ?? value.length
-    const end = el.selectionEnd ?? value.length
-    onChange(value.slice(0, start) + token + value.slice(end))
-    const caret = start + token.length
-    requestAnimationFrame(() => {
-      el.focus()
-      el.setSelectionRange(caret, caret)
-    })
-  }
+  const handleInsert = (token: string) => insertAtCursor(inputRef, value, token, onChange)
 
   return (
     <DropdownMenu>
@@ -430,6 +438,59 @@ function VariablePicker({
             <span className="ml-2 text-xs text-muted-foreground">{t(v.label)}</span>
           </DropdownMenuItem>
         ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+// A curated, common-use set rather than a full Unicode picker — same
+// "no 300KB emoji library" call already made for message reactions
+// (message-actions.tsx's QUICK_EMOJIS), just a bigger grid since this
+// is for composing a message body, not a one-tap reaction.
+const EMOJI_PICKER_SET = [
+  "😀", "😂", "😍", "😉", "😊", "🙂", "😎", "🤩", "🥳", "😢",
+  "😮", "🙏", "👍", "👏", "🙌", "💪", "✅", "❌", "⭐", "🔥",
+  "🎉", "❤️", "💛", "💚", "💙", "💜", "🧡", "📅", "⏰", "📍",
+  "📦", "💰", "💳", "🛍️", "🎁", "✨", "📣", "📲", "✍️", "👋",
+]
+
+/** Emoji picker for the message-composition fields — inserts at the
+ *  cursor via the same mechanism as VariablePicker (see
+ *  insertAtCursor), just with a grid of emoji buttons instead of a
+ *  list of variable tokens. */
+function EmojiPicker({
+  value,
+  onChange,
+  inputRef,
+  t,
+}: {
+  value: string
+  onChange: (next: string) => void
+  inputRef: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>
+  t: ReturnType<typeof useTranslations>
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-muted text-muted-foreground transition-colors hover:border-primary hover:text-primary data-[popup-open]:border-primary data-[popup-open]:text-primary"
+        aria-label={t("tags.insertEmoji")}
+      >
+        <Smile className="h-4 w-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <div className="grid grid-cols-8 gap-0.5 p-1">
+          {EMOJI_PICKER_SET.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => insertAtCursor(inputRef, value, emoji, onChange)}
+              className="flex h-7 w-7 items-center justify-center rounded text-base hover:bg-muted"
+              aria-label={emoji}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -1087,6 +1148,12 @@ function SendMediaFields({
               rows={2}
             />
             <VariablePicker
+              t={t}
+              value={caption}
+              onChange={(next) => onChange({ caption: next })}
+              inputRef={captionRef}
+            />
+            <EmojiPicker
               t={t}
               value={caption}
               onChange={(next) => onChange({ caption: next })}
@@ -1937,6 +2004,12 @@ function StepEditor({
                 className="min-h-24 bg-muted text-foreground"
               />
               <VariablePicker
+                t={t}
+                value={(cfg.text as string) ?? ""}
+                onChange={(next) => set({ text: next })}
+                inputRef={messageTextRef}
+              />
+              <EmojiPicker
                 t={t}
                 value={(cfg.text as string) ?? ""}
                 onChange={(next) => set({ text: next })}

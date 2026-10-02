@@ -1151,6 +1151,7 @@
         "createFailed": "Failed to create the tag",
         "created": "Tag \"{name}\" created",
         "insertVariable": "Insert variable",
+        "insertEmoji": "Insert emoji",
         "varNome": "Buyer name",
         "varPrimeiroNome": "Buyer first name",
         "varTelefone": "Phone",

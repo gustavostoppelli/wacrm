@@ -1151,6 +1151,7 @@
         "createFailed": "Falha ao criar a etiqueta",
         "created": "Etiqueta \"{name}\" criada",
         "insertVariable": "Inserir variável",
+        "insertEmoji": "Inserir emoji",
         "varNome": "Nome do comprador",
         "varPrimeiroNome": "Primeiro nome do comprador",
         "varTelefone": "Telefone",
