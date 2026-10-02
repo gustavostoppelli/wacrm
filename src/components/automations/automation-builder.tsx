@@ -54,9 +54,7 @@ import { uploadAccountMedia, MEDIA_MAX_BYTES_BY_KIND } from "@/lib/storage/uploa
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -1260,6 +1258,13 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [invalidStepCids, setInvalidStepCids] = useState<Set<string>>(new Set())
+  // Purely ephemeral UI state (not persisted): which conditions have had
+  // their "Unir caminhos" merge-point "+" revealed. Picking "Unir
+  // caminhos" from inside a Sim/Não branch's "+" just flips this on for
+  // that condition's cid — nothing appears on the canvas before that.
+  const [revealedMerges, setRevealedMerges] = useState<Set<string>>(new Set())
+  const revealMerge = (conditionCid: string) =>
+    setRevealedMerges((prev) => new Set(prev).add(conditionCid))
 
   function patchTop<K extends keyof BuilderInitial>(key: K, value: BuilderInitial[K]) {
     setState((s) => ({ ...s, [key]: value }))
@@ -1419,6 +1424,8 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
               deleteStepAt={deleteStepAt}
               moveStepAt={moveStepAt}
               invalidStepCids={invalidStepCids}
+              revealedMerges={revealedMerges}
+              revealMerge={revealMerge}
             />
           </ResourcesProvider>
         </div>
@@ -1721,12 +1728,15 @@ interface StepListProps {
    *  through a toast message. Cleared once the step is edited. */
   invalidStepCids?: Set<string>
   /** Set only for a condition's Sim/Não branch lists (by ConditionBranches):
-   *  where a step picked via "Unir caminhos" actually lands — right after
-   *  the condition itself, in ITS OWN parent scope, not inside this
-   *  branch. Every "+" within a branch offers this as an extra option,
-   *  since adding the shared continuation doesn't depend on where in
-   *  the branch the user happened to click — see AddButton. */
-  mergeTarget?: { scope: ParentScope; index: number }
+   *  where "Unir caminhos" reveals its merge-point "+" — right after the
+   *  condition itself, in ITS OWN parent scope, not inside this branch.
+   *  `conditionCid` keys `revealedMerges` below. */
+  mergeTarget?: { scope: ParentScope; index: number; conditionCid: string }
+  /** Condition cids whose merge-point "+" has been revealed (clicked
+   *  "Unir caminhos" from inside a branch) — purely ephemeral UI state,
+   *  not persisted. */
+  revealedMerges?: Set<string>
+  revealMerge?: (conditionCid: string) => void
 }
 
 function StepList(props: StepListProps) {
@@ -1744,10 +1754,8 @@ function StepList(props: StepListProps) {
     <div className="flex flex-col items-center">
       <AddButton
         onPick={(t) => props.addStepAt(parentScope, 0, t)}
-        onMergePick={
-          props.mergeTarget
-            ? (t) => props.addStepAt(props.mergeTarget!.scope, props.mergeTarget!.index, t)
-            : undefined
+        onReveal={
+          props.mergeTarget ? () => props.revealMerge?.(props.mergeTarget!.conditionCid) : undefined
         }
       />
       {steps.map((step, idx) => (
@@ -1888,18 +1896,17 @@ function StepRenderer({
         )}
       </div>
 
-      {/* No trailing "+" of its own here for a condition — nothing to
-          add linearly after a branching step. The equivalent action
-          ("add a step that runs after either branch") lives inside
-          each branch's OWN "+" dropdowns as "Unir caminhos" (passed
-          down as mergeTarget from ConditionBranches), so nothing extra
-          renders on the canvas until the user actually picks it there. */}
-      {!isCondition && (
+      {/* A condition gets a trailing "+" only once "Unir caminhos" has
+          been picked from inside one of its Sim/Não branches (see
+          revealedMerges) — nothing renders here by default, since a
+          branching step has no linear "continue" on its own. Once
+          revealed it's an ordinary AddButton like any other step's. */}
+      {(!isCondition || props.revealedMerges?.has(step.cid)) && (
         <AddButton
           onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
-          onMergePick={
-            props.mergeTarget
-              ? (t) => props.addStepAt(props.mergeTarget!.scope, props.mergeTarget!.index, t)
+          onReveal={
+            !isCondition && props.mergeTarget
+              ? () => props.revealMerge?.(props.mergeTarget!.conditionCid)
               : undefined
           }
         />
@@ -1940,6 +1947,7 @@ function ConditionBranches({
       ? { kind: "root" }
       : { kind: "branch", parentCid: lastSeg.parentCid, branch: lastSeg.branch }) as ParentScope,
     index: (lastSeg?.index ?? -1) + 1,
+    conditionCid: step.cid,
   }
   return (
     // Branch cards keep their normal fixed width (never shrunk to
@@ -1981,18 +1989,18 @@ function BranchColumn({
 
 function AddButton({
   onPick,
-  onMergePick,
+  onReveal,
 }: {
   onPick: (t: AutomationStepType) => void
-  /** Set only for a "+" that lives inside a condition's Sim/Não branch
-   *  (mergeTarget threaded down from ConditionBranches). Adds an extra
-   *  "Unir caminhos" section to the SAME dropdown — a step picked there
-   *  lands right after the condition instead of inside this branch, so
-   *  it runs regardless of which branch (Sim or Não) was taken (the
-   *  engine already resumes the parent list once the chosen branch's
-   *  own steps finish — executeStepsFrom, engine.ts). Nothing on the
-   *  canvas hints this exists until the "+" is actually opened. */
-  onMergePick?: (t: AutomationStepType) => void
+  /** Set only for a "+" that lives inside a condition's Sim/Não branch.
+   *  Adds ONE extra "Unir caminhos" item to the dropdown — picking it
+   *  doesn't add a step itself, it just reveals that condition's own
+   *  merge-point "+" (an ordinary AddButton, rendered after the
+   *  condition once revealed — see StepRenderer/revealedMerges), which
+   *  the user then opens separately to actually pick a step. Keeps this
+   *  dropdown to a single extra line instead of repeating the whole
+   *  step-type list a second time. */
+  onReveal?: () => void
 }) {
   const t = useTranslations("Automations.builder")
   return (
@@ -2018,24 +2026,13 @@ function AddButton({
               </DropdownMenuItem>
             )
           })}
-          {onMergePick && (
+          {onReveal && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuLabel className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-primary">
-                  <GitMerge className="h-3.5 w-3.5" />
-                  {t("mergePaths")}
-                </DropdownMenuLabel>
-              </DropdownMenuGroup>
-              {ADDABLE_STEPS.map((tp) => {
-                const Icon = STEP_META[tp].icon
-                return (
-                  <DropdownMenuItem key={`merge-${tp}`} onClick={() => onMergePick(tp)}>
-                    <Icon className="h-4 w-4" />
-                    {t(`steps.${STEP_META[tp].label}`)}
-                  </DropdownMenuItem>
-                )
-              })}
+              <DropdownMenuItem onClick={onReveal} className="text-primary">
+                <GitMerge className="h-4 w-4" />
+                {t("mergePaths")}
+              </DropdownMenuItem>
             </>
           )}
         </DropdownMenuContent>
