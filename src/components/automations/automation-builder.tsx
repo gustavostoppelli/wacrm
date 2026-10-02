@@ -1787,18 +1787,22 @@ function StepRenderer({
   const Icon = meta.icon
   const expanded = props.expandedId === step.cid
   const isCondition = step.step_type === "condition"
-  // Fixed widths, same as every other card — branch columns now scroll
-  // horizontally instead of squeezing to fit (see ConditionBranches),
-  // so cards never need to shrink below their normal size.
+  // Fixed widths, same as every other card — cards never shrink to fit;
+  // the canvas scrolls instead (see ConditionBranches).
   const width = isCondition ? "w-full max-w-[400px] sm:w-[400px]" : "w-full max-w-[320px] sm:w-80"
   const isInvalid = props.invalidStepCids?.has(step.cid) ?? false
 
   return (
     <>
-      <div className={cn("z-10 flex min-w-0 flex-col", width)}>
+      {/* items-center matters for a condition: its Sim/Não branches
+          (ConditionBranches) can render wider than this card's own
+          max-w-[400px], and without centering the flex cross-axis
+          default (stretch) left-aligns that wider content instead of
+          spreading the overflow evenly on both sides. */}
+      <div className={cn("z-10 flex min-w-0 flex-col items-center", width)}>
         <div
           className={cn(
-            "rounded-lg border border-border border-l-4 bg-card shadow-lg",
+            "w-full rounded-lg border border-border border-l-4 bg-card shadow-lg",
             meta.border,
             // Flagged by the last save/activate attempt's validation —
             // a visible ring beats a toast the user already dismissed.
