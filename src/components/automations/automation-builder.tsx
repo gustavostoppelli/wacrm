@@ -1720,6 +1720,13 @@ interface StepListProps {
    *  user can spot exactly which card is incomplete without hunting
    *  through a toast message. Cleared once the step is edited. */
   invalidStepCids?: Set<string>
+  /** Set only for a condition's Sim/Não branch lists (by ConditionBranches):
+   *  where a step picked via "Unir caminhos" actually lands — right after
+   *  the condition itself, in ITS OWN parent scope, not inside this
+   *  branch. Every "+" within a branch offers this as an extra option,
+   *  since adding the shared continuation doesn't depend on where in
+   *  the branch the user happened to click — see AddButton. */
+  mergeTarget?: { scope: ParentScope; index: number }
 }
 
 function StepList(props: StepListProps) {
@@ -1735,7 +1742,14 @@ function StepList(props: StepListProps) {
 
   return (
     <div className="flex flex-col items-center">
-      <AddButton onPick={(t) => props.addStepAt(parentScope, 0, t)} />
+      <AddButton
+        onPick={(t) => props.addStepAt(parentScope, 0, t)}
+        onMergePick={
+          props.mergeTarget
+            ? (t) => props.addStepAt(props.mergeTarget!.scope, props.mergeTarget!.index, t)
+            : undefined
+        }
+      />
       {steps.map((step, idx) => (
         <StepRenderer
           key={step.cid}
@@ -1874,20 +1888,22 @@ function StepRenderer({
         )}
       </div>
 
-      {/* A step added here, after the condition, runs regardless of
-          which branch (Sim/Não) was taken — the engine's executeStepsFrom
-          already resumes the parent list once a branch's own steps are
-          done (see engine.ts's `continue` after dispatching a branch).
-          Looks like every other "+" until clicked; the dropdown itself
-          carries the "Unir caminhos" hint (see AddButton).
-          Caveat: if a branch ends in a `wait`, this step currently fires
-          immediately rather than after that wait elapses — fine for
-          branches that only tag/message/etc., not yet for one that
-          waits before merging. */}
-      <AddButton
-        isMergePoint={isCondition}
-        onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
-      />
+      {/* No trailing "+" of its own here for a condition — nothing to
+          add linearly after a branching step. The equivalent action
+          ("add a step that runs after either branch") lives inside
+          each branch's OWN "+" dropdowns as "Unir caminhos" (passed
+          down as mergeTarget from ConditionBranches), so nothing extra
+          renders on the canvas until the user actually picks it there. */}
+      {!isCondition && (
+        <AddButton
+          onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
+          onMergePick={
+            props.mergeTarget
+              ? (t) => props.addStepAt(props.mergeTarget!.scope, props.mergeTarget!.index, t)
+              : undefined
+          }
+        />
+      )}
     </>
   )
 }
@@ -1914,6 +1930,17 @@ function ConditionBranches({
     ...parentPath,
     { kind: "branch", parentCid: step.cid, branch: "no", index: 0 },
   ]
+  // Where "Unir caminhos" lands: right after this condition, in the
+  // SAME scope the condition itself lives in — derived from the last
+  // segment of this condition's own path (mirrors how StepList derives
+  // a scope from a path's tail).
+  const lastSeg = parentPath[parentPath.length - 1]
+  const mergeTarget = {
+    scope: (!lastSeg || lastSeg.kind === "root"
+      ? { kind: "root" }
+      : { kind: "branch", parentCid: lastSeg.parentCid, branch: lastSeg.branch }) as ParentScope,
+    index: (lastSeg?.index ?? -1) + 1,
+  }
   return (
     // Branch cards keep their normal fixed width (never shrunk to
     // "fit"). No scrollbar of its own here — the canvas container
@@ -1925,10 +1952,10 @@ function ConditionBranches({
     <div className="mt-3">
       <div className="flex w-max gap-12">
         <BranchColumn label={t("branches.yes")} color="text-primary">
-          <StepList {...props} steps={yes} parentPath={yesPath} />
+          <StepList {...props} steps={yes} parentPath={yesPath} mergeTarget={mergeTarget} />
         </BranchColumn>
         <BranchColumn label={t("branches.no")} color="text-rose-400">
-          <StepList {...props} steps={no} parentPath={noPath} />
+          <StepList {...props} steps={no} parentPath={noPath} mergeTarget={mergeTarget} />
         </BranchColumn>
       </div>
     </div>
@@ -1954,16 +1981,18 @@ function BranchColumn({
 
 function AddButton({
   onPick,
-  isMergePoint = false,
+  onMergePick,
 }: {
   onPick: (t: AutomationStepType) => void
-  /** True for the "+" right after a condition — same ordinary button
-   *  as every other "+" (nothing shown on the canvas until clicked),
-   *  but its dropdown opens with an "Unir caminhos" hint on top: a step
-   *  picked here runs after EITHER branch (Sim or Não), since the
+  /** Set only for a "+" that lives inside a condition's Sim/Não branch
+   *  (mergeTarget threaded down from ConditionBranches). Adds an extra
+   *  "Unir caminhos" section to the SAME dropdown — a step picked there
+   *  lands right after the condition instead of inside this branch, so
+   *  it runs regardless of which branch (Sim or Não) was taken (the
    *  engine already resumes the parent list once the chosen branch's
-   *  own steps finish (executeStepsFrom, engine.ts). */
-  isMergePoint?: boolean
+   *  own steps finish — executeStepsFrom, engine.ts). Nothing on the
+   *  canvas hints this exists until the "+" is actually opened. */
+  onMergePick?: (t: AutomationStepType) => void
 }) {
   const t = useTranslations("Automations.builder")
   return (
@@ -1980,17 +2009,6 @@ function AddButton({
           align="start"
           className="max-h-80 min-w-56 overflow-y-auto border-border bg-popover"
         >
-          {isMergePoint && (
-            <>
-              <DropdownMenuGroup>
-                <DropdownMenuLabel className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-primary">
-                  <GitMerge className="h-3.5 w-3.5" />
-                  {t("mergePaths")}
-                </DropdownMenuLabel>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-            </>
-          )}
           {ADDABLE_STEPS.map((tp) => {
             const Icon = STEP_META[tp].icon
             return (
@@ -2000,6 +2018,26 @@ function AddButton({
               </DropdownMenuItem>
             )
           })}
+          {onMergePick && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-primary">
+                  <GitMerge className="h-3.5 w-3.5" />
+                  {t("mergePaths")}
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
+              {ADDABLE_STEPS.map((tp) => {
+                const Icon = STEP_META[tp].icon
+                return (
+                  <DropdownMenuItem key={`merge-${tp}`} onClick={() => onMergePick(tp)}>
+                    <Icon className="h-4 w-4" />
+                    {t(`steps.${STEP_META[tp].label}`)}
+                  </DropdownMenuItem>
+                )
+              })}
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <div className="h-4 w-[2px] bg-border" aria-hidden />
