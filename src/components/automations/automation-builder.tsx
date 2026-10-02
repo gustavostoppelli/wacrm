@@ -1695,12 +1695,23 @@ function StepRenderer({
   parentPath: StepPath
 } & Omit<StepListProps, "steps" | "parentPath">) {
   const t = useTranslations("Automations.builder")
-  const path: StepPath = [
-    ...parentPath,
+  // For a root step, `parentPath` is the path TO this list (so append).
+  // For a branch step, `parentPath` already ENDS in the placeholder
+  // segment `ConditionBranches` created for this branch (parentCid +
+  // branch, with a throwaway index) — replace that last segment with
+  // one carrying the real index instead of appending a second one.
+  // Appending here used to double up the branch segment, so
+  // mapAtPath/walkBranches recursed one level too deep and silently
+  // dropped every edit made to a step living inside a condition's
+  // Sim/Não branch (e.g. typing in that step's message text did
+  // nothing — the keystroke was discarded, not misapplied elsewhere).
+  const path: StepPath =
     parentScope.kind === "root"
-      ? { kind: "root", index }
-      : { kind: "branch", parentCid: parentScope.parentCid, branch: parentScope.branch, index },
-  ]
+      ? [...parentPath, { kind: "root", index }]
+      : [
+          ...parentPath.slice(0, -1),
+          { kind: "branch", parentCid: parentScope.parentCid, branch: parentScope.branch, index },
+        ]
   const meta = STEP_META[step.step_type]
   const Icon = meta.icon
   const expanded = props.expandedId === step.cid
