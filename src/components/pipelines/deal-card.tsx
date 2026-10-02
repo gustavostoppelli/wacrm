@@ -218,6 +218,20 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         )}
       </div>
 
+      {deal.contact?.tags && deal.contact.tags.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {deal.contact.tags.map((tag) => (
+            <span
+              key={tag.id}
+              className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+              style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
+            >
+              {tag.name}
+            </span>
+          ))}
+        </div>
+      )}
+
       {messageOpen && (
         <Dialog open={messageOpen} onOpenChange={setMessageOpen}>
           <DialogContent

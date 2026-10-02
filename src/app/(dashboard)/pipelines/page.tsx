@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Pipeline, PipelineStage, Deal } from "@/types";
+import type { Pipeline, PipelineStage, Deal, Tag } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
@@ -132,10 +132,30 @@ export default function PipelinesPage() {
     async (pipelineId: string) => {
       const { data } = await supabase
         .from("deals")
-        .select("*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*)")
+        // contact_tags(tags(*)) embeds the contact's tags so the Kanban
+        // card can show them without a second round-trip — same
+        // pattern as the Inbox's CONVERSATION_SELECT. Flattened onto
+        // contact.tags below (Deal/Contact's own shape has no raw
+        // contact_tags field).
+        .select(
+          "*, contact:contacts(*, contact_tags(tags(*))), assignee:profiles!deals_assigned_to_fkey(*)",
+        )
         .eq("pipeline_id", pipelineId)
         .order("created_at", { ascending: false });
-      return (data ?? []) as Deal[];
+      type RawDeal = Omit<Deal, "contact"> & {
+        contact?: (Deal["contact"] & { contact_tags?: { tags: Tag | null }[] }) | null;
+      };
+      return ((data ?? []) as RawDeal[]).map((d) => {
+        if (!d.contact) return d as Deal;
+        const { contact_tags, ...contact } = d.contact;
+        return {
+          ...d,
+          contact: {
+            ...contact,
+            tags: (contact_tags ?? []).map((ct) => ct.tags).filter((t): t is Tag => t != null),
+          },
+        } as Deal;
+      });
     },
     [supabase],
   );
