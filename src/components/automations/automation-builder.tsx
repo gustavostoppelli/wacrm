@@ -433,11 +433,11 @@ function VariablePicker({
       >
         <Braces className="h-4 w-4" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="w-72">
         {WEBHOOK_VARS.map((v) => (
           <DropdownMenuItem key={v.key} onClick={() => handleInsert(`{{vars.${v.key}}}`)}>
             <span className="font-mono text-xs">{`{{vars.${v.key}}}`}</span>
-            <span className="ml-2 text-xs text-muted-foreground">{t(v.label)}</span>
+            <span className="ml-2 truncate text-xs text-muted-foreground">{t(v.label)}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
