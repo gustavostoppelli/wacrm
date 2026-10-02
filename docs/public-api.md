@@ -50,7 +50,7 @@ it. Grant the minimum.
 | `conversations:read` | List and read conversations              |
 | `broadcasts:send`    | Launch broadcast campaigns               |
 | `webhooks:manage`    | Register and manage outbound webhooks    |
-| `deals:write`        | Create pipeline deals                    |
+| `deals:write`        | Create and update pipeline deals         |
 
 A key with **no scopes** still authenticates and can call
 `GET /api/v1/me` — useful for verifying a key works.
@@ -279,6 +279,19 @@ Response (201):
   }
 }
 ```
+
+### `PATCH /api/v1/deals/{id}`
+
+Update an existing deal's `title` and/or `notes`. Scope: `deals:write`.
+Only the fields present in the body change. `title` must be a non-empty
+string; `notes` is a string, or `null` / blank to clear it. A deal that
+belongs to another account returns `404`.
+
+```bash
+curl -X PATCH https://your-crm.example.com/api/v1/deals/DEAL_ID   -H "Authorization: Bearer wacrm_live_xxx"   -H "Content-Type: application/json"   -d '{ "title": "Jane" }'
+```
+
+Response (200): the updated deal, in the same shape as `POST /api/v1/deals`.
 
 ### `POST /api/v1/broadcasts`
 

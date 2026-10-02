@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { serializeDeal, resolveSource, resolvePipelineAndStage, DealError } from './deals';
+import {
+  serializeDeal,
+  resolveSource,
+  resolvePipelineAndStage,
+  resolveDealUpdates,
+  DealError,
+} from './deals';
 
 describe('serializeDeal', () => {
   it('flattens a deal row and nulls missing optional fields', () => {
@@ -119,5 +125,25 @@ describe('resolvePipelineAndStage', () => {
     await expect(
       resolvePipelineAndStage(db, 'acc', undefined, undefined)
     ).rejects.toBeInstanceOf(DealError);
+  });
+});
+
+describe('resolveDealUpdates', () => {
+  it('updates only the fields present and trims them', () => {
+    expect(resolveDealUpdates({ title: '  Ana  ' })).toEqual({ title: 'Ana' });
+    expect(resolveDealUpdates({ notes: 'x' })).toEqual({ notes: 'x' });
+    expect(resolveDealUpdates({})).toEqual({});
+  });
+
+  it('clears notes with null or blank, but never the title', () => {
+    expect(resolveDealUpdates({ notes: null })).toEqual({ notes: null });
+    expect(resolveDealUpdates({ notes: '   ' })).toEqual({ notes: null });
+    expect(() => resolveDealUpdates({ title: '  ' })).toThrow(DealError);
+    expect(() => resolveDealUpdates({ title: null })).toThrow(DealError);
+  });
+
+  it('rejects wrong types with a 400', () => {
+    expect(() => resolveDealUpdates({ title: 5 })).toThrow(DealError);
+    expect(() => resolveDealUpdates({ notes: 5 })).toThrow(DealError);
   });
 });

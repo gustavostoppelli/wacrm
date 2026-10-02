@@ -169,3 +169,35 @@ export async function resolvePipelineAndStage(
 
   return { pipelineId: pipeline.id as string, stageId: stage.id as string };
 }
+
+/**
+ * Build the partial update for `PATCH /api/v1/deals/{id}` from a
+ * request body. Only `title` and `notes` are editable here: a field is
+ * updated only when its key is PRESENT (omitted fields stay untouched).
+ * `title` must be a non-empty string; `notes` is a string or null
+ * (null/blank clears it). Anything else is a 400 rather than a
+ * silently-ignored no-op.
+ */
+export function resolveDealUpdates(
+  body: Record<string, unknown>
+): Record<string, string | null> {
+  const updates: Record<string, string | null> = {};
+
+  if ('title' in body) {
+    const title = body.title;
+    if (typeof title !== 'string' || !title.trim()) {
+      throw new DealError("'title' must be a non-empty string", 400);
+    }
+    updates.title = title.trim();
+  }
+
+  if ('notes' in body) {
+    const notes = body.notes;
+    if (notes !== null && typeof notes !== 'string') {
+      throw new DealError("'notes' must be a string or null", 400);
+    }
+    updates.notes = typeof notes === 'string' ? notes.trim() || null : null;
+  }
+
+  return updates;
+}
