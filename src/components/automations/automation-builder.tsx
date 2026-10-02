@@ -1912,12 +1912,14 @@ function ConditionBranches({
   ]
   return (
     // Branch cards keep their normal fixed width (never shrunk to
-    // "fit") — when both columns side by side don't fit the panel,
-    // this scrolls horizontally instead of squeezing the cards, which
-    // used to make an expanded card's editor spill onto the sibling
-    // branch's card.
-    <div className="mt-3 overflow-x-auto">
-      <div className="flex w-max gap-6">
+    // "fit"). No scrollbar of its own here — the canvas container
+    // (AutomationBuilder's "Canvas" div, `overflow-y-auto`) already
+    // picks up horizontal scroll by the CSS spec's auto-overflow
+    // pairing rule once this content is wider than the centered
+    // max-w-2xl column, so the whole flow scrolls as one surface
+    // instead of a small boxed-in scrollbar nested inside one card.
+    <div className="mt-3">
+      <div className="flex w-max gap-12">
         <BranchColumn label={t("branches.yes")} color="text-primary">
           <StepList {...props} steps={yes} parentPath={yesPath} />
         </BranchColumn>
