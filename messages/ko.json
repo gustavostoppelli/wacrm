@@ -1202,6 +1202,7 @@
         "no": "아니요"
       },
       "addStep": "단계 추가",
+      "mergePaths": "경로 합치기",
       "config": {
         "messageText": "메시지 텍스트",
         "placeholderMessageText": "안녕하세요! 문의해주셔서 감사합니다…",

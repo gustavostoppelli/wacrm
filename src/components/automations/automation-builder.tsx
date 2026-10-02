@@ -36,6 +36,7 @@ import {
   List,
   Bell,
   Braces,
+  GitMerge,
   Image as ImageIcon,
   Upload,
   X,
@@ -1730,7 +1731,7 @@ function StepList(props: StepListProps) {
         })()
 
   return (
-    <div className="flex min-w-0 w-full flex-col items-center">
+    <div className="flex flex-col items-center">
       <AddButton onPick={(t) => props.addStepAt(parentScope, 0, t)} />
       {steps.map((step, idx) => (
         <StepRenderer
@@ -1783,13 +1784,10 @@ function StepRenderer({
   const Icon = meta.icon
   const expanded = props.expandedId === step.cid
   const isCondition = step.step_type === "condition"
-  // `w-full` + a cap, no fixed `sm:w-*` override — a fixed width used
-  // to overflow its column once nested inside a condition's Sim/Não
-  // branch (a 2-col grid, each column narrower than the standalone
-  // root canvas), visually spilling the expanded editor on top of the
-  // sibling branch's card. Capped width still reads the same at root
-  // level since the root canvas is always wide enough to hit the cap.
-  const width = isCondition ? "w-full max-w-[400px]" : "w-full max-w-[320px]"
+  // Fixed widths, same as every other card — branch columns now scroll
+  // horizontally instead of squeezing to fit (see ConditionBranches),
+  // so cards never need to shrink below their normal size.
+  const width = isCondition ? "w-full max-w-[400px] sm:w-[400px]" : "w-full max-w-[320px] sm:w-80"
   const isInvalid = props.invalidStepCids?.has(step.cid) ?? false
 
   return (
@@ -1873,13 +1871,15 @@ function StepRenderer({
           which branch (Sim/Não) was taken — the engine's executeStepsFrom
           already resumes the parent list once a branch's own steps are
           done (see engine.ts's `continue` after dispatching a branch).
-          This is the "merge the two paths back into one" point: put a
-          step here instead of duplicating it inside both branches.
+          Rendered as the distinct "Unir caminhos" connector for a
+          condition (instead of a plain "+") so the merge point reads as
+          deliberate, not a stray add button.
           Caveat: if a branch ends in a `wait`, this step currently fires
           immediately rather than after that wait elapses — fine for
           branches that only tag/message/etc., not yet for one that
           waits before merging. */}
       <AddButton
+        variant={isCondition ? "merge" : "add"}
         onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
       />
     </>
@@ -1909,16 +1909,20 @@ function ConditionBranches({
     { kind: "branch", parentCid: step.cid, branch: "no", index: 0 },
   ]
   return (
-    // Stack Yes/No vertically on mobile — two columns at 375px would
-    // cram each branch to ~170px which is too narrow for the nested
-    // cards. Two-column grid returns on sm+.
-    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <BranchColumn label={t("branches.yes")} color="text-primary">
-        <StepList {...props} steps={yes} parentPath={yesPath} />
-      </BranchColumn>
-      <BranchColumn label={t("branches.no")} color="text-rose-400">
-        <StepList {...props} steps={no} parentPath={noPath} />
-      </BranchColumn>
+    // Branch cards keep their normal fixed width (never shrunk to
+    // "fit") — when both columns side by side don't fit the panel,
+    // this scrolls horizontally instead of squeezing the cards, which
+    // used to make an expanded card's editor spill onto the sibling
+    // branch's card.
+    <div className="mt-3 overflow-x-auto">
+      <div className="flex w-max gap-6">
+        <BranchColumn label={t("branches.yes")} color="text-primary">
+          <StepList {...props} steps={yes} parentPath={yesPath} />
+        </BranchColumn>
+        <BranchColumn label={t("branches.no")} color="text-rose-400">
+          <StepList {...props} steps={no} parentPath={noPath} />
+        </BranchColumn>
+      </div>
     </div>
   )
 }
@@ -1933,24 +1937,52 @@ function BranchColumn({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex min-w-0 flex-col items-center">
+    <div className="flex flex-col items-center">
       <div className={cn("mb-2 text-[11px] font-semibold uppercase", color)}>{label}</div>
       {children}
     </div>
   )
 }
 
-function AddButton({ onPick }: { onPick: (t: AutomationStepType) => void }) {
+function AddButton({
+  onPick,
+  variant = "add",
+}: {
+  onPick: (t: AutomationStepType) => void
+  /** "merge" renders a visually distinct connector (a horizontal bar
+   *  feeding into the button, a merge icon, a label) for the point
+   *  right after a condition where the Sim/Não branches rejoin — same
+   *  underlying action (add a step that runs after either branch),
+   *  just not presented as an ordinary "add a step" "+". */
+  variant?: "add" | "merge"
+}) {
   const t = useTranslations("Automations.builder")
+  const isMerge = variant === "merge"
   return (
     <div className="relative flex flex-col items-center">
-      <div className="h-4 w-[2px] bg-border" aria-hidden />
+      {isMerge ? (
+        <>
+          <div className="h-3 w-[2px] bg-border" aria-hidden />
+          <div className="h-[2px] w-20 rounded-full bg-border" aria-hidden />
+          <div className="h-3 w-[2px] bg-border" aria-hidden />
+          <span className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {t("mergePaths")}
+          </span>
+        </>
+      ) : (
+        <div className="h-4 w-[2px] bg-border" aria-hidden />
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger
-          className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary data-[popup-open]:border-primary data-[popup-open]:bg-primary/20 data-[popup-open]:text-primary"
-          aria-label={t("addStep")}
+          className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed transition-colors",
+            isMerge
+              ? "border-primary/50 bg-background text-primary hover:border-primary hover:bg-primary/10 data-[popup-open]:border-primary data-[popup-open]:bg-primary/20"
+              : "border-border bg-background text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary data-[popup-open]:border-primary data-[popup-open]:bg-primary/20 data-[popup-open]:text-primary",
+          )}
+          aria-label={isMerge ? t("mergePaths") : t("addStep")}
         >
-          <Plus className="h-4 w-4" />
+          {isMerge ? <GitMerge className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
