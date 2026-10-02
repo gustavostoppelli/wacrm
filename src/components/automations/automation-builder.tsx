@@ -1730,7 +1730,7 @@ function StepList(props: StepListProps) {
         })()
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex min-w-0 w-full flex-col items-center">
       <AddButton onPick={(t) => props.addStepAt(parentScope, 0, t)} />
       {steps.map((step, idx) => (
         <StepRenderer
@@ -1783,17 +1783,18 @@ function StepRenderer({
   const Icon = meta.icon
   const expanded = props.expandedId === step.cid
   const isCondition = step.step_type === "condition"
-  // Card widths on mobile fill the full canvas column (max-w-2xl px-4
-  // still keeps them reasonable). On sm+ the original fixed widths
-  // come back so the flow visual stays recognisable.
-  const width = isCondition
-    ? "w-full max-w-[400px] sm:w-[400px]"
-    : "w-full max-w-[320px] sm:w-80"
+  // `w-full` + a cap, no fixed `sm:w-*` override — a fixed width used
+  // to overflow its column once nested inside a condition's Sim/Não
+  // branch (a 2-col grid, each column narrower than the standalone
+  // root canvas), visually spilling the expanded editor on top of the
+  // sibling branch's card. Capped width still reads the same at root
+  // level since the root canvas is always wide enough to hit the cap.
+  const width = isCondition ? "w-full max-w-[400px]" : "w-full max-w-[320px]"
   const isInvalid = props.invalidStepCids?.has(step.cid) ?? false
 
   return (
     <>
-      <div className={cn("z-10 flex flex-col", width)}>
+      <div className={cn("z-10 flex min-w-0 flex-col", width)}>
         <div
           className={cn(
             "rounded-lg border border-border border-l-4 bg-card shadow-lg",
@@ -1868,14 +1869,19 @@ function StepRenderer({
         )}
       </div>
 
-      {/* A condition branches into Yes/No (rendered above by
-          ConditionBranches), so it has no linear "continue" path — adding
-          the trailing connector here would produce a spurious third output. */}
-      {!isCondition && (
-        <AddButton
-          onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
-        />
-      )}
+      {/* A step added here, after the condition, runs regardless of
+          which branch (Sim/Não) was taken — the engine's executeStepsFrom
+          already resumes the parent list once a branch's own steps are
+          done (see engine.ts's `continue` after dispatching a branch).
+          This is the "merge the two paths back into one" point: put a
+          step here instead of duplicating it inside both branches.
+          Caveat: if a branch ends in a `wait`, this step currently fires
+          immediately rather than after that wait elapses — fine for
+          branches that only tag/message/etc., not yet for one that
+          waits before merging. */}
+      <AddButton
+        onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
+      />
     </>
   )
 }
@@ -1927,7 +1933,7 @@ function BranchColumn({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex min-w-0 flex-col items-center">
       <div className={cn("mb-2 text-[11px] font-semibold uppercase", color)}>{label}</div>
       {children}
     </div>
