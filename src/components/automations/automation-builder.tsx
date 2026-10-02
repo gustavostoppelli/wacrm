@@ -54,7 +54,10 @@ import { uploadAccountMedia, MEDIA_MAX_BYTES_BY_KIND } from "@/lib/storage/uploa
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type {
@@ -1871,15 +1874,14 @@ function StepRenderer({
           which branch (Sim/Não) was taken — the engine's executeStepsFrom
           already resumes the parent list once a branch's own steps are
           done (see engine.ts's `continue` after dispatching a branch).
-          Rendered as the distinct "Unir caminhos" connector for a
-          condition (instead of a plain "+") so the merge point reads as
-          deliberate, not a stray add button.
+          Looks like every other "+" until clicked; the dropdown itself
+          carries the "Unir caminhos" hint (see AddButton).
           Caveat: if a branch ends in a `wait`, this step currently fires
           immediately rather than after that wait elapses — fine for
           branches that only tag/message/etc., not yet for one that
           waits before merging. */}
       <AddButton
-        variant={isCondition ? "merge" : "add"}
+        isMergePoint={isCondition}
         onPick={(t) => props.addStepAt(parentScope, index + 1, t)}
       />
     </>
@@ -1946,48 +1948,43 @@ function BranchColumn({
 
 function AddButton({
   onPick,
-  variant = "add",
+  isMergePoint = false,
 }: {
   onPick: (t: AutomationStepType) => void
-  /** "merge" renders a visually distinct connector (a horizontal bar
-   *  feeding into the button, a merge icon, a label) for the point
-   *  right after a condition where the Sim/Não branches rejoin — same
-   *  underlying action (add a step that runs after either branch),
-   *  just not presented as an ordinary "add a step" "+". */
-  variant?: "add" | "merge"
+  /** True for the "+" right after a condition — same ordinary button
+   *  as every other "+" (nothing shown on the canvas until clicked),
+   *  but its dropdown opens with an "Unir caminhos" hint on top: a step
+   *  picked here runs after EITHER branch (Sim or Não), since the
+   *  engine already resumes the parent list once the chosen branch's
+   *  own steps finish (executeStepsFrom, engine.ts). */
+  isMergePoint?: boolean
 }) {
   const t = useTranslations("Automations.builder")
-  const isMerge = variant === "merge"
   return (
     <div className="relative flex flex-col items-center">
-      {isMerge ? (
-        <>
-          <div className="h-3 w-[2px] bg-border" aria-hidden />
-          <div className="h-[2px] w-20 rounded-full bg-border" aria-hidden />
-          <div className="h-3 w-[2px] bg-border" aria-hidden />
-          <span className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            {t("mergePaths")}
-          </span>
-        </>
-      ) : (
-        <div className="h-4 w-[2px] bg-border" aria-hidden />
-      )}
+      <div className="h-4 w-[2px] bg-border" aria-hidden />
       <DropdownMenu>
         <DropdownMenuTrigger
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed transition-colors",
-            isMerge
-              ? "border-primary/50 bg-background text-primary hover:border-primary hover:bg-primary/10 data-[popup-open]:border-primary data-[popup-open]:bg-primary/20"
-              : "border-border bg-background text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary data-[popup-open]:border-primary data-[popup-open]:bg-primary/20 data-[popup-open]:text-primary",
-          )}
-          aria-label={isMerge ? t("mergePaths") : t("addStep")}
+          className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-dashed border-border bg-background text-muted-foreground transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary data-[popup-open]:border-primary data-[popup-open]:bg-primary/20 data-[popup-open]:text-primary"
+          aria-label={t("addStep")}
         >
-          {isMerge ? <GitMerge className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+          <Plus className="h-4 w-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
           className="max-h-80 min-w-56 overflow-y-auto border-border bg-popover"
         >
+          {isMergePoint && (
+            <>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-primary">
+                  <GitMerge className="h-3.5 w-3.5" />
+                  {t("mergePaths")}
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+            </>
+          )}
           {ADDABLE_STEPS.map((tp) => {
             const Icon = STEP_META[tp].icon
             return (
