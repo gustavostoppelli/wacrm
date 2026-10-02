@@ -8,9 +8,18 @@ describe("daysInStage", () => {
     expect(daysInStage("2026-08-29T11:20:00Z", now)).toBe(0);
   });
 
-  it("floors instead of rounding up", () => {
-    // 1 day and 23 hours ago — still only 1 full day elapsed.
-    expect(daysInStage("2026-08-27T13:00:00Z", now)).toBe(1);
+  it("returns 0 for a deal entered earlier the same calendar day", () => {
+    expect(daysInStage("2026-08-29T10:00:00Z", now)).toBe(0);
+  });
+
+  it("counts a calendar-day crossing as 1, even under 24h elapsed", () => {
+    // Entered 11pm the day before "now" — only 13h elapsed, but it's
+    // a different calendar date, which is what the UI actually shows.
+    expect(daysInStage("2026-08-28T23:00:00Z", now)).toBe(1);
+  });
+
+  it("counts whole calendar days for a multi-day gap", () => {
+    expect(daysInStage("2026-08-27T13:00:00Z", now)).toBe(2);
   });
 
   it("returns exact whole days for an exact multiple", () => {
