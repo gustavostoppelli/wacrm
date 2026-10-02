@@ -175,7 +175,14 @@ export async function setContactTags(
     tagNames,
     canCreateTags: true,
   });
-  const desired = new Set(tagIdByKey.values());
+  // `tagIdByKey` maps EVERY tag in the account (not only the requested
+  // names), so build the desired set from the requested names alone —
+  // otherwise each call would attach all of the account's tags.
+  const desired = new Set<string>();
+  for (const name of tagNames) {
+    const id = tagIdByKey.get(name.trim().toLowerCase());
+    if (id) desired.add(id);
+  }
 
   // Diff against the current joins rather than delete-all-then-insert:
   // a diff only touches tags that actually change, so a mid-operation

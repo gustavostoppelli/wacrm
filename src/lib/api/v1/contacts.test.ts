@@ -1,9 +1,18 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
+
+const addedTagIds: string[] = [];
+vi.mock('@/lib/contacts/tag-events', () => ({
+  addContactTagAndDispatch: vi.fn(async ({ tagId }: { tagId: string }) => {
+    addedTagIds.push(tagId);
+    return { added: true, dispatched: true };
+  }),
+}));
 
 import {
   serializeContact,
   findOrCreateContact,
+  setContactTags,
   ContactError,
 } from './contacts';
 
@@ -61,5 +70,34 @@ describe('findOrCreateContact', () => {
     await expect(
       findOrCreateContact(noopDb, 'acc', 'user', { phone: 'not-a-number' })
     ).rejects.toBeInstanceOf(ContactError);
+  });
+});
+
+describe('setContactTags', () => {
+  // Account already holds three tags; the contact currently has none.
+  function fakeDb(): SupabaseClient {
+    const accountTags = [
+      { id: 't-a', name: 'compraaprovada_cpot20' },
+      { id: 't-b', name: 'carrinhoabandonado_cpot20' },
+      { id: 't-c', name: 'pedidodereembolso_cpot20' },
+    ];
+    return {
+      from: (table: string) => ({
+        select: () => ({
+          eq: async () =>
+            table === 'tags'
+              ? { data: accountTags, error: null }
+              : { data: [], error: null },
+        }),
+      }),
+    } as unknown as SupabaseClient;
+  }
+
+  it('attaches only the requested tags, not every tag in the account', async () => {
+    addedTagIds.length = 0;
+    await setContactTags(fakeDb(), 'acc', 'user', 'contact-1', [
+      'Compraaprovada_CPOT20',
+    ]);
+    expect(addedTagIds).toEqual(['t-a']);
   });
 });
