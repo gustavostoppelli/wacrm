@@ -2444,10 +2444,25 @@ function insertAt(
     return copy
   }
   return steps.map((s) => {
-    if (s.cid !== parent.parentCid || !s.branches) return s
-    const list = [...s.branches[parent.branch]]
-    list.splice(index, 0, node)
-    return { ...s, branches: { ...s.branches, [parent.branch]: list } }
+    if (s.cid === parent.parentCid && s.branches) {
+      const list = [...s.branches[parent.branch]]
+      list.splice(index, 0, node)
+      return { ...s, branches: { ...s.branches, [parent.branch]: list } }
+    }
+    // The target condition can be nested inside THIS step's own
+    // branches (a condition inside another condition's Sim/Não) — this
+    // used to only check root-level steps for `parent.parentCid`, so
+    // adding any step inside a nested condition silently did nothing
+    // (insertAt returned the tree unchanged, no error, no new card).
+    // cids are unique, so a plain recursive search is unambiguous.
+    if (!s.branches) return s
+    return {
+      ...s,
+      branches: {
+        yes: insertAt(s.branches.yes, parent, index, node),
+        no: insertAt(s.branches.no, parent, index, node),
+      },
+    }
   })
 }
 
