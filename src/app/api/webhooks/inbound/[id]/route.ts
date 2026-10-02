@@ -65,20 +65,6 @@ async function processInboundWebhook(webhook: any, rawBody: unknown) {
   const admin = supabaseAdmin()
   const parsed = parseInboundWebhookPayload(rawBody)
 
-  // TEMP diagnostic (remove once the Acesso Vitalício contact-phone
-  // resolution issue is root-caused): add_tag has been failing with
-  // contact_id=null for this one connection — parsed.contactPhone must
-  // be coming back empty for this payload shape. Scoped to this single
-  // webhook id to avoid logging other connections' raw payloads.
-  if (webhook.id === 'be9db74a-64df-4dc2-931a-104f14f619f2') {
-    console.log('[inbound-webhook] diag raw body:', JSON.stringify(rawBody))
-    console.log('[inbound-webhook] diag parsed:', JSON.stringify({
-      contactName: parsed.contactName,
-      contactPhone: parsed.contactPhone,
-      action: parsed.action,
-    }))
-  }
-
   admin
     .from('inbound_webhooks')
     .update({ last_received_at: new Date().toISOString() })
