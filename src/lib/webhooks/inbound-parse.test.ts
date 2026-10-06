@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseInboundWebhookPayload } from './inbound-parse'
+import { normalizeBuyerPhone, parseInboundWebhookPayload } from './inbound-parse'
 
 describe('parseInboundWebhookPayload', () => {
   it('parses a recognized checkout-platform PURCHASE_APPROVED payload as an open deal', () => {
@@ -83,5 +83,51 @@ describe('parseInboundWebhookPayload', () => {
     const result = parseInboundWebhookPayload(null)
     expect(result.action).toBe('open')
     expect(result.contactPhone).toBeNull()
+  })
+})
+
+describe('normalizeBuyerPhone', () => {
+  it('adds the Brazilian 55 to a bare DDD + number (10 or 11 digits)', () => {
+    expect(normalizeBuyerPhone('34991623419')).toBe('5534991623419')
+    expect(normalizeBuyerPhone('(34) 3123-4567')).toBe('553431234567')
+    // DDD 55 (Santa Maria/RS) with 11 digits is still a bare BR number.
+    expect(normalizeBuyerPhone('55991234567')).toBe('5555991234567')
+  })
+
+  it('leaves numbers that already carry a country code untouched', () => {
+    expect(normalizeBuyerPhone('5534991623419')).toBe('5534991623419')
+    expect(normalizeBuyerPhone('573196345816')).toBe('573196345816')
+    expect(normalizeBuyerPhone('+34 612 345 678')).toBe('+34 612 345 678')
+    expect(normalizeBuyerPhone(null)).toBeNull()
+  })
+
+  it('does not touch a number when the buyer country is not Brazil', () => {
+    // 11 digits WITH country code (US, Spain, Chile, Peru) must not get a 55.
+    expect(normalizeBuyerPhone('12125551234', 'US')).toBe('12125551234')
+    expect(normalizeBuyerPhone('34612345678', 'ES')).toBe('34612345678')
+    expect(normalizeBuyerPhone('34991623419', 'BR')).toBe('5534991623419')
+    expect(normalizeBuyerPhone('34991623419', 'br')).toBe('5534991623419')
+  })
+
+  it('reads the country from the checkout payload buyer address', () => {
+    const foreign = parseInboundWebhookPayload({
+      event: 'PURCHASE_APPROVED',
+      data: { buyer: { name: 'John', checkout_phone: '12125551234', address: { country_iso: 'US' } }, product: { name: 'Curso X' }, purchase: {} },
+    })
+    expect(foreign.contactPhone).toBe('12125551234')
+    const brazilian = parseInboundWebhookPayload({
+      event: 'PURCHASE_APPROVED',
+      data: { buyer: { name: 'Ana', checkout_phone: '34991623419', address: { country_iso: 'BR' } }, product: { name: 'Curso X' }, purchase: {} },
+    })
+    expect(brazilian.contactPhone).toBe('5534991623419')
+  })
+
+  it('is applied to the buyer phone of a checkout payload', () => {
+    const result = parseInboundWebhookPayload({
+      event: 'PURCHASE_APPROVED',
+      data: { buyer: { name: 'Luciana', checkout_phone: '34991623419' }, product: { name: 'Curso X' }, purchase: {} },
+    })
+    expect(result.contactPhone).toBe('5534991623419')
+    expect(result.vars.telefone).toBe('5534991623419')
   })
 })

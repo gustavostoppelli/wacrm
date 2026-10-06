@@ -38,6 +38,33 @@ function asNumber(v: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+
+/**
+ * The checkout platform sends Brazilian buyers' phones WITHOUT the
+ * country code (e.g. "34991623419" = DDD 34 + number). Stored as-is, the
+ * WhatsApp API reads the leading "34" as Spain's country code and the
+ * send fails. A bare 10-11 digit number (DDD + 8/9 digits) is therefore
+ * completed with Brazil's "55".
+ *
+ * Left untouched: a leading "+", more than 11 digits (e.g. Colombia's
+ * "573196345816"), and — when the payload names the buyer's country — any
+ * country other than Brazil. That last guard matters because some foreign
+ * numbers WITH their country code are also 11 digits (US/Canada, Spain,
+ * Chile, Peru), which would otherwise be mistaken for DDD + number.
+ */
+export function normalizeBuyerPhone(
+  phone: string | null,
+  countryHint?: string | null,
+): string | null {
+  if (!phone) return phone
+  if (phone.trim().startsWith('+')) return phone
+  const country = (countryHint ?? '').trim().toUpperCase()
+  if (country && !['BR', 'BRA', 'BRASIL', 'BRAZIL'].includes(country)) return phone
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`
+  return phone
+}
+
 /** A well-known digital-product checkout/payment platform's webhook
  *  shape: `{ event, data: { buyer, product, purchase } }`. Recognized
  *  by structure, not by any account-visible label. */
@@ -85,7 +112,10 @@ function parseCheckoutShape(body: AnyRecord): ParsedInboundWebhook {
   // exposed as its own `{{ vars.primeiro_nome }}` so a message can open
   // with just "Parabéns, Maria!" instead of the full legal name.
   const firstName = asString(buyer.first_name)
-  const phone = asString(buyer.checkout_phone ?? buyer.phone)
+  const buyerCountry = asString(
+    buyer.address?.country_iso ?? buyer.country_iso ?? buyer.address?.country ?? buyer.country,
+  )
+  const phone = normalizeBuyerPhone(asString(buyer.checkout_phone ?? buyer.phone), buyerCountry)
   const email = asString(buyer.email)
   const productName = asString(product.name)
   const value = asNumber(price.value ?? purchase.value)
