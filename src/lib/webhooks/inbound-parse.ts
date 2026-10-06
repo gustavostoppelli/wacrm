@@ -65,6 +65,17 @@ export function normalizeBuyerPhone(
   return phone
 }
 
+/**
+ * The first word of a full name ("Maria da Silva" -> "Maria"), or null.
+ * Used as the fallback for `primeiro_nome` when the sender does not send a
+ * separate first-name field — e.g. abandoned-cart events, which carry the
+ * full `name` but no `first_name`, left messages opening with "Olá, !".
+ */
+export function firstWordOf(name: string | null): string | null {
+  const word = (name ?? '').trim().split(/\s+/)[0]
+  return word ? word : null
+}
+
 /** A well-known digital-product checkout/payment platform's webhook
  *  shape: `{ event, data: { buyer, product, purchase } }`. Recognized
  *  by structure, not by any account-visible label. */
@@ -111,7 +122,7 @@ function parseCheckoutShape(body: AnyRecord): ParsedInboundWebhook {
   // full `name` field (confirmed against a live payload 2026-10-01) —
   // exposed as its own `{{ vars.primeiro_nome }}` so a message can open
   // with just "Parabéns, Maria!" instead of the full legal name.
-  const firstName = asString(buyer.first_name)
+  const firstName = asString(buyer.first_name) ?? firstWordOf(name)
   const buyerCountry = asString(
     buyer.address?.country_iso ?? buyer.country_iso ?? buyer.address?.country ?? buyer.country,
   )
@@ -171,7 +182,7 @@ function parseGeneric(body: AnyRecord): ParsedInboundWebhook {
   }
 
   const name = asString(pick('name', 'nome', 'full_name', 'nome_completo'))
-  const firstName = asString(pick('first_name', 'primeiro_nome', 'nome_primeiro'))
+  const firstName = asString(pick('first_name', 'primeiro_nome', 'nome_primeiro')) ?? firstWordOf(name)
   const phone = asString(pick('phone', 'telefone', 'celular', 'whatsapp', 'checkout_phone'))
   const email = asString(pick('email', 'e-mail'))
   const title = asString(pick('title', 'produto', 'product', 'product_name'))

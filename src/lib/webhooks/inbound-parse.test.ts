@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeBuyerPhone, parseInboundWebhookPayload } from './inbound-parse'
+import { firstWordOf, normalizeBuyerPhone, parseInboundWebhookPayload } from './inbound-parse'
 
 describe('parseInboundWebhookPayload', () => {
   it('parses a recognized checkout-platform PURCHASE_APPROVED payload as an open deal', () => {
@@ -129,5 +129,29 @@ describe('normalizeBuyerPhone', () => {
     })
     expect(result.contactPhone).toBe('5534991623419')
     expect(result.vars.telefone).toBe('5534991623419')
+  })
+})
+
+describe('primeiro_nome fallback', () => {
+  it('takes the first word of the full name when no first_name is sent (abandoned cart)', () => {
+    const result = parseInboundWebhookPayload({
+      event: 'PURCHASE_OUT_OF_SHOPPING_CART',
+      data: { buyer: { name: 'Carmen Zapata', email: 'c@example.com', phone: '573196345816' }, product: { name: 'Curso X' }, purchase: {} },
+    })
+    expect(result.vars.primeiro_nome).toBe('Carmen')
+  })
+
+  it('keeps the explicit first_name when the sender provides one', () => {
+    const result = parseInboundWebhookPayload({
+      event: 'PURCHASE_APPROVED',
+      data: { buyer: { name: 'Maria da Silva', first_name: 'Maria Clara', checkout_phone: '5521999999999' }, product: { name: 'Curso X' }, purchase: {} },
+    })
+    expect(result.vars.primeiro_nome).toBe('Maria Clara')
+  })
+
+  it('is empty only when there is no name at all', () => {
+    expect(firstWordOf('  ')).toBeNull()
+    expect(firstWordOf(null)).toBeNull()
+    expect(firstWordOf('  Ana  Paula ')).toBe('Ana')
   })
 })
