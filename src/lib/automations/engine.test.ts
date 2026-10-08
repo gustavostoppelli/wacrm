@@ -115,7 +115,7 @@ vi.mock("./meta-send", () => ({
   engineSendInteractive: vi.fn(async () => ({ whatsapp_message_id: "m1" })),
 }));
 
-import { runAutomationsForTrigger, triggerMatches } from "./engine";
+import { runAutomationsForTrigger, triggerMatches, interpolateText } from "./engine";
 import { engineSendText } from "./meta-send";
 import type { Automation, KeywordMatchTriggerConfig } from "@/types";
 
@@ -707,5 +707,27 @@ describe("triggerMatches — instagram_dm_received", () => {
     } as unknown as Automation;
     expect(triggerMatches(automation, { message_text: "oi" })).toBe(true);
     expect(triggerMatches(automation, undefined)).toBe(true);
+  });
+});
+
+describe("interpolateText — placeholders", () => {
+  const ctx = { vars: { primeiro_nome: "Maria" }, message_text: "oi" };
+
+  it("fills the standard double-brace placeholder (with or without spaces)", () => {
+    expect(interpolateText("Ola, {{vars.primeiro_nome}}!", ctx)).toBe("Ola, Maria!");
+    expect(interpolateText("Ola, {{ vars.primeiro_nome }}!", ctx)).toBe("Ola, Maria!");
+    expect(interpolateText("Voce disse: {{message.text}}", ctx)).toBe("Voce disse: oi");
+  });
+
+  it("tolerates a missing brace on one side instead of sending raw braces", () => {
+    expect(interpolateText("Ola {vars.primeiro_nome}}! Tudo bem?", ctx)).toBe("Ola Maria! Tudo bem?");
+    expect(interpolateText("Ola {{vars.primeiro_nome}!", ctx)).toBe("Ola Maria!");
+    expect(interpolateText("Ola {vars.primeiro_nome}!", ctx)).toBe("Ola Maria!");
+  });
+
+  it("renders unknown variables as empty and leaves other braces alone", () => {
+    expect(interpolateText("[{{vars.nao_existe}}]", ctx)).toBe("[]");
+    expect(interpolateText("[{{outra.coisa}}]", ctx)).toBe("[]");
+    expect(interpolateText("preco {valor} e {x}", ctx)).toBe("preco {valor} e {x}");
   });
 });
