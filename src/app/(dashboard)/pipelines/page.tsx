@@ -37,6 +37,7 @@ import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
 import { GatedButton } from "@/components/ui/gated-button";
 import { useTranslations } from "next-intl";
+import { fetchAllPages } from "@/lib/pagination/fetch-all-pages";
 
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
@@ -130,18 +131,32 @@ export default function PipelinesPage() {
 
   const loadDeals = useCallback(
     async (pipelineId: string) => {
-      const { data } = await supabase
-        .from("deals")
-        // contact_tags(tags(*)) embeds the contact's tags so the Kanban
-        // card can show them without a second round-trip — same
-        // pattern as the Inbox's CONVERSATION_SELECT. Flattened onto
-        // contact.tags below (Deal/Contact's own shape has no raw
-        // contact_tags field).
-        .select(
-          "*, contact:contacts(*, contact_tags(tags(*))), assignee:profiles!deals_assigned_to_fkey(*)",
-        )
-        .eq("pipeline_id", pipelineId)
-        .order("created_at", { ascending: false });
+      // The database caps a single request at 1000 rows, silently, so a
+      // pipeline with more deals than that came back truncated (the oldest
+      // ones vanished from the board and from the analytics totals). Walk
+      // the result in windows; `id` is the tie-breaker that keeps the
+      // order stable between windows.
+      const data = await fetchAllPages(async (from, to) => {
+        const { data: page, error } = await supabase
+          .from("deals")
+          // contact_tags(tags(*)) embeds the contact's tags so the Kanban
+          // card can show them without a second round-trip, same
+          // pattern as the Inbox's CONVERSATION_SELECT. Flattened onto
+          // contact.tags below (Deal/Contact's own shape has no raw
+          // contact_tags field).
+          .select(
+            "*, contact:contacts(*, contact_tags(tags(*))), assignee:profiles!deals_assigned_to_fkey(*)",
+          )
+          .eq("pipeline_id", pipelineId)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, to);
+        if (error) throw error;
+        return page ?? [];
+      }).catch((err) => {
+        console.error("[pipelines] failed to load deals:", err);
+        return [];
+      });
       type RawDeal = Omit<Deal, "contact"> & {
         contact?: (Deal["contact"] & { contact_tags?: { tags: Tag | null }[] }) | null;
       };

@@ -314,6 +314,12 @@ export function PipelineBoard({
   );
 }
 
+// A column renders at most this many cards at first; "show more" adds another
+// batch. A pipeline imported in bulk can hold thousands of deals in one stage,
+// and drawing them all at once makes the board crawl. The header counter
+// always shows the real total.
+const COLUMN_PAGE_SIZE = 100;
+
 function StageColumn({
   stage,
   deals,
@@ -331,6 +337,9 @@ function StageColumn({
 }) {
   const t = useTranslations("Pipelines.board");
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+  const [visibleCount, setVisibleCount] = useState(COLUMN_PAGE_SIZE);
+  const visibleDeals = deals.slice(0, visibleCount);
+  const hiddenCount = deals.length - visibleDeals.length;
 
   return (
     // On mobile each column is `w-[85vw]` (with a reasonable min/max)
@@ -370,7 +379,7 @@ function StageColumn({
             {t("dropDealHere")}
           </div>
         ) : (
-          deals.map((deal) => (
+          visibleDeals.map((deal) => (
             <DraggableDealCard
               key={deal.id}
               deal={deal}
@@ -378,6 +387,16 @@ function StageColumn({
               onEdit={onEditDeal}
             />
           ))
+        )}
+        {hiddenCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setVisibleCount((n) => n + COLUMN_PAGE_SIZE)}
+            className="w-full border border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            {t("showMore", { count: hiddenCount })}
+          </Button>
         )}
       </div>
 
