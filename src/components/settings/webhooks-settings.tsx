@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Copy, Loader2, Pencil, Plus, Trash2, Webhook } from 'lucide-react';
+import { Copy, Loader2, Pencil, Plus, RotateCw, Trash2, Webhook } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { Badge } from '@/components/ui/badge';
@@ -90,6 +90,7 @@ export function WebhooksSettings() {
   const [createOpen, setCreateOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editingWebhook, setEditingWebhook] = useState<WebhookRow | null>(null);
+  const [rotatingWebhook, setRotatingWebhook] = useState<WebhookRow | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -249,6 +250,16 @@ export function WebhooksSettings() {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => setRotatingWebhook(w)}
+                        disabled={busyId === w.id}
+                        title={t('rotateButton')}
+                        aria-label={t('rotateButton')}
+                      >
+                        <RotateCw className="size-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleDelete(w)}
                         disabled={busyId === w.id}
                         className="border-red-500/40 bg-red-500/10 text-red-300 hover:border-red-500/60 hover:bg-red-500/20 hover:text-red-200"
@@ -270,6 +281,11 @@ export function WebhooksSettings() {
         pipelines={pipelines}
         stages={stages}
         onCreated={load}
+      />
+
+      <RotateTokenDialog
+        webhook={rotatingWebhook}
+        onOpenChange={(open) => !open && setRotatingWebhook(null)}
       />
 
       <EditDestinationDialog
@@ -644,6 +660,125 @@ function CreateWebhookDialog({
                   </>
                 ) : (
                   t('createConnection')
+                )}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ------------------------------------------------------------
+// Rotate-token dialog — issues a NEW URL/token for an existing
+// connection (POST /api/account/webhooks/[id]/rotate-token). The URL is
+// shown once, like on creation; the previous URL stops working. The
+// connection id stays the same, so Automations bound to it keep working.
+// ------------------------------------------------------------
+
+function RotateTokenDialog({
+  webhook,
+  onOpenChange,
+}: {
+  webhook: WebhookRow | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const t = useTranslations('Settings.webhooks');
+  const [busy, setBusy] = useState(false);
+  const [newUrl, setNewUrl] = useState<string | null>(null);
+
+  function close(next: boolean) {
+    if (!next) {
+      setNewUrl(null);
+      setBusy(false);
+    }
+    onOpenChange(next);
+  }
+
+  async function handleRotate() {
+    if (!webhook) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/account/webhooks/${webhook.id}/rotate-token`, {
+        method: 'POST',
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(payload.error || t('rotateError'));
+        return;
+      }
+      setNewUrl(payload.url as string);
+    } catch (err) {
+      console.error('[RotateTokenDialog] rotate error:', err);
+      toast.error(t('networkError'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyUrl() {
+    if (!newUrl) return;
+    try {
+      await navigator.clipboard.writeText(newUrl);
+      toast.success(t('copySuccess'));
+    } catch {
+      toast.error(t('copyFailed'));
+    }
+  }
+
+  return (
+    <Dialog open={!!webhook} onOpenChange={close}>
+      <DialogContent className="border-border bg-popover sm:max-w-md">
+        {newUrl ? (
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-popover-foreground">{t('rotateDoneTitle')}</DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                {t('rotateDoneDesc')}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-1.5">
+              <Label className="text-muted-foreground">{t('urlLabel')}</Label>
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={newUrl}
+                  className="font-mono text-xs"
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                <Button type="button" variant="outline" onClick={copyUrl}>
+                  <Copy className="size-4" />
+                  {t('copy')}
+                </Button>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => close(false)}>{t('done')}</Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-popover-foreground">{t('rotateTitle')}</DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                {webhook?.name}
+                <br />
+                {t('rotateConfirmDesc')}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => close(false)} disabled={busy}>
+                {t('cancel')}
+              </Button>
+              <Button onClick={handleRotate} disabled={busy}>
+                {busy ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    {t('rotating')}
+                  </>
+                ) : (
+                  t('rotateConfirm')
                 )}
               </Button>
             </DialogFooter>
