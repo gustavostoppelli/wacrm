@@ -1816,7 +1816,7 @@ Expected: no type errors; all tests pass except the 5 known pre-existing `date-u
 
 ```bash
 git push origin main
-ssh -i ~/.ssh/fusehub_vps root@92.112.179.88 "cd /opt/wacrm && git pull && docker compose --env-file .env.local up --build -d"
+ssh -i ~/.ssh/<chave-da-vps> root@<ip-da-vps> "cd /opt/wacrm && git pull && docker compose --env-file .env.local up --build -d"
 curl -s -o /dev/null -w "%{http_code}\n" https://fusehub.fusegrowth.com.br/login
 ```
 Expected: final curl returns `200`.
