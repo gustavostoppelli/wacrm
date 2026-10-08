@@ -675,7 +675,9 @@
     },
     "board": {
       "dropDealHere": "Solte um negócio aqui",
-      "showMore": "Mostrar mais ({count} restantes)",
+      "pagePrev": "Página anterior",
+      "pageNext": "Próxima página",
+      "pageOf": "Página {page} de {total}",
       "addDeal": "Adicionar negócio",
       "scrollLeft": "Rolar para a esquerda",
       "scrollRight": "Rolar para a direita"

@@ -675,7 +675,9 @@
     },
     "board": {
       "dropDealHere": "Drop a deal here",
-      "showMore": "Show more ({count} remaining)",
+      "pagePrev": "Previous page",
+      "pageNext": "Next page",
+      "pageOf": "Page {page} of {total}",
       "addDeal": "Add Deal",
       "scrollLeft": "Scroll left",
       "scrollRight": "Scroll right"

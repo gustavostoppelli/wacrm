@@ -675,7 +675,9 @@
     },
     "board": {
       "dropDealHere": "여기에 딜을 놓으세요",
-      "showMore": "더 보기 (남은 {count}개)",
+      "pagePrev": "이전 페이지",
+      "pageNext": "다음 페이지",
+      "pageOf": "{total} 중 {page} 페이지",
       "addDeal": "딜 추가",
       "scrollLeft": "왼쪽으로 스크롤",
       "scrollRight": "오른쪽으로 스크롤"

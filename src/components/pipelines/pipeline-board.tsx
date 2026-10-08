@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
+import { paginate } from "@/lib/pagination/paginate";
 import { useTranslations } from "next-intl";
 
 interface PipelineBoardProps {
@@ -139,6 +140,17 @@ export function PipelineBoard({
     return map;
   }, [sortedStages, deals]);
 
+  // One page index for the whole board. The number of pages follows the
+  // fullest column; a column with fewer deals simply runs out earlier.
+  const [pageIndex, setPageIndex] = useState(0);
+  const totalPages = useMemo(() => {
+    let most = 0;
+    for (const bucket of dealsByStage.values()) most = Math.max(most, bucket.length);
+    return Math.max(1, Math.ceil(most / COLUMN_PAGE_SIZE));
+  }, [dealsByStage]);
+  // Clamp (don't reset): if cards were moved and the page no longer exists, fall back to the last one.
+  const currentPage = Math.min(pageIndex, totalPages - 1);
+
   const sensors = useSensors(
     // 5px activation distance avoids clicks being interpreted as drags.
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -196,8 +208,41 @@ export function PipelineBoard({
           same thing — they sit at the TOP of the board, above every
           column, so they're visible without scrolling the page down
           first, and only render once there's actually more to see. */}
-      {(canScrollLeft || canScrollRight) && (
-        <div className="mb-2 flex justify-end gap-1">
+      {(canScrollLeft || canScrollRight || totalPages > 1) && (
+        <div className="mb-2 flex items-center justify-end gap-3">
+          {totalPages > 1 && (
+            <div
+              className="flex items-center gap-1"
+              title={t("pageOf", { page: currentPage + 1, total: totalPages })}
+            >
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-7 w-7"
+                disabled={currentPage === 0}
+                onClick={() => setPageIndex(currentPage - 1)}
+                aria-label={t("pagePrev")}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="min-w-6 text-center text-sm font-medium tabular-nums text-foreground">
+                {currentPage + 1}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-7 w-7"
+                disabled={currentPage >= totalPages - 1}
+                onClick={() => setPageIndex(currentPage + 1)}
+                aria-label={t("pageNext")}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          <div className="flex gap-1">
           <Button
             type="button"
             variant="outline"
@@ -220,6 +265,7 @@ export function PipelineBoard({
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
+          </div>
         </div>
       )}
       <div
@@ -234,6 +280,7 @@ export function PipelineBoard({
       >
         {sortedStages.map((stage) => {
           const stageDeals = dealsByStage.get(stage.id) ?? [];
+          const pageDeals = paginate(stageDeals, currentPage, COLUMN_PAGE_SIZE).items;
           const totalValue = stageDeals.reduce(
             (s, d) => s + Number(d.value || 0),
             0,
@@ -242,7 +289,8 @@ export function PipelineBoard({
             <StageColumn
               key={stage.id}
               stage={stage}
-              deals={stageDeals}
+              deals={pageDeals}
+              totalCount={stageDeals.length}
               totalValue={totalValue}
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
@@ -314,22 +362,26 @@ export function PipelineBoard({
   );
 }
 
-// A column renders at most this many cards at first; "show more" adds another
-// batch. A pipeline imported in bulk can hold thousands of deals in one stage,
-// and drawing them all at once makes the board crawl. The header counter
-// always shows the real total.
-const COLUMN_PAGE_SIZE = 100;
+// The board shows one page of cards per column at a time, and ONE page number
+// (top of the board) moves every column together. A pipeline imported in bulk
+// can hold thousands of deals in one stage, and drawing them all at once makes
+// the board crawl. Each column header still shows its real total.
+const COLUMN_PAGE_SIZE = 50;
 
 function StageColumn({
   stage,
   deals,
+  totalCount,
   totalValue,
   currency,
   onAddDeal,
   onEditDeal,
 }: {
   stage: PipelineStage;
+  /** The cards of the CURRENT page only. */
   deals: Deal[];
+  /** Every deal in this stage, across all pages (header counter). */
+  totalCount: number;
   totalValue: number;
   currency: string;
   onAddDeal: (stageId: string) => void;
@@ -337,9 +389,6 @@ function StageColumn({
 }) {
   const t = useTranslations("Pipelines.board");
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
-  const [visibleCount, setVisibleCount] = useState(COLUMN_PAGE_SIZE);
-  const visibleDeals = deals.slice(0, visibleCount);
-  const hiddenCount = deals.length - visibleDeals.length;
 
   return (
     // On mobile each column is `w-[85vw]` (with a reasonable min/max)
@@ -359,7 +408,7 @@ function StageColumn({
           {stage.name}
         </h3>
         <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-          {deals.length}
+          {totalCount}
         </span>
       </div>
       <p className="text-xs text-muted-foreground">
@@ -379,7 +428,7 @@ function StageColumn({
             {t("dropDealHere")}
           </div>
         ) : (
-          visibleDeals.map((deal) => (
+          deals.map((deal) => (
             <DraggableDealCard
               key={deal.id}
               deal={deal}
@@ -387,16 +436,6 @@ function StageColumn({
               onEdit={onEditDeal}
             />
           ))
-        )}
-        {hiddenCount > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setVisibleCount((n) => n + COLUMN_PAGE_SIZE)}
-            className="w-full border border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            {t("showMore", { count: hiddenCount })}
-          </Button>
         )}
       </div>
 
