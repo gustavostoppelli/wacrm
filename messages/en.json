@@ -675,6 +675,7 @@
     },
     "board": {
       "dropDealHere": "Drop a deal here",
+      "showMore": "Show more ({count} remaining)",
       "addDeal": "Add Deal",
       "scrollLeft": "Scroll left",
       "scrollRight": "Scroll right"
@@ -2031,7 +2032,15 @@
       "pipelineStageTogether": "Pick the pipeline and stage together, or leave both blank",
       "pipelineOptionalHint": "Pipeline and stage are optional — leave blank if you'll create the deal inside the Automation itself (a \"Create deal\" step), with full control over pipeline, value and title.",
       "pipelineNone": "None (control from the Automation)",
-      "noAutoDeal": "No automatic deal — controlled by the Automation"
+      "noAutoDeal": "No automatic deal — controlled by the Automation",
+      "rotateButton": "Generate new URL",
+      "rotateTitle": "Generate a new URL?",
+      "rotateConfirmDesc": "This connection's current URL stops working immediately. Automations, the pipeline destination and the history stay as they are. You will see the new URL once, to paste into the external tool.",
+      "rotateConfirm": "Generate new URL",
+      "rotating": "Generating...",
+      "rotateError": "Failed to generate the new URL",
+      "rotateDoneTitle": "New URL generated",
+      "rotateDoneDesc": "Copy this URL now and paste it into the external tool. It will not be shown again, and the previous one no longer works."
     },
     "gettingStarted": {
       "title": "Getting started",

@@ -675,6 +675,7 @@
     },
     "board": {
       "dropDealHere": "여기에 딜을 놓으세요",
+      "showMore": "더 보기 (남은 {count}개)",
       "addDeal": "딜 추가",
       "scrollLeft": "왼쪽으로 스크롤",
       "scrollRight": "오른쪽으로 스크롤"
@@ -2031,7 +2032,15 @@
       "pipelineStageTogether": "파이프라인과 단계를 함께 선택하거나 둘 다 비워두세요",
       "pipelineOptionalHint": "파이프라인과 단계는 선택 사항입니다 — 자동화 내부에서 \"거래 생성\" 단계로 파이프라인, 금액, 제목을 완전히 제어하려면 비워두세요.",
       "pipelineNone": "없음 (자동화에서 제어)",
-      "noAutoDeal": "자동 거래 없음 — 자동화에서 제어"
+      "noAutoDeal": "자동 거래 없음 — 자동화에서 제어",
+      "rotateButton": "새 URL 생성",
+      "rotateTitle": "새 URL을 생성할까요?",
+      "rotateConfirmDesc": "이 연결의 현재 URL은 즉시 작동을 멈춥니다. 자동화, 파이프라인 대상, 기록은 그대로 유지됩니다. 외부 도구에 붙여넣을 새 URL은 한 번만 표시됩니다.",
+      "rotateConfirm": "새 URL 생성",
+      "rotating": "생성 중...",
+      "rotateError": "새 URL 생성에 실패했습니다",
+      "rotateDoneTitle": "새 URL이 생성되었습니다",
+      "rotateDoneDesc": "지금 이 URL을 복사해 외부 도구에 붙여넣으세요. 다시 표시되지 않으며 이전 URL은 더 이상 작동하지 않습니다."
     },
     "gettingStarted": {
       "title": "시작하기",

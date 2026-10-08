@@ -675,6 +675,7 @@
     },
     "board": {
       "dropDealHere": "Solte um negócio aqui",
+      "showMore": "Mostrar mais ({count} restantes)",
       "addDeal": "Adicionar negócio",
       "scrollLeft": "Rolar para a esquerda",
       "scrollRight": "Rolar para a direita"
@@ -2031,7 +2032,15 @@
       "pipelineStageTogether": "Escolha o funil e a etapa juntos, ou deixe os dois em branco",
       "pipelineOptionalHint": "Funil e etapa são opcionais — deixe em branco se você vai criar o negócio dentro da própria Automação (passo \"Criar negócio\"), com controle total sobre pipeline, valor e título.",
       "pipelineNone": "Nenhum (controlar pela Automação)",
-      "noAutoDeal": "Sem negócio automático — controlado pela Automação"
+      "noAutoDeal": "Sem negócio automático — controlado pela Automação",
+      "rotateButton": "Gerar nova URL",
+      "rotateTitle": "Gerar nova URL?",
+      "rotateConfirmDesc": "A URL atual desta conexão deixa de funcionar na hora. As automações, o funil e o histórico continuam como estão. Você vai ver a nova URL uma única vez, para colar na ferramenta externa.",
+      "rotateConfirm": "Gerar nova URL",
+      "rotating": "Gerando...",
+      "rotateError": "Falha ao gerar a nova URL",
+      "rotateDoneTitle": "Nova URL gerada",
+      "rotateDoneDesc": "Copie essa URL agora e cole na ferramenta externa. Ela não vai aparecer de novo, e a anterior já não funciona."
     },
     "gettingStarted": {
       "title": "Primeiros passos",
