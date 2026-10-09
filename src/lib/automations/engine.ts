@@ -359,8 +359,15 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
         status: 'failed',
         detail: msg,
       })
-      status = 'failed'
       errorMessage = msg
+      // A send step can opt in to "keep going if this one fails" (e.g. a
+      // number WhatsApp doesn't know must not cancel the tagging and
+      // follow-ups after it). The failure stays visible in the log.
+      if ((step.step_config as { continue_on_error?: boolean } | null)?.continue_on_error === true) {
+        if (status === 'success') status = 'partial'
+        continue
+      }
+      status = 'failed'
       break
     }
   }

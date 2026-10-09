@@ -1,4 +1,13 @@
 {
+  "PhoneCountry": {
+    "title": "기본 전화 국가",
+    "description": "결제 시스템이 국가 코드 없이 전화번호를 보내면 FuseHub가 이 국가의 코드로 보완합니다. 이미 코드(또는 +)가 있는 번호는 변경하지 않습니다.",
+    "label": "기본 국가",
+    "save": "저장",
+    "saveSuccess": "기본 국가가 저장되었습니다",
+    "saveFailed": "기본 국가를 저장하지 못했습니다",
+    "unavailable": "이 환경에서는 아직 이 옵션을 사용할 수 없습니다(데이터베이스 업데이트 필요). 그동안은 브라질이 적용됩니다."
+  },
   "InteractiveBuilder": {
     "replyButtons": "답장 버튼",
     "list": "목록",
@@ -1240,6 +1249,8 @@
         "linkUrlPlaceholder": "https://your-checkout.com/...",
         "linkFooter": "푸터 (선택)",
         "linkHelp": "이 링크를 여는 버튼 하나가 있는 메시지를 보냅니다. 답장 버튼과 함께 쓸 수 없습니다. 링크에는 연락처 이메일 같은 변수를 쓸 수 있습니다.",
+        "continueOnError": "이 전송이 실패해도 계속 진행",
+        "continueOnErrorHint": "오류가 발생해도(예: WhatsApp에 없는 번호) 다음 단계는 계속 실행됩니다. 오류는 기록에 그대로 표시됩니다.",
         "tagLabel": "태그",
         "modeLabel": "모드",
         "modes": {

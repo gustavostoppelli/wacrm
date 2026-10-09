@@ -45,6 +45,7 @@ import { RequireRole } from '@/components/auth/require-role';
 import { useAuth } from '@/hooks/use-auth';
 import { useTranslations } from 'next-intl';
 import { SettingsPanelHead } from './settings-panel-head';
+import { PhoneCountryCard } from './phone-country-card';
 
 interface WebhookRow {
   id: string;
@@ -295,6 +296,8 @@ export function WebhooksSettings() {
         stages={stages}
         onSaved={load}
       />
+
+      <PhoneCountryCard />
     </section>
   );
 }

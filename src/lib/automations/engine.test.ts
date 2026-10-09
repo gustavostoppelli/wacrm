@@ -731,3 +731,49 @@ describe("interpolateText — placeholders", () => {
     expect(interpolateText("preco {valor} e {x}", ctx)).toBe("preco {valor} e {x}");
   });
 });
+
+describe("continue_on_error — a failed send does not cancel what comes after", () => {
+  function setup(firstStepConfig: Record<string, unknown>) {
+    h.state.owned = { id: "c1" };
+    h.state.whatsappConfig = { id: "wc1", account_id: ACCOUNT, provider: "uazapi" };
+    h.state.automations = [{
+      id: "a1",
+      account_id: ACCOUNT,
+      user_id: "u1",
+      name: "webhook automation",
+      trigger_type: "webhook_received",
+      trigger_config: {},
+      is_active: true,
+    }];
+    h.state.steps = [
+      { id: "s1", automation_id: "a1", step_type: "send_message", position: 0, parent_step_id: null, step_config: firstStepConfig },
+      { id: "s2", automation_id: "a1", step_type: "send_message", position: 1, parent_step_id: null, step_config: { text: "segunda" } },
+    ];
+    vi.mocked(engineSendText).mockReset();
+    vi.mocked(engineSendText)
+      .mockRejectedValueOnce(new Error("the number is not on WhatsApp"))
+      .mockResolvedValue({ whatsapp_message_id: "m2" });
+  }
+  const run = () =>
+    runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "webhook_received",
+      contactId: "c1",
+      context: {},
+    });
+
+  it("by default the first failed send stops the automation", async () => {
+    setup({ text: "primeira" });
+    await run();
+    expect(engineSendText).toHaveBeenCalledTimes(1);
+    expect(h.state.logUpdates).toContainEqual(expect.objectContaining({ status: "failed" }));
+  });
+
+  it("with continue_on_error the next step still runs and the log is 'partial'", async () => {
+    setup({ text: "primeira", continue_on_error: true });
+    await run();
+    expect(engineSendText).toHaveBeenCalledTimes(2);
+    expect(h.state.logUpdates).toContainEqual(expect.objectContaining({ status: "partial" }));
+    expect(h.state.logUpdates).not.toContainEqual(expect.objectContaining({ status: "failed" }));
+  });
+});

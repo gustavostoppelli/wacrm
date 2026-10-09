@@ -1,4 +1,13 @@
 {
+  "PhoneCountry": {
+    "title": "Default phone country",
+    "description": "When the checkout sends a phone number without its country code, FuseHub completes it with this country's code. Numbers that already carry a code (or a +) are left alone.",
+    "label": "Default country",
+    "save": "Save",
+    "saveSuccess": "Default country saved",
+    "saveFailed": "Could not save the default country",
+    "unavailable": "This option is not active in this environment yet (the database needs an update). Brazil applies meanwhile."
+  },
   "InteractiveBuilder": {
     "replyButtons": "Reply buttons",
     "list": "List",
@@ -1240,6 +1249,8 @@
         "linkUrlPlaceholder": "https://your-checkout.com/...",
         "linkFooter": "Footer (optional)",
         "linkHelp": "Shows a message with ONE button that opens this link. It cannot be combined with reply buttons. The link accepts variables, such as the contact's e-mail.",
+        "continueOnError": "Keep going even if this send fails",
+        "continueOnErrorHint": "If it errors (e.g. a number not on WhatsApp), the next steps still run. The error stays visible in the history.",
         "tagLabel": "Tag",
         "modeLabel": "Mode",
         "modes": {

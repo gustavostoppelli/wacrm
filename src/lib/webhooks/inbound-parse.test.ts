@@ -155,3 +155,34 @@ describe('primeiro_nome fallback', () => {
     expect(firstWordOf('  Ana  Paula ')).toBe('Ana')
   })
 })
+
+describe('normalizeBuyerPhone — account default country', () => {
+  it('keeps Brazil as the default', () => {
+    expect(normalizeBuyerPhone('34991623419', null, undefined)).toBe('5534991623419')
+    expect(normalizeBuyerPhone('34991623419', null, 'BR')).toBe('5534991623419')
+  })
+
+  it('completes with the account country code instead of 55', () => {
+    expect(normalizeBuyerPhone('5512345678', null, 'MX')).toBe('525512345678')
+    expect(normalizeBuyerPhone('612345678', null, 'ES')).toBe('34612345678')
+    expect(normalizeBuyerPhone('912345678', null, 'PT')).toBe('351912345678')
+  })
+
+  it('does not touch numbers whose length does not fit the default country', () => {
+    // 11 digits is not a Mexican national number
+    expect(normalizeBuyerPhone('34991623419', null, 'MX')).toBe('34991623419')
+  })
+
+  it('a checkout country different from the account default wins', () => {
+    expect(normalizeBuyerPhone('5512345678', 'BR', 'MX')).toBe('5512345678')
+    expect(normalizeBuyerPhone('5512345678', 'MX', 'MX')).toBe('525512345678')
+  })
+
+  it('parseInboundWebhookPayload threads the default country through', () => {
+    const r = parseInboundWebhookPayload(
+      { event: 'PURCHASE_APPROVED', data: { buyer: { name: 'Ana', checkout_phone: '5512345678' } } },
+      { defaultCountry: 'MX' },
+    )
+    expect(r.contactPhone).toBe('525512345678')
+  })
+})

@@ -64,7 +64,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function processInboundWebhook(webhook: any, rawBody: unknown) {
   const admin = supabaseAdmin()
-  const parsed = parseInboundWebhookPayload(rawBody)
+  // The account's default country completes numbers sent without a country
+  // code. A select error (column not migrated yet) falls back to Brazil.
+  const { data: acct } = await admin
+    .from('accounts')
+    .select('default_phone_country')
+    .eq('id', webhook.account_id)
+    .maybeSingle()
+  const parsed = parseInboundWebhookPayload(rawBody, {
+    defaultCountry: (acct as { default_phone_country?: string } | null)?.default_phone_country,
+  })
 
   admin
     .from('inbound_webhooks')

@@ -2052,7 +2052,52 @@ function AddButton({
 // Per-step config editor
 // ------------------------------------------------------------
 
+// Steps that send a WhatsApp message and can therefore fail on delivery
+// (unknown number, closed 24h window...). They get the "continue anyway" switch.
+const SENDING_STEPS: ReadonlySet<AutomationStepType> = new Set([
+  "send_message",
+  "send_media",
+  "send_buttons",
+  "send_list",
+  "send_link",
+  "send_template",
+])
+
 function StepEditor({
+  step,
+  onChange,
+}: {
+  step: BuilderStep
+  onChange: (s: BuilderStep) => void
+}) {
+  const t = useTranslations("Automations.builder")
+  return (
+    <>
+      <StepFields step={step} onChange={onChange} />
+      {SENDING_STEPS.has(step.step_type) && (
+        <label className="flex items-start gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={step.step_config.continue_on_error === true}
+            onChange={(e) =>
+              onChange({
+                ...step,
+                step_config: { ...step.step_config, continue_on_error: e.target.checked },
+              })
+            }
+            className="mt-0.5 h-3.5 w-3.5 accent-primary"
+          />
+          <span>
+            {t("config.continueOnError")}
+            <span className="block text-[11px] opacity-80">{t("config.continueOnErrorHint")}</span>
+          </span>
+        </label>
+      )}
+    </>
+  )
+}
+
+function StepFields({
   step,
   onChange,
 }: {

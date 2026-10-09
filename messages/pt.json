@@ -1,4 +1,13 @@
 {
+  "PhoneCountry": {
+    "title": "País padrão dos telefones",
+    "description": "Quando o checkout manda um telefone sem o código do país, o FuseHub completa com o código deste país. Números que já vêm com o código (ou com +) não são alterados.",
+    "label": "País padrão",
+    "save": "Salvar",
+    "saveSuccess": "País padrão salvo",
+    "saveFailed": "Não foi possível salvar o país padrão",
+    "unavailable": "Esta opção ainda não está ativa neste ambiente (falta atualizar o banco). Enquanto isso, vale o Brasil."
+  },
   "InteractiveBuilder": {
     "replyButtons": "Botões de resposta",
     "list": "Lista",
@@ -1240,6 +1249,8 @@
         "linkUrlPlaceholder": "https://seu-checkout.com/...",
         "linkFooter": "Rodapé (opcional)",
         "linkHelp": "Mostra uma mensagem com UM botão que abre este link. Não dá para combinar com botões de resposta. O link aceita variáveis, como o e-mail do contato.",
+        "continueOnError": "Continuar mesmo se este envio falhar",
+        "continueOnErrorHint": "Se der erro (ex.: número que não está no WhatsApp), os passos seguintes ainda rodam. O erro continua aparecendo no histórico.",
         "tagLabel": "Etiqueta",
         "modeLabel": "Modo",
         "modes": {

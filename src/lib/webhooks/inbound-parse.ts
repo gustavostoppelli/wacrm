@@ -7,6 +7,8 @@
 // UI change — the connection itself has no "type" field to expand.
 // ============================================================
 
+import { getPhoneCountry, isSameCountry } from '@/lib/phone/default-country'
+
 export type InboundWebhookAction = 'open' | 'lost' | 'ignore'
 
 export interface ParsedInboundWebhook {
@@ -57,13 +59,16 @@ function asNumber(v: unknown): number | null {
 export function normalizeBuyerPhone(
   phone: string | null,
   countryHint?: string | null,
+  /** The account's default country (ISO); Brazil unless the account says otherwise. */
+  defaultCountry?: string | null,
 ): string | null {
   if (!phone) return phone
   if (phone.trim().startsWith('+')) return phone
-  const country = (countryHint ?? '').trim().toUpperCase()
-  if (country && !['BR', 'BRA', 'BRASIL', 'BRAZIL'].includes(country)) return phone
+  const home = getPhoneCountry(defaultCountry)
+  const hint = (countryHint ?? '').trim()
+  if (hint && !isSameCountry(home, hint)) return phone
   const digits = phone.replace(/\D/g, '')
-  if (digits.length === 10 || digits.length === 11) return `55${digits}`
+  if (home.lengths.includes(digits.length)) return `${home.code}${digits}`
   return phone
 }
 
@@ -111,7 +116,7 @@ const CHECKOUT_LOST_EVENTS = new Set([
   'PURCHASE_DELAYED',
 ])
 
-function parseCheckoutShape(body: AnyRecord): ParsedInboundWebhook {
+function parseCheckoutShape(body: AnyRecord, defaultCountry?: string | null): ParsedInboundWebhook {
   const event = String(body.event)
   const data = body.data as AnyRecord
   const buyer = (data.buyer ?? data.customer ?? {}) as AnyRecord
@@ -128,7 +133,11 @@ function parseCheckoutShape(body: AnyRecord): ParsedInboundWebhook {
   const buyerCountry = asString(
     buyer.address?.country_iso ?? buyer.country_iso ?? buyer.address?.country ?? buyer.country,
   )
-  const phone = normalizeBuyerPhone(asString(buyer.checkout_phone ?? buyer.phone), buyerCountry)
+  const phone = normalizeBuyerPhone(
+    asString(buyer.checkout_phone ?? buyer.phone),
+    buyerCountry,
+    defaultCountry,
+  )
   const email = asString(buyer.email)
   const productName = asString(product.name)
   const value = asNumber(price.value ?? purchase.value)
@@ -216,7 +225,12 @@ function parseGeneric(body: AnyRecord): ParsedInboundWebhook {
   }
 }
 
-export function parseInboundWebhookPayload(body: unknown): ParsedInboundWebhook {
+export function parseInboundWebhookPayload(
+  body: unknown,
+  opts?: { defaultCountry?: string | null },
+): ParsedInboundWebhook {
   const record = (typeof body === 'object' && body !== null ? body : {}) as AnyRecord
-  return looksLikeCheckoutShape(record) ? parseCheckoutShape(record) : parseGeneric(record)
+  return looksLikeCheckoutShape(record)
+    ? parseCheckoutShape(record, opts?.defaultCountry)
+    : parseGeneric(record)
 }
