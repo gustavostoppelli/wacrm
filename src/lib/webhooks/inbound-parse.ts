@@ -17,6 +17,8 @@ export interface ParsedInboundWebhook {
   dealValue: number | null
   dealCurrency: string | null
   campaign: string | null
+  /** Buyer's country as the sender reported it (ISO code when available). */
+  country: string | null
   action: InboundWebhookAction
   /** Flat string values only — matches the `{{ vars.x }}` interpolator
    *  in automations/engine.ts, which does not walk nested paths. */
@@ -153,6 +155,7 @@ function parseCheckoutShape(body: AnyRecord): ParsedInboundWebhook {
     dealValue: value,
     dealCurrency: currency,
     campaign: productName,
+    country: buyerCountry,
     action,
     vars: {
       evento: event,
@@ -198,6 +201,7 @@ function parseGeneric(body: AnyRecord): ParsedInboundWebhook {
     dealValue: value,
     dealCurrency: currency,
     campaign: title,
+    country: asString(pick('country_iso', 'country', 'pais')),
     action: 'open',
     vars: {
       evento: event ?? '',

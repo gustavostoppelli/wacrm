@@ -5,6 +5,7 @@ import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { normalizePhone, looksLikePhoneNumber } from '@/lib/whatsapp/phone-utils'
 import { hashInboundWebhookToken, timingSafeHexEqual } from '@/lib/webhooks/inbound-tokens'
 import { parseInboundWebhookPayload } from '@/lib/webhooks/inbound-parse'
+import { resolveContactLanguage } from '@/lib/webhooks/language-tag'
 
 /**
  * POST /api/webhooks/inbound/[id]?token=<plaintext>
@@ -170,6 +171,24 @@ async function processInboundWebhook(webhook: any, rawBody: unknown) {
       }
     }
   }
+
+  // Language of the lead (pt/es), exposed as {{ vars.idioma }} and, for
+  // Spanish, as the `idioma_es` tag so an automation's Condition step can
+  // branch on it. Never let a failure here block the automations.
+  let idioma = 'pt'
+  try {
+    idioma = await resolveContactLanguage(admin, {
+      accountId: webhook.account_id,
+      userId: webhook.user_id,
+      contactId,
+      phone: parsed.contactPhone,
+      countryIso: parsed.country,
+    })
+  } catch (err) {
+    console.error('[inbound-webhook] language detection failed:', err)
+  }
+  parsed.vars.idioma = idioma
+  parsed.vars.pais = parsed.country ?? ''
 
   // Fires regardless of whether a contact/deal was touched — an
   // account may just want to react to the raw event (e.g. an internal
