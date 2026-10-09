@@ -13,6 +13,7 @@ import type {
   SendMediaStepConfig,
   SendButtonsStepConfig,
   SendListStepConfig,
+  SendLinkStepConfig,
   SendTemplateStepConfig,
   SendWebhookStepConfig,
   TagStepConfig,
@@ -27,8 +28,14 @@ import { interpolateText } from './interpolate'
 import { supabaseAdmin } from './admin-client'
 import { addContactTagIfAbsent } from '@/lib/contacts/tag-write'
 import { MAX_TAG_CHAIN_DEPTH, getTagChainDepth } from '@/lib/contacts/tag-chain'
-import { engineSendText, engineSendTemplate, engineSendInteractive, engineSendMedia } from './meta-send'
-import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
+import {
+  engineSendText,
+  engineSendTemplate,
+  engineSendInteractive,
+  engineSendLink,
+  engineSendMedia,
+} from './meta-send'
+import { validateInteractivePayload, validateLinkPayload } from '@/lib/whatsapp/interactive'
 import { isDeliverableUrl } from '@/lib/webhooks/ssrf'
 import { isDealSource } from '@/lib/deals/source'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
@@ -421,6 +428,36 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         payload,
       })
       return `interactive sent via Meta (${whatsapp_message_id})`
+    }
+
+    case 'send_link': {
+      const cfg = step.step_config as SendLinkStepConfig
+      if (!args.contactId) throw new Error('send_link needs a contact')
+      // Body and URL accept {{ vars.* }} like send_message (e.g. a checkout
+      // link carrying the buyer's e-mail). Validate AFTER interpolating so
+      // a variable that resolves to nothing is caught before the network call.
+      const payload = {
+        body: interpolate(cfg.body ?? '', args),
+        header: cfg.header ? interpolate(cfg.header, args) : undefined,
+        footer: cfg.footer ? interpolate(cfg.footer, args) : undefined,
+        button_label: cfg.button_label,
+        url: interpolate(cfg.url ?? '', args).trim(),
+      }
+      const check = validateLinkPayload(payload)
+      if (!check.ok) throw new Error(check.error)
+      const conversationId = await resolveConversationId(args)
+      const { whatsapp_message_id } = await engineSendLink({
+        accountId: args.automation.account_id,
+        userId: args.automation.user_id,
+        conversationId,
+        contactId: args.contactId,
+        bodyText: payload.body,
+        buttonLabel: payload.button_label,
+        url: payload.url,
+        headerText: payload.header,
+        footerText: payload.footer,
+      })
+      return `link message sent via Meta (${whatsapp_message_id})`
     }
 
     case 'send_template': {

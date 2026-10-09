@@ -151,6 +151,21 @@ describe("validateStepsForActivation", () => {
     expect(tooMany.map((i) => i.path)).toEqual(["steps[0].interactive"]);
   });
 
+  it("validates send_link (body, label and a real url)", () => {
+    expect(
+      validateStepsForActivation([
+        {
+          step_type: "send_link",
+          step_config: { body: "Hi", button_label: "Buy", url: "https://x.com/{{ vars.email }}" },
+        },
+      ]),
+    ).toEqual([]);
+    const bad = validateStepsForActivation([
+      { step_type: "send_link", step_config: { body: "Hi", button_label: "Buy", url: "x.com" } },
+    ]);
+    expect(bad.map((i) => i.path)).toEqual(["steps[0].link"]);
+  });
+
   it("flags update_contact_field when field or value is missing", () => {
     const issues = validateStepsForActivation([
       { step_type: "update_contact_field", step_config: { field: "name" } },

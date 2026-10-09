@@ -1,5 +1,8 @@
 import type { AccountRole } from "@/lib/auth/roles";
-import type { InteractiveMessagePayload } from "@/lib/whatsapp/interactive";
+import type {
+  InteractiveMessagePayload,
+  LinkMessagePayload,
+} from "@/lib/whatsapp/interactive";
 
 export type {
   InteractiveMessagePayload,
@@ -564,6 +567,7 @@ export type AutomationStepType =
   | 'send_media'
   | 'send_buttons'
   | 'send_list'
+  | 'send_link'
   | 'send_template'
   | 'add_tag'
   | 'remove_tag'
@@ -660,6 +664,9 @@ export interface SendMediaStepConfig {
  */
 export type SendButtonsStepConfig = InteractiveMessagePayload;
 export type SendListStepConfig = InteractiveMessagePayload;
+
+/** `send_link`: body text + one button that opens an external URL. */
+export type SendLinkStepConfig = LinkMessagePayload;
 
 export interface SendTemplateStepConfig {
   template_name: string;

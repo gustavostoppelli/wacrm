@@ -12,6 +12,7 @@ import type {
   SendMediaParams,
   SendInteractiveButtonsParams,
   SendInteractiveListParams,
+  SendInteractiveLinkParams,
   SendReactionParams,
 } from '@/lib/whatsapp/provider'
 
@@ -86,6 +87,22 @@ export function createUazapiProvider(channel: WhatsAppChannel): WhatsAppProvider
         replyId: params.contextMessageId,
         buttonLabel: params.buttonLabel,
         sections: params.sections,
+      })
+      return { messageId: result.messageId }
+    },
+    async sendInteractiveLink(params: SendInteractiveLinkParams) {
+      // UAZAPI's `/send/menu` turns a choice of the form "label|https://..."
+      // into a URL button (instead of a reply button), so the url rides in
+      // the `id` slot of the shared "title|id" choice format.
+      const result = await sendUazapiMenu({
+        baseUrl,
+        instanceToken,
+        kind: 'button',
+        to: params.to,
+        bodyText: params.bodyText,
+        footerText: params.footerText,
+        replyId: params.contextMessageId,
+        buttons: [{ id: params.url, title: params.buttonLabel }],
       })
       return { messageId: result.messageId }
     },

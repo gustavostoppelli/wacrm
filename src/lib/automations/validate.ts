@@ -1,5 +1,5 @@
 import type { AutomationTriggerType } from '@/types'
-import { validateInteractivePayload } from '@/lib/whatsapp/interactive'
+import { validateInteractivePayload, validateLinkPayload } from '@/lib/whatsapp/interactive'
 
 // ------------------------------------------------------------
 // Pre-flight config validation for automations about to be activated.
@@ -74,6 +74,13 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       const result = validateInteractivePayload(c)
       if (!result.ok) {
         issues.push({ path: `${path}.interactive`, message: result.error })
+      }
+      break
+    }
+    case 'send_link': {
+      const result = validateLinkPayload(c)
+      if (!result.ok) {
+        issues.push({ path: `${path}.link`, message: result.error })
       }
       break
     }

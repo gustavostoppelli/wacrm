@@ -44,6 +44,7 @@ import {
   Mic,
   Square,
   Smile,
+  Link2,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -74,6 +75,7 @@ import {
   blankListPayload,
 } from "@/components/interactive/interactive-builder"
 import { interactivePayloadPreviewText } from "@/lib/whatsapp/interactive"
+import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 import { cn } from "@/lib/utils"
@@ -118,6 +120,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   send_media: { label: "send_media", icon: ImageIcon, border: "border-l-primary" },
   send_buttons: { label: "send_buttons", icon: MousePointerClick, border: "border-l-primary" },
   send_list: { label: "send_list", icon: List, border: "border-l-primary" },
+  send_link: { label: "send_link", icon: Link2, border: "border-l-primary" },
   send_template: { label: "send_template", icon: FileText, border: "border-l-primary" },
   add_tag: { label: "add_tag", icon: Tag, border: "border-l-primary" },
   remove_tag: { label: "remove_tag", icon: TagIcon, border: "border-l-primary" },
@@ -136,6 +139,7 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "send_media",
   "send_buttons",
   "send_list",
+  "send_link",
   "send_template",
   "add_tag",
   "remove_tag",
@@ -194,6 +198,8 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
       return toStepConfig(blankButtonsPayload())
     case "send_list":
       return toStepConfig(blankListPayload())
+    case "send_link":
+      return { body: "", button_label: "", url: "", footer: "" }
     case "send_template":
       return { template_name: "", language: "en_US" }
     case "add_tag":
@@ -2121,6 +2127,46 @@ function StepEditor({
           }
         />
       )
+    case "send_link":
+      return (
+        <>
+          <FieldBlock label={t("config.linkBody")}>
+            <Textarea
+              value={(cfg.body as string) ?? ""}
+              maxLength={INTERACTIVE_LIMITS.bodyMaxLength}
+              onChange={(e) => set({ body: e.target.value })}
+              placeholder={t("config.linkBodyPlaceholder")}
+              className="min-h-24 bg-muted text-foreground"
+            />
+          </FieldBlock>
+          <FieldBlock label={t("config.linkButtonLabel")}>
+            <Input
+              value={(cfg.button_label as string) ?? ""}
+              maxLength={INTERACTIVE_LIMITS.buttonTitleMaxLength}
+              onChange={(e) => set({ button_label: e.target.value })}
+              placeholder={t("config.linkButtonPlaceholder")}
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+          <FieldBlock label={t("config.linkUrl")}>
+            <Input
+              value={(cfg.url as string) ?? ""}
+              onChange={(e) => set({ url: e.target.value })}
+              placeholder={t("config.linkUrlPlaceholder")}
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+          <FieldBlock label={t("config.linkFooter")}>
+            <Input
+              value={(cfg.footer as string) ?? ""}
+              maxLength={INTERACTIVE_LIMITS.footerMaxLength}
+              onChange={(e) => set({ footer: e.target.value })}
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+          <p className="text-xs text-muted-foreground">{t("config.linkHelp")}</p>
+        </>
+      )
     case "send_template":
       return (
         <SendTemplateFields
@@ -2415,6 +2461,8 @@ function previewFor(step: BuilderStep): string {
     case "send_buttons":
     case "send_list":
       return interactivePayloadPreviewText(asInteractive(step.step_config)) || "no body yet"
+    case "send_link":
+      return (step.step_config.body as string) || "no body yet"
     case "send_template":
       return (step.step_config.template_name as string) || "pick a template"
     case "wait":

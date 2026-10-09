@@ -4,6 +4,7 @@ import type {
   SendTemplateMessageArgs,
   SendInteractiveButtonsArgs,
   SendInteractiveListArgs,
+  SendInteractiveLinkArgs,
   SendReactionMessageArgs,
   MetaSendResult,
 } from '@/lib/whatsapp/meta-api'
@@ -52,6 +53,10 @@ export type SendInteractiveListParams = Omit<
   SendInteractiveListArgs,
   'phoneNumberId' | 'accessToken'
 >
+export type SendInteractiveLinkParams = Omit<
+  SendInteractiveLinkArgs,
+  'phoneNumberId' | 'accessToken'
+>
 export type SendReactionParams = Omit<SendReactionMessageArgs, 'phoneNumberId' | 'accessToken'>
 
 export interface WhatsAppProvider {
@@ -65,6 +70,8 @@ export interface WhatsAppProvider {
   sendTemplate(params: SendTemplateParams): Promise<MetaSendResult>
   sendInteractiveButtons(params: SendInteractiveButtonsParams): Promise<MetaSendResult>
   sendInteractiveList(params: SendInteractiveListParams): Promise<MetaSendResult>
+  /** Body text + one button that opens a URL (Meta `cta_url`). */
+  sendInteractiveLink(params: SendInteractiveLinkParams): Promise<MetaSendResult>
   sendReaction(params: SendReactionParams): Promise<MetaSendResult>
 }
 

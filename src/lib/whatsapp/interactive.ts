@@ -237,3 +237,51 @@ export function interactivePayloadPreviewText(
   if (body) return body
   return payload.kind === 'buttons' ? '[buttons]' : '[list]'
 }
+
+/**
+ * Body text + ONE button that opens an external URL (Meta `cta_url`).
+ * Not part of `InteractiveMessagePayload`: it has no reply ids, so it never
+ * round-trips through the inbox bubble / quick replies / flows.
+ */
+export interface LinkMessagePayload {
+  body: string
+  header?: string
+  footer?: string
+  /** Visible button label (≤ 20 chars). */
+  button_label: string
+  /** Absolute http(s) URL the button opens. */
+  url: string
+}
+
+export function validateLinkPayload(payload: unknown): InteractiveValidation {
+  if (!payload || typeof payload !== 'object') {
+    return fail('Link message payload is required.')
+  }
+  const p = payload as Partial<LinkMessagePayload>
+  if (typeof p.body !== 'string' || p.body.trim() === '') {
+    return fail('Link message body text is required.')
+  }
+  if (p.body.length > INTERACTIVE_LIMITS.bodyMaxLength) {
+    return fail(
+      `Body text exceeds the ${INTERACTIVE_LIMITS.bodyMaxLength}-character limit.`,
+    )
+  }
+  const hf = validateHeaderFooter(p.header, p.footer)
+  if (!hf.ok) return hf
+  if (typeof p.button_label !== 'string' || p.button_label.trim() === '') {
+    return fail('The link button needs a label.')
+  }
+  if (p.button_label.length > INTERACTIVE_LIMITS.buttonTitleMaxLength) {
+    return fail(
+      `Link button label exceeds the ${INTERACTIVE_LIMITS.buttonTitleMaxLength}-character limit.`,
+    )
+  }
+  // {{ vars.x }} placeholders are filled in at send time, so don't let their
+  // inner spaces fail the shape check here.
+  const urlShape =
+    typeof p.url === 'string' ? p.url.trim().replace(/\{\{[^}]*\}\}/g, 'x') : ''
+  if (!/^https?:\/\/\S+$/i.test(urlShape)) {
+    return fail('The link button needs a valid URL starting with http:// or https://.')
+  }
+  return ok()
+}

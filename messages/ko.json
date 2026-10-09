@@ -1089,6 +1089,7 @@
         "send_media": "이미지/오디오 보내기",
         "send_buttons": "버튼 보내기",
         "send_list": "목록 보내기",
+        "send_link": "링크 버튼 보내기",
         "send_template": "템플릿 보내기",
         "add_tag": "태그 추가",
         "remove_tag": "태그 제거",
@@ -1231,6 +1232,14 @@
       "config": {
         "messageText": "메시지 텍스트",
         "placeholderMessageText": "안녕하세요! 문의해주셔서 감사합니다…",
+        "linkBody": "메시지 텍스트",
+        "linkBodyPlaceholder": "예: 자리가 확보되었습니다! 버튼을 눌러 완료하세요.",
+        "linkButtonLabel": "버튼 이름",
+        "linkButtonPlaceholder": "예: 지금 구매",
+        "linkUrl": "링크 (URL)",
+        "linkUrlPlaceholder": "https://your-checkout.com/...",
+        "linkFooter": "푸터 (선택)",
+        "linkHelp": "이 링크를 여는 버튼 하나가 있는 메시지를 보냅니다. 답장 버튼과 함께 쓸 수 없습니다. 링크에는 연락처 이메일 같은 변수를 쓸 수 있습니다.",
         "tagLabel": "태그",
         "modeLabel": "모드",
         "modes": {

@@ -1089,6 +1089,7 @@
         "send_media": "Enviar imagem/áudio",
         "send_buttons": "Enviar botões",
         "send_list": "Enviar lista",
+        "send_link": "Enviar botão de link",
         "send_template": "Enviar modelo",
         "add_tag": "Adicionar etiqueta",
         "remove_tag": "Remover etiqueta",
@@ -1231,6 +1232,14 @@
       "config": {
         "messageText": "Texto da mensagem",
         "placeholderMessageText": "Olá! Obrigado por entrar em contato…",
+        "linkBody": "Texto da mensagem",
+        "linkBodyPlaceholder": "Ex.: Sua vaga está garantida! Toque no botão para finalizar.",
+        "linkButtonLabel": "Texto do botão",
+        "linkButtonPlaceholder": "Ex.: Quero comprar",
+        "linkUrl": "Link (URL)",
+        "linkUrlPlaceholder": "https://seu-checkout.com/...",
+        "linkFooter": "Rodapé (opcional)",
+        "linkHelp": "Mostra uma mensagem com UM botão que abre este link. Não dá para combinar com botões de resposta. O link aceita variáveis, como o e-mail do contato.",
         "tagLabel": "Etiqueta",
         "modeLabel": "Modo",
         "modes": {

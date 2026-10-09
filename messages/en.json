@@ -1089,6 +1089,7 @@
         "send_media": "Send Image/Audio",
         "send_buttons": "Send Buttons",
         "send_list": "Send List",
+        "send_link": "Send link button",
         "send_template": "Send Template",
         "add_tag": "Add Tag",
         "remove_tag": "Remove Tag",
@@ -1231,6 +1232,14 @@
       "config": {
         "messageText": "Message text",
         "placeholderMessageText": "Hi! Thanks for reaching out…",
+        "linkBody": "Message text",
+        "linkBodyPlaceholder": "E.g. Your spot is reserved! Tap the button to finish.",
+        "linkButtonLabel": "Button label",
+        "linkButtonPlaceholder": "E.g. Buy now",
+        "linkUrl": "Link (URL)",
+        "linkUrlPlaceholder": "https://your-checkout.com/...",
+        "linkFooter": "Footer (optional)",
+        "linkHelp": "Shows a message with ONE button that opens this link. It cannot be combined with reply buttons. The link accepts variables, such as the contact's e-mail.",
         "tagLabel": "Tag",
         "modeLabel": "Mode",
         "modes": {

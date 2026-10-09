@@ -4,6 +4,7 @@ import {
   sendTemplateMessage,
   sendInteractiveButtons,
   sendInteractiveList,
+  sendInteractiveLink,
   sendReactionMessage,
 } from '@/lib/whatsapp/meta-api'
 import type {
@@ -14,6 +15,7 @@ import type {
   SendTemplateParams,
   SendInteractiveButtonsParams,
   SendInteractiveListParams,
+  SendInteractiveLinkParams,
   SendReactionParams,
 } from '@/lib/whatsapp/provider'
 
@@ -46,6 +48,9 @@ export function createMetaProvider(channel: WhatsAppChannel): WhatsAppProvider {
     },
     sendInteractiveList(params: SendInteractiveListParams) {
       return sendInteractiveList({ phoneNumberId, accessToken, ...params })
+    },
+    sendInteractiveLink(params: SendInteractiveLinkParams) {
+      return sendInteractiveLink({ phoneNumberId, accessToken, ...params })
     },
     sendReaction(params: SendReactionParams) {
       return sendReactionMessage({ phoneNumberId, accessToken, ...params })
