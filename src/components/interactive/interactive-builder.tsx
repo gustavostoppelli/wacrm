@@ -88,7 +88,12 @@ export function InteractiveBuilder({
   };
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row">
+    // Side-by-side (editor | preview) is decided by the width of THIS block,
+    // not the viewport: inside the narrow automation node the screen is wide
+    // but the block is ~290px, and a viewport breakpoint squeezed the editor
+    // to almost nothing next to the 280px preview.
+    <div className="@container">
+    <div className="flex flex-col gap-4 @xl:flex-row">
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         {/* Kind toggle */}
         <div className="flex gap-2">
@@ -161,7 +166,7 @@ export function InteractiveBuilder({
       </div>
 
       {showPreview && (
-        <div className="flex shrink-0 flex-col gap-1.5 md:w-[280px]">
+        <div className="flex min-w-0 shrink-0 flex-col gap-1.5 @xl:w-[280px]">
           <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             Preview
           </span>
@@ -170,6 +175,7 @@ export function InteractiveBuilder({
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }
