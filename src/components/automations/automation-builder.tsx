@@ -861,7 +861,7 @@ function TestSendButton({
   stepConfig,
   t,
 }: {
-  stepType: "send_message" | "send_media"
+  stepType: "send_message" | "send_media" | "send_buttons" | "send_list" | "send_link"
   stepConfig: Record<string, unknown>
   t: ReturnType<typeof useTranslations>
 }) {
@@ -2120,12 +2120,15 @@ function StepEditor({
       // The whole step_config IS the interactive payload; the shared
       // builder edits it in place (and enforces Meta's limits + preview).
       return (
-        <InteractiveBuilder
-          value={asInteractive(cfg)}
-          onChange={(payload) =>
-            onChange({ ...step, step_config: toStepConfig(payload) })
-          }
-        />
+        <>
+          <InteractiveBuilder
+            value={asInteractive(cfg)}
+            onChange={(payload) =>
+              onChange({ ...step, step_config: toStepConfig(payload) })
+            }
+          />
+          <TestSendButton stepType={step.step_type} stepConfig={cfg} t={t} />
+        </>
       )
     case "send_link":
       return (
@@ -2165,6 +2168,7 @@ function StepEditor({
             />
           </FieldBlock>
           <p className="text-xs text-muted-foreground">{t("config.linkHelp")}</p>
+          <TestSendButton stepType="send_link" stepConfig={cfg} t={t} />
         </>
       )
     case "send_template":

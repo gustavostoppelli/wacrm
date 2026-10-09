@@ -2,12 +2,18 @@ import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { resolveConversationByPhone } from '@/lib/whatsapp/resolve-conversation'
 import { sendMessageToConversation, SendMessageError } from '@/lib/whatsapp/send-message'
+import {
+  validateInteractivePayload,
+  validateLinkPayload,
+  type InteractiveMessagePayload,
+} from '@/lib/whatsapp/interactive'
+import { engineSendLink } from '@/lib/automations/meta-send'
 
 // ============================================================
 // POST /api/automations/test-send
 //
 // Backs the "Testar número de telefone" control in the automation
-// builder (send_message / send_media steps) — same idea as
+// builder (send_message / send_media / send_buttons / send_list / send_link steps) — same idea as
 // ClickFunnels' test-send button: type a phone number, get exactly
 // what this step would send, without needing a real trigger event.
 //
@@ -38,7 +44,7 @@ function interpolateSample(s: string, phone: string): string {
 
 export async function POST(request: Request) {
   try {
-    const { supabase, accountId } = await requireRole('agent')
+    const { supabase, accountId, userId } = await requireRole('agent')
 
     const body = (await request.json().catch(() => null)) as {
       phone?: string
@@ -84,6 +90,54 @@ export async function POST(request: Request) {
         contentText: caption,
       })
       return NextResponse.json({ message_id: result.messageId })
+    }
+
+    if (stepType === 'send_buttons' || stepType === 'send_list') {
+      // The step_config IS the interactive payload. Fill the sample vars in
+      // the visible texts, then validate exactly as a real send would.
+      const raw = cfg as unknown as InteractiveMessagePayload
+      const payload = {
+        ...raw,
+        body: interpolateSample(String(raw.body ?? ''), phone),
+        header: raw.header ? interpolateSample(raw.header, phone) : undefined,
+        footer: raw.footer ? interpolateSample(raw.footer, phone) : undefined,
+      } as InteractiveMessagePayload
+      const check = validateInteractivePayload(payload)
+      if (!check.ok) {
+        return NextResponse.json({ error: check.error }, { status: 400 })
+      }
+      const result = await sendMessageToConversation(supabase, accountId, {
+        conversationId: resolved.conversationId,
+        messageType: 'interactive',
+        interactivePayload: payload,
+      })
+      return NextResponse.json({ message_id: result.messageId })
+    }
+
+    if (stepType === 'send_link') {
+      const payload = {
+        body: interpolateSample(String(cfg.body ?? ''), phone),
+        header: cfg.header ? interpolateSample(String(cfg.header), phone) : undefined,
+        footer: cfg.footer ? interpolateSample(String(cfg.footer), phone) : undefined,
+        button_label: String(cfg.button_label ?? ''),
+        url: interpolateSample(String(cfg.url ?? ''), phone).trim(),
+      }
+      const check = validateLinkPayload(payload)
+      if (!check.ok) {
+        return NextResponse.json({ error: check.error }, { status: 400 })
+      }
+      const result = await engineSendLink({
+        accountId,
+        userId,
+        conversationId: resolved.conversationId,
+        contactId: resolved.contactId,
+        bodyText: payload.body,
+        buttonLabel: payload.button_label,
+        url: payload.url,
+        headerText: payload.header,
+        footerText: payload.footer,
+      })
+      return NextResponse.json({ message_id: result.whatsapp_message_id })
     }
 
     return NextResponse.json(
