@@ -1,4 +1,26 @@
 {
+  "InteractiveBuilder": {
+    "replyButtons": "Botões de resposta",
+    "list": "Lista",
+    "body": "Texto",
+    "bodyPlaceholder": "O que o cliente lê acima das opções",
+    "headerOptional": "Cabeçalho (opcional)",
+    "footerOptional": "Rodapé (opcional)",
+    "showIds": "Mostrar IDs de resposta (avançado)",
+    "preview": "Prévia",
+    "buttons": "Botões",
+    "buttonLabel": "Texto do botão",
+    "addButton": "Adicionar botão",
+    "listButtonLabel": "Texto do botão da lista",
+    "rows": "Itens",
+    "sectionTitle": "Título da seção (opcional)",
+    "rowTitle": "Título do item",
+    "descriptionOptional": "Descrição (opcional)",
+    "addRow": "Adicionar item",
+    "addSection": "Adicionar seção",
+    "previewButton": "Botão",
+    "previewMenu": "Menu"
+  },
   "Support": {
     "bubbleLabel": "Fale com nosso suporte",
     "prefilledMessage": "Olá! Preciso de ajuda com o FuseHub."

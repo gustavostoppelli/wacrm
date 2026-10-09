@@ -1,4 +1,26 @@
 {
+  "InteractiveBuilder": {
+    "replyButtons": "답장 버튼",
+    "list": "목록",
+    "body": "본문",
+    "bodyPlaceholder": "옵션 위에 고객이 읽는 내용",
+    "headerOptional": "헤더 (선택)",
+    "footerOptional": "푸터 (선택)",
+    "showIds": "답장 ID 표시 (고급)",
+    "preview": "미리보기",
+    "buttons": "버튼",
+    "buttonLabel": "버튼 이름",
+    "addButton": "버튼 추가",
+    "listButtonLabel": "목록 버튼 이름",
+    "rows": "항목",
+    "sectionTitle": "섹션 제목 (선택)",
+    "rowTitle": "항목 제목",
+    "descriptionOptional": "설명 (선택)",
+    "addRow": "항목 추가",
+    "addSection": "섹션 추가",
+    "previewButton": "버튼",
+    "previewMenu": "메뉴"
+  },
   "Support": {
     "bubbleLabel": "지원팀과 채팅하기",
     "prefilledMessage": "안녕하세요! FuseHub 관련 도움이 필요합니다."
