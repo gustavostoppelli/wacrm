@@ -67,13 +67,15 @@ export async function PATCH(
       .from('deals')
       .update(updates)
       .eq('id', id)
+      .eq('account_id', ctx.accountId)
       .select('*')
-      .single();
+      .maybeSingle();
 
-    if (error || !deal) {
+    if (error) {
       console.error('[api/v1/deals] update error:', error);
       return fail('internal', 'Failed to update deal', 500);
     }
+    if (!deal) return fail('not_found', 'Deal not found', 404);
 
     return ok(serializeDeal(deal));
   } catch (err) {

@@ -23,8 +23,11 @@ function makeSupabaseStub(opts: {
           }),
           update: () => ({
             eq: () => ({
-              select: () => ({
-                single: () => Promise.resolve({ data: opts.updatedDeal, error: null }),
+              eq: () => ({
+                select: () => ({
+                  maybeSingle: () =>
+                    Promise.resolve({ data: opts.updatedDeal ?? null, error: null }),
+                }),
               }),
             }),
           }),
@@ -102,5 +105,22 @@ describe('PATCH /api/v1/deals/{id}', () => {
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(body.data.stage_id).toBe('stage-2');
+  });
+
+  it('returns 404 when the update affects zero rows (e.g. a concurrent delete)', async () => {
+    (requireApiKey as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      supabase: makeSupabaseStub({
+        existingDeal: { id: 'd1', pipeline_id: 'p1', account_id: 'acct-1' },
+        stageId: 'stage-2',
+        updatedDeal: undefined,
+      }),
+      accountId: 'acct-1',
+    });
+    const req = new Request('https://x/api/v1/deals/d1', {
+      method: 'PATCH',
+      body: JSON.stringify({ stage: 'Segundo Contato' }),
+    });
+    const res = await PATCH(req, { params: Promise.resolve({ id: 'd1' }) });
+    expect(res.status).toBe(404);
   });
 });
