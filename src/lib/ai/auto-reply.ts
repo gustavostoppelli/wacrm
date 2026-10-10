@@ -158,14 +158,113 @@ export async function dispatchInboundToAiReply(
     const { text, handoff, meetingNote, meetingAt, meetingEmail, notes, reactivateAt, reactivateReason, usage } =
       await generateReply({ config, systemPrompt, messages })
 
+    // Record token spend on the account's BYO key. Fire-and-forget so it
+    // never adds latency to the customer-facing send: `logAiUsage`
+    // swallows its own errors, so the floating promise can't reject.
+    // Logged regardless of handoff — the provider call happened either
+    // way.
+    void logAiUsage(db, {
+      accountId,
+      conversationId,
+      mode: 'auto_reply',
+      provider: config.provider,
+      model: config.model,
+      usage,
+    })
+
+    // Send the model's own direct reply FIRST, before any side-effect
+    // follow-up (meeting link, qualification follow-up question) below —
+    // those read as a reaction to this message, so sending them first
+    // (as a bug once did: see issue found 2026-10-10 testing) put the
+    // conversation visibly out of order, e.g. the Meet link and "me
+    // passa o nome da clínica" arriving BEFORE "Confirmado pra amanhã
+    // às 14h! Te espero lá." On a handoff turn there is no customer-
+    // facing send here — we still fall through to the shared block
+    // below, since a meeting/notes/reactivation signal from the SAME
+    // turn that also hands off must still be recorded.
+    if (handoff || !text) {
+      // The model can't (or shouldn't) answer — stop auto-replying on
+      // this thread and hand it to a human. We (a) pause the bot here
+      // (sticky until re-enabled), (b) route the conversation to the
+      // configured handoff agent — null leaves it in the shared queue —
+      // and (c) leave a short internal note so whoever picks it up has
+      // context. Assigning fires the `on_conversation_assigned` trigger,
+      // which notifies the agent.
+      const summary = buildHandoffSummary({
+        messages,
+        replyCount: conv.ai_reply_count ?? 0,
+      })
+      const update: Record<string, unknown> = {
+        ai_autoreply_disabled: true,
+        ai_handoff_summary: summary,
+      }
+      // Only set the assignee when a target is configured AND the thread
+      // isn't already owned — never stomp an existing human assignment.
+      if (config.handoffAgentId && !conv.assigned_agent_id) {
+        update.assigned_agent_id = config.handoffAgentId
+      }
+      await db.from('conversations').update(update).eq('id', conversationId)
+    } else {
+      // Atomically claim a reply slot: the cap check + increment happen in
+      // one UPDATE, so concurrent inbounds can never overshoot the cap. If
+      // another inbound just took the last slot, `claimed` is false and we
+      // skip the send. (We consume a slot slightly before the send lands —
+      // fail-safe: under-reply rather than over-reply.)
+      const { data: claimed, error: claimErr } = await db.rpc(
+        'claim_ai_reply_slot',
+        {
+          conversation_id: conversationId,
+          max_replies: config.autoReplyMaxPerConversation,
+        },
+      )
+      if (claimErr) {
+        // A real error here (vs. losing the cap race) is almost always a
+        // deploy issue — e.g. `claim_ai_reply_slot` not EXECUTE-able by the
+        // service role, or the migration not applied. Log it loudly: a
+        // silent return makes "auto-reply never fires" undiagnosable.
+        console.error('[ai auto-reply] claim_ai_reply_slot failed:', claimErr)
+        return
+      }
+      if (claimed === true) {
+        await engineSendText({
+          accountId,
+          userId: configOwnerUserId,
+          conversationId,
+          contactId,
+          text,
+          aiGenerated: true,
+        })
+
+        // A normal (non-handoff) reply just went out -- if the lead goes
+        // quiet from here, nudge them once in ~4 business hours. Any
+        // inbound message (including their reply) cancels this via the
+        // delete at the top of this function; the cron reschedules a 2nd
+        // attempt for the next business day if the 1st also goes unanswered.
+        if (config.followupEnabled) {
+          await scheduleFollowup(db, {
+            accountId,
+            conversationId,
+            contactId,
+            configOwnerUserId,
+            attempt: 1,
+            sendAt: clampToBusinessHours(new Date(Date.now() + 4 * 60 * 60_000), config),
+            lastOutboundAt: new Date(),
+          })
+        }
+      } // else: lost the per-conversation cap race — skip the send, but
+        // still run the shared block below (meeting/notes/reactivation).
+    }
+
     // A meeting time was just confirmed this turn -- move the deal to
     // the pipeline's designated stage (if the account has one), record
     // what was agreed, (re)schedule attendance-confirmation reminders,
     // and — with an email and Calendar connected — create a real
     // event. Runs regardless of whether this turn also hands off to a
-    // human. Best-effort: a missing deal/stage (no deal linked to this
-    // contact, or the pipeline has no meeting_scheduled stage
-    // configured) just means nothing moves.
+    // human, and AFTER the main reply above, so the link/follow-up
+    // question this sends read as a reaction to that reply, not a
+    // reply to themselves. Best-effort: a missing deal/stage (no deal
+    // linked to this contact, or the pipeline has no meeting_scheduled
+    // stage configured) just means nothing moves.
     if (meetingNote) {
       await recordMeetingScheduled(db, {
         accountId,
@@ -202,93 +301,6 @@ export async function dispatchInboundToAiReply(
     // from the Apify/Meta/site-form bridge already arrive.
     if (notes) {
       await recordQualificationNotes(db, { accountId, contactId, notes })
-    }
-
-    // Record token spend on the account's BYO key. Fire-and-forget so it
-    // never adds latency to the customer-facing send: `logAiUsage`
-    // swallows its own errors, so the floating promise can't reject.
-    // Logged regardless of handoff — the provider call happened either
-    // way.
-    void logAiUsage(db, {
-      accountId,
-      conversationId,
-      mode: 'auto_reply',
-      provider: config.provider,
-      model: config.model,
-      usage,
-    })
-
-    if (handoff || !text) {
-      // The model can't (or shouldn't) answer — stop auto-replying on
-      // this thread and hand it to a human. We (a) pause the bot here
-      // (sticky until re-enabled), (b) route the conversation to the
-      // configured handoff agent — null leaves it in the shared queue —
-      // and (c) leave a short internal note so whoever picks it up has
-      // context. Assigning fires the `on_conversation_assigned` trigger,
-      // which notifies the agent.
-      const summary = buildHandoffSummary({
-        messages,
-        replyCount: conv.ai_reply_count ?? 0,
-      })
-      const update: Record<string, unknown> = {
-        ai_autoreply_disabled: true,
-        ai_handoff_summary: summary,
-      }
-      // Only set the assignee when a target is configured AND the thread
-      // isn't already owned — never stomp an existing human assignment.
-      if (config.handoffAgentId && !conv.assigned_agent_id) {
-        update.assigned_agent_id = config.handoffAgentId
-      }
-      await db.from('conversations').update(update).eq('id', conversationId)
-      return
-    }
-
-    // Atomically claim a reply slot: the cap check + increment happen in
-    // one UPDATE, so concurrent inbounds can never overshoot the cap. If
-    // another inbound just took the last slot, `claimed` is false and we
-    // skip the send. (We consume a slot slightly before the send lands —
-    // fail-safe: under-reply rather than over-reply.)
-    const { data: claimed, error: claimErr } = await db.rpc(
-      'claim_ai_reply_slot',
-      {
-        conversation_id: conversationId,
-        max_replies: config.autoReplyMaxPerConversation,
-      },
-    )
-    if (claimErr) {
-      // A real error here (vs. losing the cap race) is almost always a
-      // deploy issue — e.g. `claim_ai_reply_slot` not EXECUTE-able by the
-      // service role, or the migration not applied. Log it loudly: a
-      // silent return makes "auto-reply never fires" undiagnosable.
-      console.error('[ai auto-reply] claim_ai_reply_slot failed:', claimErr)
-      return
-    }
-    if (claimed !== true) return // lost the per-conversation cap race
-
-    await engineSendText({
-      accountId,
-      userId: configOwnerUserId,
-      conversationId,
-      contactId,
-      text,
-      aiGenerated: true,
-    })
-
-    // A normal (non-handoff) reply just went out -- if the lead goes
-    // quiet from here, nudge them once in ~4 business hours. Any
-    // inbound message (including their reply) cancels this via the
-    // delete at the top of this function; the cron reschedules a 2nd
-    // attempt for the next business day if the 1st also goes unanswered.
-    if (config.followupEnabled) {
-      await scheduleFollowup(db, {
-        accountId,
-        conversationId,
-        contactId,
-        configOwnerUserId,
-        attempt: 1,
-        sendAt: clampToBusinessHours(new Date(Date.now() + 4 * 60 * 60_000), config),
-        lastOutboundAt: new Date(),
-      })
     }
   } catch (err) {
     console.error('[ai auto-reply] dispatch failed:', err)
