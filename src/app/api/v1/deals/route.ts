@@ -26,6 +26,39 @@ import {
   DealError,
 } from '@/lib/api/v1/deals';
 
+// ============================================================
+// GET /api/v1/deals?contact_id= — list a contact's deals (scope: deals:read)
+//
+// No pagination: a contact has only a handful of deals, so the full
+// list is returned in one response.
+// ============================================================
+
+export async function GET(request: Request) {
+  try {
+    const ctx = await requireApiKey(request, 'deals:read');
+    const url = new URL(request.url);
+    const contactId = url.searchParams.get('contact_id');
+    if (!contactId) {
+      return fail('bad_request', "'contact_id' is required", 400);
+    }
+
+    const { data, error } = await ctx.supabase
+      .from('deals')
+      .select('*')
+      .eq('account_id', ctx.accountId)
+      .eq('contact_id', contactId);
+
+    if (error) {
+      console.error('[api/v1/deals] list error:', error);
+      return fail('internal', 'Failed to list deals', 500);
+    }
+
+    return ok((data ?? []).map((d) => serializeDeal(d)));
+  } catch (err) {
+    return toApiErrorResponse(err);
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const ctx = await requireApiKey(request, 'deals:write');
