@@ -201,3 +201,28 @@ export function resolveDealUpdates(
 
   return updates;
 }
+
+/**
+ * Resolve o id da etapa pelo nome, dentro de um pipeline específico
+ * (mesma convenção case-insensitive de `resolvePipelineAndStage`,
+ * mas pra quando já se sabe o pipeline e só falta a etapa — usado
+ * pelo PATCH, que nunca move um negócio pra outro pipeline).
+ */
+export async function resolveStageByName(
+  db: SupabaseClient,
+  pipelineId: string,
+  stageName: string
+): Promise<string> {
+  const { data, error } = await db
+    .from('pipeline_stages')
+    .select('id')
+    .eq('pipeline_id', pipelineId)
+    .ilike('name', stageName)
+    .limit(1);
+  if (error) throw new DealError('Failed to resolve pipeline stage', 500);
+  const stage = data?.[0];
+  if (!stage) {
+    throw new DealError(`No stage named '${stageName}' was found in this deal's pipeline`, 400);
+  }
+  return stage.id as string;
+}

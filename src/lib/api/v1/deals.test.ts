@@ -6,6 +6,7 @@ import {
   resolveSource,
   resolvePipelineAndStage,
   resolveDealUpdates,
+  resolveStageByName,
   DealError,
 } from './deals';
 
@@ -145,5 +146,40 @@ describe('resolveDealUpdates', () => {
   it('rejects wrong types with a 400', () => {
     expect(() => resolveDealUpdates({ title: 5 })).toThrow(DealError);
     expect(() => resolveDealUpdates({ notes: 5 })).toThrow(DealError);
+  });
+});
+
+describe('resolveStageByName', () => {
+  function makeDb(stages: Array<{ id: string; name: string }>) {
+    return {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            ilike: (_col: string, pattern: string) => ({
+              limit: () =>
+                Promise.resolve({
+                  data: stages.filter(
+                    (s) => s.name.toLowerCase() === pattern.toLowerCase()
+                  ),
+                  error: null,
+                }),
+            }),
+          }),
+        }),
+      }),
+    } as unknown as SupabaseClient;
+  }
+
+  it('resolves the stage id by exact (case-insensitive) name', async () => {
+    const db = makeDb([{ id: 'stage-2', name: 'Segundo Contato' }]);
+    const id = await resolveStageByName(db, 'pipe-1', 'segundo contato');
+    expect(id).toBe('stage-2');
+  });
+
+  it('throws DealError 400 when no stage matches', async () => {
+    const db = makeDb([]);
+    await expect(
+      resolveStageByName(db, 'pipe-1', 'Etapa Inexistente')
+    ).rejects.toMatchObject({ status: 400 });
   });
 });
