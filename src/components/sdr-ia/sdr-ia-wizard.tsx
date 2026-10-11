@@ -64,7 +64,7 @@ function canProceedFromStep(
  * pure form that reads/writes `draft` via props — no step fetches or
  * persists on its own except StepReview, which does the final PUT.
  */
-export function SdrIaWizard() {
+export function SdrIaWizard({ onActivated }: { onActivated?: () => void } = {}) {
   const t = useTranslations("SdrIa.wizard");
   const [step, setStep] = useState(1);
   const [draft, setDraft] = useState<WizardDraft>({
@@ -138,7 +138,9 @@ export function SdrIaWizard() {
           />
         )}
         {step === 4 && <StepGuardrails draft={draft} onChange={update} />}
-        {step === 5 && <StepReview draft={draft} existing={existing} />}
+        {step === 5 && (
+          <StepReview draft={draft} existing={existing} onActivated={onActivated} />
+        )}
 
         <div className="mt-6 flex items-center justify-between">
           <Button

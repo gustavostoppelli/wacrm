@@ -2296,6 +2296,22 @@
         "errorSaveFailed": "Não foi possível salvar. Tente novamente.",
         "errorNeedsAdmin": "Você precisa ser administrador da conta para ativar o SDR IA."
       }
+    },
+    "status": {
+      "title": "SDR IA",
+      "enabledLabel": "Ativo",
+      "disabledLabel": "Pausado",
+      "enabledDescription": "Contatando leads novos automaticamente dentro do horário configurado.",
+      "disabledDescription": "Pausado — nenhum novo contato automático será enviado.",
+      "hoursTitle": "Horário de funcionamento",
+      "hoursDescription": "O SDR IA só envia o primeiro contato dentro desse horário, todos os dias da semana.",
+      "hoursStartLabel": "Início (hora)",
+      "hoursEndLabel": "Fim (hora)",
+      "saveHours": "Salvar horário",
+      "savingHours": "Salvando...",
+      "hoursSaved": "Horário atualizado.",
+      "editFull": "Editar configuração completa",
+      "errorGeneric": "Não foi possível salvar. Tente novamente."
     }
   }
 }

@@ -13,9 +13,11 @@ import type { WizardDraft } from "../sdr-ia-wizard";
 export function StepReview({
   draft,
   existing,
+  onActivated,
 }: {
   draft: WizardDraft;
   existing: SdrIaConfig | null;
+  onActivated?: () => void;
 }) {
   const t = useTranslations("SdrIa.wizard.review");
   const router = useRouter();
@@ -99,6 +101,7 @@ export function StepReview({
       }
 
       router.refresh();
+      onActivated?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("errorSaveFailed"));
     } finally {

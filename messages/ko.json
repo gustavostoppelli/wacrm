@@ -2296,6 +2296,22 @@
         "errorSaveFailed": "저장할 수 없습니다. 다시 시도해 주세요.",
         "errorNeedsAdmin": "SDR AI를 활성화하려면 계정 관리자여야 합니다."
       }
+    },
+    "status": {
+      "title": "SDR IA",
+      "enabledLabel": "켜짐",
+      "disabledLabel": "일시중지",
+      "enabledDescription": "설정된 시간 내에 새로운 리드에게 자동으로 연락합니다.",
+      "disabledDescription": "일시중지됨 — 새로운 자동 연락이 발송되지 않습니다.",
+      "hoursTitle": "운영 시간",
+      "hoursDescription": "SDR IA는 매일 이 시간 내에만 첫 연락을 보냅니다.",
+      "hoursStartLabel": "시작(시)",
+      "hoursEndLabel": "종료(시)",
+      "saveHours": "시간 저장",
+      "savingHours": "저장 중...",
+      "hoursSaved": "시간이 업데이트되었습니다.",
+      "editFull": "전체 설정 편집",
+      "errorGeneric": "저장할 수 없습니다. 다시 시도해 주세요."
     }
   }
 }

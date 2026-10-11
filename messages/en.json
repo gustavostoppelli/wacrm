@@ -2296,6 +2296,22 @@
         "errorSaveFailed": "Could not save. Please try again.",
         "errorNeedsAdmin": "You need to be an account admin to activate SDR AI."
       }
+    },
+    "status": {
+      "title": "SDR IA",
+      "enabledLabel": "On",
+      "disabledLabel": "Paused",
+      "enabledDescription": "Automatically reaching out to new leads within the configured hours.",
+      "disabledDescription": "Paused — no new automatic outreach will be sent.",
+      "hoursTitle": "Operating hours",
+      "hoursDescription": "SDR IA only sends the first contact within these hours, every day of the week.",
+      "hoursStartLabel": "Start (hour)",
+      "hoursEndLabel": "End (hour)",
+      "saveHours": "Save hours",
+      "savingHours": "Saving...",
+      "hoursSaved": "Hours updated.",
+      "editFull": "Edit full configuration",
+      "errorGeneric": "Could not save. Please try again."
     }
   }
 }
