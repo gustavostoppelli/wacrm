@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findOrCreateCampaign, findOrCreateVariant, listVariantsWithCounts } from './campaigns';
+import { findOrCreateCampaign, findOrCreateVariant, listVariantsWithCounts, createAssignment } from './campaigns';
 
 function makeDb(opts: {
   existing?: { id: string } | null;
@@ -161,5 +161,83 @@ describe('listVariantsWithCounts', () => {
       name: 'CampaignError',
       status: 404,
     });
+  });
+});
+
+// Table-dispatched mock for createAssignment, which looks up the owning
+// campaign (campaigns.id + campaigns.account_id) before touching
+// campaign_assignments, same ownership-check pattern as findOrCreateVariant.
+function makeAssignmentDb(opts: {
+  campaignOwned?: boolean; // default true — campaign belongs to the caller's account
+  existingAssignment?: { id: string } | null;
+  insertedAssignment?: { id: string };
+}) {
+  return {
+    from: (table: string) => {
+      if (table === 'campaigns') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () =>
+                ({
+                  maybeSingle: () =>
+                    Promise.resolve({
+                      data: opts.campaignOwned === false ? null : { id: 'camp-1' },
+                      error: null,
+                    }),
+                }),
+            }),
+          }),
+        };
+      }
+      if (table === 'campaign_assignments') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: () =>
+                  Promise.resolve({ data: opts.existingAssignment ?? null, error: null }),
+              }),
+            }),
+          }),
+          insert: () => ({
+            select: () => ({
+              single: () => Promise.resolve({ data: opts.insertedAssignment, error: null }),
+            }),
+          }),
+        };
+      }
+      throw new Error(`unexpected table ${table}`);
+    },
+  } as unknown as import('@supabase/supabase-js').SupabaseClient;
+}
+
+describe('createAssignment', () => {
+  it('creates a new assignment', async () => {
+    const db = makeAssignmentDb({ existingAssignment: null, insertedAssignment: { id: 'assign-1' } });
+
+    const res = await createAssignment(db, {
+      accountId: 'acct-1', campaignId: 'camp-1', variantId: 'var-1', contactId: 'c1',
+    });
+    expect(res).toEqual({ id: 'assign-1', created: true });
+  });
+
+  it('returns the existing assignment without erroring when one already exists', async () => {
+    const db = makeAssignmentDb({ existingAssignment: { id: 'assign-old' } });
+
+    const res = await createAssignment(db, {
+      accountId: 'acct-1', campaignId: 'camp-1', variantId: 'var-1', contactId: 'c1',
+    });
+    expect(res).toEqual({ id: 'assign-old', created: false });
+  });
+
+  it('throws a 404 CampaignError when the campaign belongs to a different account', async () => {
+    const db = makeAssignmentDb({ campaignOwned: false });
+
+    await expect(
+      createAssignment(db, {
+        accountId: 'acct-other', campaignId: 'camp-1', variantId: 'var-1', contactId: 'c1',
+      })
+    ).rejects.toMatchObject({ name: 'CampaignError', status: 404 });
   });
 });

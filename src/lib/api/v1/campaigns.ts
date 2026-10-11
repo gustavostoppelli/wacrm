@@ -123,3 +123,45 @@ export async function listVariantsWithCounts(
     assignedCount: (assignments ?? []).filter((a) => a.variant_id === v.id).length,
   }));
 }
+
+/**
+ * Create (or return the existing) assignment of a contact to a campaign
+ * variant. Idempotent by (campaign_id, contact_id) -- calling it again for
+ * the same contact just returns the existing assignment, never duplicates.
+ */
+export async function createAssignment(
+  db: SupabaseClient,
+  args: { accountId: string; campaignId: string; variantId: string; contactId: string; dealId?: string }
+): Promise<{ id: string; created: boolean }> {
+  const { data: campaign } = await db
+    .from('campaigns')
+    .select('id')
+    .eq('id', args.campaignId)
+    .eq('account_id', args.accountId)
+    .maybeSingle();
+  if (!campaign) throw new CampaignError('Campaign not found', 404);
+
+  const { data: existing } = await db
+    .from('campaign_assignments')
+    .select('id')
+    .eq('campaign_id', args.campaignId)
+    .eq('contact_id', args.contactId)
+    .maybeSingle();
+  if (existing) return { id: existing.id as string, created: false };
+
+  const { data: created, error } = await db
+    .from('campaign_assignments')
+    .insert({
+      account_id: args.accountId,
+      campaign_id: args.campaignId,
+      variant_id: args.variantId,
+      contact_id: args.contactId,
+      deal_id: args.dealId ?? null,
+    })
+    .select('id')
+    .single();
+  if (error || !created) {
+    throw new CampaignError('Failed to create campaign assignment', 500);
+  }
+  return { id: created.id as string, created: true };
+}
