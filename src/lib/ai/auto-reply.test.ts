@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { AiConfig } from './types'
 
 // Shared, hoisted mock state so the module mocks can close over it.
@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   retrieveKnowledge: vi.fn(),
   generateReply: vi.fn(),
   engineSendText: vi.fn(),
+  getSdrIaConfig: vi.fn(),
   state: {
     conv: null as Record<string, unknown> | null,
     autoResponders: [] as { id: string }[],
@@ -15,6 +16,8 @@ const h = vi.hoisted(() => ({
     updatePayload: null as Record<string, unknown> | null,
     rpcCalls: [] as { name: string; args: unknown }[],
     reactivationInserts: [] as Record<string, unknown>[],
+    pendingReply: null as Record<string, unknown> | null,
+    pendingReplyInsert: null as Record<string, unknown> | null,
   },
 }))
 
@@ -23,6 +26,7 @@ vi.mock('./context', () => ({ buildConversationContext: h.buildConversationConte
 vi.mock('./knowledge', () => ({ retrieveKnowledge: h.retrieveKnowledge }))
 vi.mock('./generate', () => ({ generateReply: h.generateReply }))
 vi.mock('@/lib/flows/meta-send', () => ({ engineSendText: h.engineSendText }))
+vi.mock('@/lib/sdr-ia/config', () => ({ getSdrIaConfig: h.getSdrIaConfig }))
 vi.mock('./admin-client', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
@@ -56,6 +60,20 @@ vi.mock('./admin-client', () => ({
             return Promise.resolve({ data: null, error: null })
           },
           eq: () => Promise.resolve({ data: null, error: null }),
+        }
+        return chain
+      }
+      if (table === 'ai_pending_replies') {
+        // .select().eq().eq().maybeSingle() → existing-pending lookup
+        // .insert() → claim this off-hours wave
+        const chain = {
+          select: () => chain,
+          eq: () => chain,
+          maybeSingle: () => Promise.resolve({ data: h.state.pendingReply, error: null }),
+          insert: (payload: Record<string, unknown>) => {
+            h.state.pendingReplyInsert = payload
+            return Promise.resolve({ error: null })
+          },
         }
         return chain
       }
@@ -131,11 +149,14 @@ beforeEach(() => {
   h.state.updatePayload = null
   h.state.rpcCalls = []
   h.state.reactivationInserts = []
+  h.state.pendingReply = null
+  h.state.pendingReplyInsert = null
   h.loadAiConfig.mockResolvedValue(aiConfig())
   h.buildConversationContext.mockResolvedValue([{ role: 'user', content: 'hi' }])
   h.retrieveKnowledge.mockResolvedValue([])
   h.generateReply.mockResolvedValue({ text: 'Hello!', handoff: false })
   h.engineSendText.mockResolvedValue({ whatsapp_message_id: 'm1' })
+  h.getSdrIaConfig.mockResolvedValue(null)
 })
 
 describe('dispatchInboundToAiReply — eligibility gates', () => {
@@ -223,6 +244,69 @@ describe('dispatchInboundToAiReply — eligibility gates', () => {
     await dispatchInboundToAiReply(ARGS)
     expect(h.generateReply).not.toHaveBeenCalled()
     expect(h.engineSendText).not.toHaveBeenCalled()
+  })
+})
+
+describe('dispatchInboundToAiReply — business hours', () => {
+  // Monday 02:00 UTC: a weekday, but before any sane startHour -- off-hours
+  // for a 9-18 window regardless of local TZ quirks.
+  const OFF_HOURS_NOW = new Date('2026-01-05T02:00:00Z')
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(OFF_HOURS_NOW)
+    h.loadAiConfig.mockResolvedValue(
+      aiConfig({
+        businessHoursEnabled: true,
+        businessHoursStart: 9,
+        businessHoursEnd: 18,
+        businessHoursTimezone: 'UTC',
+      }),
+    )
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('defers to a canned ack off-hours when the conversation is not from SDR IA', async () => {
+    h.state.conv = { ...h.state.conv, whatsapp_config_id: 'chan-support' }
+    h.getSdrIaConfig.mockResolvedValue(null)
+
+    await dispatchInboundToAiReply(ARGS)
+
+    expect(h.generateReply).not.toHaveBeenCalled()
+    expect(h.state.pendingReplyInsert).toEqual(
+      expect.objectContaining({ conversation_id: 'conv-1' }),
+    )
+    expect(h.engineSendText).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: 'conv-1', aiGenerated: true }),
+    )
+  })
+
+  it('replies for real, even off-hours, when the conversation is from SDR IA', async () => {
+    h.state.conv = { ...h.state.conv, whatsapp_config_id: 'chan-sdr' }
+    h.getSdrIaConfig.mockResolvedValue({ whatsappConfigId: 'chan-sdr' })
+
+    await dispatchInboundToAiReply(ARGS)
+
+    expect(h.state.pendingReplyInsert).toBeNull()
+    expect(h.generateReply).toHaveBeenCalled()
+    expect(h.engineSendText).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: 'conv-1', text: 'Hello!' }),
+    )
+  })
+
+  it('still defers when the conversation channel does not match the SDR IA channel', async () => {
+    h.state.conv = { ...h.state.conv, whatsapp_config_id: 'chan-support' }
+    h.getSdrIaConfig.mockResolvedValue({ whatsappConfigId: 'chan-sdr' })
+
+    await dispatchInboundToAiReply(ARGS)
+
+    expect(h.generateReply).not.toHaveBeenCalled()
+    expect(h.state.pendingReplyInsert).toEqual(
+      expect.objectContaining({ conversation_id: 'conv-1' }),
+    )
   })
 })
 

@@ -11,6 +11,7 @@ import { engineSendText } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { isWithinBusinessHours, nextBusinessHourStart } from './business-hours'
 import { createEventForAccount } from '@/lib/calendar/google'
+import { getSdrIaConfig } from '@/lib/sdr-ia/config'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AiConfig } from './types'
 
@@ -85,7 +86,7 @@ export async function dispatchInboundToAiReply(
 
     const { data: conv, error: convErr } = await db
       .from('conversations')
-      .select('assigned_agent_id, ai_autoreply_disabled, ai_reply_count')
+      .select('assigned_agent_id, ai_autoreply_disabled, ai_reply_count, whatsapp_config_id')
       .eq('id', conversationId)
       .maybeSingle()
     if (convErr || !conv) return
@@ -111,14 +112,27 @@ export async function dispatchInboundToAiReply(
         timezone: config.businessHoursTimezone,
       })
     ) {
-      await scheduleOffHoursReply(db, {
+      // Exception: a lead the SDR IA cold-contacted is recognized by
+      // the dedicated WhatsApp channel the SDR wizard assigns it (see
+      // lib/sdr-ia/send.ts) -- replying on their own, even off-hours,
+      // means the outreach worked, so they get a real reply right
+      // away instead of the canned ack + next-window deferral every
+      // other conversation gets.
+      const isFromSdrIa = await conversationIsFromSdrIa(
+        db,
         accountId,
-        conversationId,
-        contactId,
-        configOwnerUserId,
-        config,
-      })
-      return
+        conv.whatsapp_config_id as string | null,
+      )
+      if (!isFromSdrIa) {
+        await scheduleOffHoursReply(db, {
+          accountId,
+          conversationId,
+          contactId,
+          configOwnerUserId,
+          config,
+        })
+        return
+      }
     }
 
     const messages = await buildConversationContext(db, conversationId)
@@ -640,6 +654,22 @@ const DEFAULT_OFF_HOURS_MESSAGE =
  * AI reply fires automatically once business hours open, without a
  * human having to do anything.
  */
+/**
+ * True iff this conversation's channel is the account's SDR IA
+ * dedicated number (sdr_ia_config.whatsapp_config_id) -- i.e. the
+ * other party is a lead the SDR cold-contacted, not an inbound on the
+ * regular support/lead channel.
+ */
+async function conversationIsFromSdrIa(
+  db: SupabaseClient,
+  accountId: string,
+  conversationChannelId: string | null,
+): Promise<boolean> {
+  if (!conversationChannelId) return false
+  const sdrConfig = await getSdrIaConfig(db, accountId)
+  return !!sdrConfig?.whatsappConfigId && sdrConfig.whatsappConfigId === conversationChannelId
+}
+
 async function scheduleOffHoursReply(
   db: SupabaseClient,
   args: {
