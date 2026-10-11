@@ -52,8 +52,17 @@ export async function findOrCreateCampaign(
 export async function findOrCreateVariant(
   db: SupabaseClient,
   campaignId: string,
+  accountId: string,
   name: string
 ): Promise<{ id: string; created: boolean }> {
+  const { data: campaign } = await db
+    .from('campaigns')
+    .select('id')
+    .eq('id', campaignId)
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (!campaign) throw new CampaignError('Campaign not found', 404);
+
   const { data: existing } = await db
     .from('campaign_variants')
     .select('id')
@@ -88,8 +97,17 @@ export interface VariantWithCount {
  */
 export async function listVariantsWithCounts(
   db: SupabaseClient,
-  campaignId: string
+  campaignId: string,
+  accountId: string
 ): Promise<VariantWithCount[]> {
+  const { data: campaign } = await db
+    .from('campaigns')
+    .select('id')
+    .eq('id', campaignId)
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (!campaign) throw new CampaignError('Campaign not found', 404);
+
   const { data: variants } = await db
     .from('campaign_variants')
     .select('id, name')

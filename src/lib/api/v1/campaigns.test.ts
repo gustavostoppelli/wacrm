@@ -57,54 +57,109 @@ describe('findOrCreateCampaign', () => {
   });
 });
 
+// Table-dispatched mock for the variant functions, which now look up
+// the owning campaign (campaigns.id + campaigns.account_id) before
+// touching campaign_variants/campaign_assignments.
+function makeVariantDb(opts: {
+  campaignOwned?: boolean; // default true — campaign belongs to the caller's account
+  existingVariant?: { id: string } | null;
+  insertedVariant?: { id: string };
+  variants?: Array<{ id: string; name: string }>;
+  assignments?: Array<{ variant_id: string }>;
+}) {
+  const ownershipEq = () => ({
+    eq: () => ({
+      maybeSingle: () =>
+        Promise.resolve({
+          data: opts.campaignOwned === false ? null : { id: 'camp-1' },
+          error: null,
+        }),
+    }),
+  });
+  return {
+    from: (table: string) => {
+      if (table === 'campaigns') {
+        return { select: () => ({ eq: ownershipEq }) };
+      }
+      if (table === 'campaign_variants') {
+        return {
+          select: () => ({
+            eq: (column: string) => {
+              // listVariantsWithCounts calls .eq('campaign_id', id) and awaits
+              // the result directly; findOrCreateVariant chains a second
+              // .eq('name', name).maybeSingle(). Disambiguate via `variants`,
+              // which only the listVariantsWithCounts tests set.
+              if (column === 'campaign_id' && opts.variants) {
+                return Promise.resolve({ data: opts.variants, error: null });
+              }
+              return {
+                eq: () => ({
+                  maybeSingle: () =>
+                    Promise.resolve({ data: opts.existingVariant ?? null, error: null }),
+                }),
+              };
+            },
+          }),
+          insert: () => ({
+            select: () => ({
+              single: () => Promise.resolve({ data: opts.insertedVariant, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === 'campaign_assignments') {
+        return {
+          select: () => ({
+            eq: () => Promise.resolve({ data: opts.assignments ?? [], error: null }),
+          }),
+        };
+      }
+      throw new Error(`unexpected table ${table}`);
+    },
+  } as unknown as import('@supabase/supabase-js').SupabaseClient;
+}
+
 describe('findOrCreateVariant', () => {
   it('returns the existing variant when the name matches', async () => {
-    const db = makeDb({ existing: { id: 'var-1' } });
-    const res = await findOrCreateVariant(db, 'camp-1', 'A');
+    const db = makeVariantDb({ existingVariant: { id: 'var-1' } });
+    const res = await findOrCreateVariant(db, 'camp-1', 'acct-1', 'A');
     expect(res).toEqual({ id: 'var-1', created: false });
   });
 
   it('creates a new variant when none exists', async () => {
-    const db = makeDb({ existing: null, inserted: { id: 'var-2' } });
-    const res = await findOrCreateVariant(db, 'camp-1', 'B');
+    const db = makeVariantDb({ existingVariant: null, insertedVariant: { id: 'var-2' } });
+    const res = await findOrCreateVariant(db, 'camp-1', 'acct-1', 'B');
     expect(res).toEqual({ id: 'var-2', created: true });
+  });
+
+  it('throws a 404 CampaignError when the campaign belongs to a different account', async () => {
+    const db = makeVariantDb({ campaignOwned: false, existingVariant: { id: 'var-1' } });
+    await expect(findOrCreateVariant(db, 'camp-1', 'acct-other', 'A')).rejects.toMatchObject({
+      name: 'CampaignError',
+      status: 404,
+    });
   });
 });
 
 describe('listVariantsWithCounts', () => {
   it('returns each variant with how many assignments it has', async () => {
-    const db = {
-      from: (table: string) => {
-        if (table === 'campaign_variants') {
-          return {
-            select: () => ({
-              eq: () =>
-                Promise.resolve({
-                  data: [{ id: 'var-a', name: 'A' }, { id: 'var-b', name: 'B' }],
-                  error: null,
-                }),
-            }),
-          };
-        }
-        if (table === 'campaign_assignments') {
-          return {
-            select: () => ({
-              eq: () =>
-                Promise.resolve({
-                  data: [{ variant_id: 'var-a' }, { variant_id: 'var-a' }, { variant_id: 'var-b' }],
-                  error: null,
-                }),
-            }),
-          };
-        }
-        throw new Error(`unexpected table ${table}`);
-      },
-    } as unknown as import('@supabase/supabase-js').SupabaseClient;
+    const db = makeVariantDb({
+      variants: [{ id: 'var-a', name: 'A' }, { id: 'var-b', name: 'B' }],
+      assignments: [{ variant_id: 'var-a' }, { variant_id: 'var-a' }, { variant_id: 'var-b' }],
+    });
 
-    const result = await listVariantsWithCounts(db, 'camp-1');
+    const result = await listVariantsWithCounts(db, 'camp-1', 'acct-1');
     expect(result).toEqual([
       { id: 'var-a', name: 'A', assignedCount: 2 },
       { id: 'var-b', name: 'B', assignedCount: 1 },
     ]);
+  });
+
+  it('throws a 404 CampaignError when the campaign belongs to a different account', async () => {
+    const db = makeVariantDb({ campaignOwned: false });
+    await expect(listVariantsWithCounts(db, 'camp-1', 'acct-other')).rejects.toMatchObject({
+      name: 'CampaignError',
+      status: 404,
+    });
   });
 });
