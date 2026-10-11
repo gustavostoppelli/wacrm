@@ -1,15 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Bot, Sparkles, Settings2, BarChart3 } from 'lucide-react';
+import { Bot, Sparkles, Settings2, BarChart3, Megaphone } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AiPlayground } from '@/components/agents/ai-playground';
 import { AiUsageCard } from '@/components/agents/ai-usage';
 import { AiConfig } from '@/components/settings/ai-config';
+import { CampaignsPanel } from '@/components/agents/campaigns-panel';
 import { useAuth } from '@/hooks/use-auth';
 import { canEditSettings } from '@/lib/auth/roles';
 
-type Tab = 'playground' | 'setup' | 'usage';
+type Tab = 'playground' | 'setup' | 'usage' | 'campaigns';
 
 export default function AgentsPage() {
   const { accountRole } = useAuth();
@@ -67,6 +68,9 @@ export default function AgentsPage() {
                 <BarChart3 className="mr-1.5 h-4 w-4" /> Usage
               </TabsTrigger>
             )}
+            <TabsTrigger value="campaigns">
+              <Megaphone className="mr-1.5 h-4 w-4" /> Campanhas
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="playground" className="mt-4">
@@ -82,6 +86,10 @@ export default function AgentsPage() {
               <AiUsageCard />
             </TabsContent>
           )}
+
+          <TabsContent value="campaigns" className="mt-4">
+            <CampaignsPanel />
+          </TabsContent>
         </Tabs>
       )}
     </div>
