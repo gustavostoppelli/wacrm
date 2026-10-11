@@ -165,30 +165,42 @@ describe('listVariantsWithCounts', () => {
 });
 
 // Table-dispatched mock for createAssignment, which looks up the owning
-// campaign (campaigns.id + campaigns.account_id) before touching
+// campaign (campaigns.id + campaigns.account_id), the owning variant
+// (campaign_variants.id + campaign_variants.campaign_id), the owning
+// contact (contacts.id + contacts.account_id), and -- when a dealId is
+// passed -- the owning deal (deals.id + deals.account_id) before touching
 // campaign_assignments, same ownership-check pattern as findOrCreateVariant.
 function makeAssignmentDb(opts: {
   campaignOwned?: boolean; // default true — campaign belongs to the caller's account
+  variantOwned?: boolean; // default true — variant belongs to the campaign
+  contactOwned?: boolean; // default true — contact belongs to the caller's account
+  dealOwned?: boolean; // default true — deal belongs to the caller's account
   existingAssignment?: { id: string } | null;
   insertedAssignment?: { id: string };
 }) {
+  const twoEqMaybeSingle = (found: boolean) => ({
+    select: () => ({
+      eq: () => ({
+        eq: () => ({
+          maybeSingle: () =>
+            Promise.resolve({ data: found ? { id: 'found' } : null, error: null }),
+        }),
+      }),
+    }),
+  });
   return {
     from: (table: string) => {
       if (table === 'campaigns') {
-        return {
-          select: () => ({
-            eq: () => ({
-              eq: () =>
-                ({
-                  maybeSingle: () =>
-                    Promise.resolve({
-                      data: opts.campaignOwned === false ? null : { id: 'camp-1' },
-                      error: null,
-                    }),
-                }),
-            }),
-          }),
-        };
+        return twoEqMaybeSingle(opts.campaignOwned !== false);
+      }
+      if (table === 'campaign_variants') {
+        return twoEqMaybeSingle(opts.variantOwned !== false);
+      }
+      if (table === 'contacts') {
+        return twoEqMaybeSingle(opts.contactOwned !== false);
+      }
+      if (table === 'deals') {
+        return twoEqMaybeSingle(opts.dealOwned !== false);
       }
       if (table === 'campaign_assignments') {
         return {
@@ -239,5 +251,44 @@ describe('createAssignment', () => {
         accountId: 'acct-other', campaignId: 'camp-1', variantId: 'var-1', contactId: 'c1',
       })
     ).rejects.toMatchObject({ name: 'CampaignError', status: 404 });
+  });
+
+  it('throws a 404 CampaignError when the variant does not belong to the campaign', async () => {
+    const db = makeAssignmentDb({ variantOwned: false });
+
+    await expect(
+      createAssignment(db, {
+        accountId: 'acct-1', campaignId: 'camp-1', variantId: 'var-other-campaign', contactId: 'c1',
+      })
+    ).rejects.toMatchObject({ name: 'CampaignError', status: 404, message: 'Variant not found' });
+  });
+
+  it('throws a 404 CampaignError when the contact belongs to a different account', async () => {
+    const db = makeAssignmentDb({ contactOwned: false });
+
+    await expect(
+      createAssignment(db, {
+        accountId: 'acct-1', campaignId: 'camp-1', variantId: 'var-1', contactId: 'c-other-acct',
+      })
+    ).rejects.toMatchObject({ name: 'CampaignError', status: 404, message: 'Contact not found' });
+  });
+
+  it('throws a 404 CampaignError when the deal belongs to a different account', async () => {
+    const db = makeAssignmentDb({ dealOwned: false });
+
+    await expect(
+      createAssignment(db, {
+        accountId: 'acct-1', campaignId: 'camp-1', variantId: 'var-1', contactId: 'c1', dealId: 'deal-other-acct',
+      })
+    ).rejects.toMatchObject({ name: 'CampaignError', status: 404, message: 'Deal not found' });
+  });
+
+  it('creates a new assignment with a deal that belongs to the same account', async () => {
+    const db = makeAssignmentDb({ existingAssignment: null, insertedAssignment: { id: 'assign-2' } });
+
+    const res = await createAssignment(db, {
+      accountId: 'acct-1', campaignId: 'camp-1', variantId: 'var-1', contactId: 'c1', dealId: 'deal-1',
+    });
+    expect(res).toEqual({ id: 'assign-2', created: true });
   });
 });

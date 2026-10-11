@@ -141,6 +141,32 @@ export async function createAssignment(
     .maybeSingle();
   if (!campaign) throw new CampaignError('Campaign not found', 404);
 
+  const { data: variant } = await db
+    .from('campaign_variants')
+    .select('id')
+    .eq('id', args.variantId)
+    .eq('campaign_id', args.campaignId)
+    .maybeSingle();
+  if (!variant) throw new CampaignError('Variant not found', 404);
+
+  const { data: contact } = await db
+    .from('contacts')
+    .select('id')
+    .eq('id', args.contactId)
+    .eq('account_id', args.accountId)
+    .maybeSingle();
+  if (!contact) throw new CampaignError('Contact not found', 404);
+
+  if (args.dealId) {
+    const { data: deal } = await db
+      .from('deals')
+      .select('id')
+      .eq('id', args.dealId)
+      .eq('account_id', args.accountId)
+      .maybeSingle();
+    if (!deal) throw new CampaignError('Deal not found', 404);
+  }
+
   const { data: existing } = await db
     .from('campaign_assignments')
     .select('id')
