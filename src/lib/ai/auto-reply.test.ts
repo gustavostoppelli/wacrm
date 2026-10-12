@@ -9,6 +9,8 @@ const h = vi.hoisted(() => ({
   generateReply: vi.fn(),
   engineSendText: vi.fn(),
   getSdrIaConfig: vi.fn(),
+  resolvePipelineAndStage: vi.fn(),
+  createEventForAccount: vi.fn(),
   state: {
     conv: null as Record<string, unknown> | null,
     autoResponders: [] as { id: string }[],
@@ -18,6 +20,13 @@ const h = vi.hoisted(() => ({
     reactivationInserts: [] as Record<string, unknown>[],
     pendingReply: null as Record<string, unknown> | null,
     pendingReplyInsert: null as Record<string, unknown> | null,
+    existingDeal: null as Record<string, unknown> | null,
+    dealInserts: [] as Record<string, unknown>[],
+    dealUpdates: [] as Record<string, unknown>[],
+    contactRow: null as Record<string, unknown> | null,
+    contactUpdates: [] as Record<string, unknown>[],
+    createdDealId: 'new-deal-1',
+    meetingStage: null as Record<string, unknown> | null,
   },
 }))
 
@@ -27,6 +36,8 @@ vi.mock('./knowledge', () => ({ retrieveKnowledge: h.retrieveKnowledge }))
 vi.mock('./generate', () => ({ generateReply: h.generateReply }))
 vi.mock('@/lib/flows/meta-send', () => ({ engineSendText: h.engineSendText }))
 vi.mock('@/lib/sdr-ia/config', () => ({ getSdrIaConfig: h.getSdrIaConfig }))
+vi.mock('@/lib/api/v1/deals', () => ({ resolvePipelineAndStage: h.resolvePipelineAndStage }))
+vi.mock('@/lib/calendar/google', () => ({ createEventForAccount: h.createEventForAccount }))
 vi.mock('./admin-client', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
@@ -74,6 +85,60 @@ vi.mock('./admin-client', () => ({
             h.state.pendingReplyInsert = payload
             return Promise.resolve({ error: null })
           },
+        }
+        return chain
+      }
+      if (table === 'contacts') {
+        const chain = {
+          select: () => chain,
+          eq: () => chain,
+          maybeSingle: () => Promise.resolve({ data: h.state.contactRow, error: null }),
+          update: (payload: Record<string, unknown>) => {
+            h.state.contactUpdates.push(payload)
+            return { eq: () => Promise.resolve({ error: null }) }
+          },
+        }
+        return chain
+      }
+      if (table === 'deals') {
+        // .select().eq().eq().eq().order().limit().maybeSingle() →
+        // findOpenDealForContact's existing-deal lookup.
+        // .insert().select().single() → createDealForContact.
+        // .update().eq() → conversation_id backfill or meeting fields.
+        const selectChain = {
+          select: () => selectChain,
+          eq: () => selectChain,
+          order: () => selectChain,
+          limit: () => selectChain,
+          maybeSingle: () => Promise.resolve({ data: h.state.existingDeal, error: null }),
+        }
+        const chain = {
+          select: () => selectChain,
+          insert: (payload: Record<string, unknown>) => {
+            h.state.dealInserts.push(payload)
+            return {
+              select: () => ({
+                single: () =>
+                  Promise.resolve({
+                    data: { id: h.state.createdDealId, pipeline_id: payload.pipeline_id, title: payload.title },
+                    error: null,
+                  }),
+              }),
+            }
+          },
+          update: (payload: Record<string, unknown>) => {
+            h.state.dealUpdates.push(payload)
+            return { eq: () => Promise.resolve({ error: null }) }
+          },
+        }
+        return chain
+      }
+      if (table === 'pipeline_stages') {
+        // recordMeetingScheduled's own lookup of the meeting_scheduled stage.
+        const chain = {
+          select: () => chain,
+          eq: () => chain,
+          maybeSingle: () => Promise.resolve({ data: h.state.meetingStage, error: null }),
         }
         return chain
       }
@@ -151,12 +216,21 @@ beforeEach(() => {
   h.state.reactivationInserts = []
   h.state.pendingReply = null
   h.state.pendingReplyInsert = null
+  h.state.existingDeal = null
+  h.state.dealInserts = []
+  h.state.dealUpdates = []
+  h.state.contactRow = null
+  h.state.contactUpdates = []
+  h.state.createdDealId = 'new-deal-1'
+  h.state.meetingStage = null
   h.loadAiConfig.mockResolvedValue(aiConfig())
   h.buildConversationContext.mockResolvedValue([{ role: 'user', content: 'hi' }])
   h.retrieveKnowledge.mockResolvedValue([])
   h.generateReply.mockResolvedValue({ text: 'Hello!', handoff: false })
   h.engineSendText.mockResolvedValue({ whatsapp_message_id: 'm1' })
   h.getSdrIaConfig.mockResolvedValue(null)
+  h.resolvePipelineAndStage.mockResolvedValue({ pipelineId: 'pipe-1', stageId: 'stage-default' })
+  h.createEventForAccount.mockResolvedValue({ id: 'evt-1', meetLink: 'https://meet.google.com/test-link' })
 })
 
 describe('dispatchInboundToAiReply — eligibility gates', () => {
@@ -307,6 +381,109 @@ describe('dispatchInboundToAiReply — business hours', () => {
     expect(h.state.pendingReplyInsert).toEqual(
       expect.objectContaining({ conversation_id: 'conv-1' }),
     )
+  })
+})
+
+// Regression: a contact who never got a deal created ahead of time
+// (anyone messaging in directly instead of arriving via the Apify/
+// Meta/site-form bridge -- an organic/CTWA reply, a manual test, a
+// referral) always had the AI promise a meeting and then send
+// NOTHING further: findOpenDealForContact returned null, and
+// recordMeetingScheduled no-op'd immediately on that null, before
+// moving the stage, creating the Calendar event, saving the e-mail,
+// or sending the link follow-up. Caught live on 2026-10-10/11 -- the
+// one test that "worked" (Luana) only did because a deal had been
+// created for her by hand mid-conversation; a second live test
+// (Julio) with no such deal reproduced the silent failure exactly.
+describe('dispatchInboundToAiReply — meeting scheduling creates a missing deal', () => {
+  function meetingReply(overrides: Partial<Record<string, unknown>> = {}) {
+    return {
+      text: 'Perfeito! Confirmado pra amanhã às 10h.',
+      handoff: false,
+      meetingNote: 'Amanhã às 10h',
+      meetingAt: '2026-10-12T10:00:00.000Z',
+      meetingEmail: 'lead@example.com',
+      ...overrides,
+    }
+  }
+
+  it('creates a deal, moves its stage, creates the Calendar event, and sends the link when no deal existed for the contact', async () => {
+    h.state.existingDeal = null
+    h.state.contactRow = { name: 'Julio', phone: '5522998783605', email: null }
+    h.state.meetingStage = { id: 'stage-meeting-scheduled' }
+    h.generateReply.mockResolvedValue(meetingReply())
+
+    await dispatchInboundToAiReply(ARGS)
+
+    // The deal was created in the account's default pipeline/stage —
+    // resolvePipelineAndStage with no name args, same as a deal made
+    // by hand in the dashboard would land in.
+    expect(h.resolvePipelineAndStage).toHaveBeenCalledWith(expect.anything(), 'acct-1')
+    expect(h.state.dealInserts).toHaveLength(1)
+    expect(h.state.dealInserts[0]).toMatchObject({
+      account_id: 'acct-1',
+      contact_id: 'contact-1',
+      conversation_id: 'conv-1',
+      pipeline_id: 'pipe-1',
+      stage_id: 'stage-default',
+      title: 'Julio',
+      status: 'open',
+    })
+
+    // The deal just created is the one that gets its stage moved and
+    // its meeting fields set.
+    expect(h.state.dealUpdates).toHaveLength(1)
+    expect(h.state.dealUpdates[0]).toMatchObject({
+      stage_id: 'stage-meeting-scheduled',
+      meeting_note: 'Amanhã às 10h',
+      meeting_scheduled_at: '2026-10-12T10:00:00.000Z',
+      meeting_link: 'https://meet.google.com/test-link',
+      calendar_event_id: 'evt-1',
+    })
+
+    expect(h.createEventForAccount).toHaveBeenCalled()
+
+    // The model's own reply has already been sent; the link comes as
+    // a short follow-up once the event is actually created.
+    const sentTexts = h.engineSendText.mock.calls.map((c) => c[0].text)
+    expect(sentTexts).toContain('Aqui está o link da nossa reunião: https://meet.google.com/test-link')
+  })
+
+  it('saves the meeting e-mail onto the newly-created contact when it had none', async () => {
+    h.state.existingDeal = null
+    h.state.contactRow = { name: 'Julio', phone: '5522998783605', email: null }
+    h.state.meetingStage = { id: 'stage-meeting-scheduled' }
+    h.generateReply.mockResolvedValue(meetingReply({ meetingEmail: 'julio@example.com' }))
+
+    await dispatchInboundToAiReply(ARGS)
+
+    expect(h.state.contactUpdates).toContainEqual({ email: 'julio@example.com' })
+  })
+
+  it('does not create a second deal when one already exists for the contact', async () => {
+    h.state.existingDeal = { id: 'deal-existing', pipeline_id: 'pipe-1', title: 'Julio', conversation_id: 'conv-1' }
+    h.state.meetingStage = { id: 'stage-meeting-scheduled' }
+    h.generateReply.mockResolvedValue(meetingReply())
+
+    await dispatchInboundToAiReply(ARGS)
+
+    expect(h.state.dealInserts).toHaveLength(0)
+    expect(h.state.dealUpdates).toHaveLength(1)
+    expect(h.createEventForAccount).toHaveBeenCalled()
+  })
+
+  it('does not block the reply or throw when deal creation itself fails', async () => {
+    h.state.existingDeal = null
+    h.resolvePipelineAndStage.mockRejectedValue(new Error('no pipelines configured yet'))
+    h.generateReply.mockResolvedValue(meetingReply())
+
+    await expect(dispatchInboundToAiReply(ARGS)).resolves.toBeUndefined()
+
+    expect(h.engineSendText).toHaveBeenCalledWith(
+      expect.objectContaining({ text: meetingReply().text }),
+    )
+    expect(h.state.dealInserts).toHaveLength(0)
+    expect(h.createEventForAccount).not.toHaveBeenCalled()
   })
 })
 

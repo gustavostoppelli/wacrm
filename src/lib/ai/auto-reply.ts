@@ -12,6 +12,7 @@ import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { isWithinBusinessHours, nextBusinessHourStart } from './business-hours'
 import { createEventForAccount } from '@/lib/calendar/google'
 import { getSdrIaConfig } from '@/lib/sdr-ia/config'
+import { resolvePipelineAndStage } from '@/lib/api/v1/deals'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AiConfig } from './types'
 
@@ -478,6 +479,21 @@ async function recordQualificationNotes(
  * picks the live deal over an already won/lost one if the contact has
  * history. When `conversationId` is given and the found deal doesn't
  * have one yet, opportunistically backfills it.
+ *
+ * A contact who messages in WITHOUT going through that bridge --
+ * someone texting the number directly, an organic/CTWA ad reply, a
+ * manual test -- never gets a deal created ahead of time. Before this
+ * fix, that meant NO deal ever existed for them, so the two callers
+ * below (`recordMeetingScheduled`, `recordQualificationNotes`) always
+ * no-op'd silently for that contact: the model would say "vou te
+ * mandar o link" and nothing would ever follow -- no stage move, no
+ * calendar event, no link message, no saved e-mail. Caught via two
+ * live tests on 2026-10-10/11 where the only difference was a
+ * manually-created deal; every non-bridge contact hit this. Now a
+ * missing deal is created on the spot, in the account's default
+ * pipeline/stage (`resolvePipelineAndStage` with no name args -- the
+ * same default a deal created by hand in the dashboard would land in)
+ * so this path never silently does nothing again.
  */
 async function findOpenDealForContact(
   db: SupabaseClient,
@@ -494,13 +510,62 @@ async function findOpenDealForContact(
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
-  if (!deal) return null
-
-  if (conversationId && !deal.conversation_id) {
-    await db.from('deals').update({ conversation_id: conversationId }).eq('id', deal.id)
+  if (deal) {
+    if (conversationId && !deal.conversation_id) {
+      await db.from('deals').update({ conversation_id: conversationId }).eq('id', deal.id)
+    }
+    return deal
   }
 
-  return deal
+  return createDealForContact(db, accountId, contactId, conversationId)
+}
+
+/**
+ * Creates the deal `findOpenDealForContact` didn't find. Best-effort:
+ * any failure here (no pipeline configured yet, a race with another
+ * concurrent creation, a transient DB error) returns null rather than
+ * throwing -- the auto-reply dispatch must never fail because deal
+ * bookkeeping couldn't complete, same philosophy as every other
+ * side-effect in this file.
+ */
+async function createDealForContact(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  conversationId: string | null,
+): Promise<{ id: string; pipeline_id: string; title: string } | null> {
+  try {
+    const { pipelineId, stageId } = await resolvePipelineAndStage(db, accountId)
+
+    const { data: contact } = await db
+      .from('contacts')
+      .select('name, phone')
+      .eq('id', contactId)
+      .maybeSingle()
+    const title = (contact?.name as string | undefined)?.trim() || (contact?.phone as string | undefined) || 'Lead sem nome'
+
+    const { data: created, error } = await db
+      .from('deals')
+      .insert({
+        account_id: accountId,
+        contact_id: contactId,
+        conversation_id: conversationId,
+        pipeline_id: pipelineId,
+        stage_id: stageId,
+        title,
+        status: 'open',
+      })
+      .select('id, pipeline_id, title')
+      .single()
+    if (error || !created) {
+      console.error('[ai auto-reply] createDealForContact insert failed:', error)
+      return null
+    }
+    return created as { id: string; pipeline_id: string; title: string }
+  } catch (err) {
+    console.error('[ai auto-reply] createDealForContact failed:', err)
+    return null
+  }
 }
 
 /**
