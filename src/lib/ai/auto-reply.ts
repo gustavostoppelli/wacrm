@@ -315,7 +315,7 @@ export async function dispatchInboundToAiReply(
     // field summary instead of the raw chat log, matching how leads
     // from the Apify/Meta/site-form bridge already arrive.
     if (notes) {
-      await recordQualificationNotes(db, { accountId, contactId, notes })
+      await recordQualificationNotes(db, { accountId, contactId, notes, configOwnerUserId })
     }
   } catch (err) {
     console.error('[ai auto-reply] dispatch failed:', err)
@@ -358,7 +358,7 @@ async function recordMeetingScheduled(
     config,
   } = args
 
-  const deal = await findOpenDealForContact(db, accountId, contactId, conversationId)
+  const deal = await findOpenDealForContact(db, accountId, contactId, conversationId, configOwnerUserId)
   if (!deal) return
 
   const { data: stage } = await db
@@ -460,10 +460,10 @@ async function recordMeetingScheduled(
  */
 async function recordQualificationNotes(
   db: SupabaseClient,
-  args: { accountId: string; contactId: string; notes: string },
+  args: { accountId: string; contactId: string; notes: string; configOwnerUserId: string },
 ): Promise<void> {
-  const { accountId, contactId, notes } = args
-  const deal = await findOpenDealForContact(db, accountId, contactId, null)
+  const { accountId, contactId, notes, configOwnerUserId } = args
+  const deal = await findOpenDealForContact(db, accountId, contactId, null, configOwnerUserId)
   if (!deal) return
   await db.from('deals').update({ notes }).eq('id', deal.id)
 }
@@ -500,6 +500,7 @@ async function findOpenDealForContact(
   accountId: string,
   contactId: string,
   conversationId: string | null,
+  configOwnerUserId: string,
 ): Promise<{ id: string; pipeline_id: string; title: string } | null> {
   const { data: deal } = await db
     .from('deals')
@@ -517,7 +518,7 @@ async function findOpenDealForContact(
     return deal
   }
 
-  return createDealForContact(db, accountId, contactId, conversationId)
+  return createDealForContact(db, accountId, contactId, conversationId, configOwnerUserId)
 }
 
 /**
@@ -533,6 +534,7 @@ async function createDealForContact(
   accountId: string,
   contactId: string,
   conversationId: string | null,
+  configOwnerUserId: string,
 ): Promise<{ id: string; pipeline_id: string; title: string } | null> {
   try {
     const { pipelineId, stageId } = await resolvePipelineAndStage(db, accountId)
@@ -548,6 +550,7 @@ async function createDealForContact(
       .from('deals')
       .insert({
         account_id: accountId,
+        user_id: configOwnerUserId,
         contact_id: contactId,
         conversation_id: conversationId,
         pipeline_id: pipelineId,
