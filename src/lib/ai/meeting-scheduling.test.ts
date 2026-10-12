@@ -161,4 +161,23 @@ describe('ensureMeetingScheduled', () => {
     const texts = h.engineSendText.mock.calls.map((c) => c[0].text)
     expect(texts.some((t) => t.includes('https://meet.google.com/x'))).toBe(true)
   })
+
+  it('short-circuits on the same instant even when the stored meeting_scheduled_at is a Postgres-style offset string and meetingAt is a toISOString()-style one', async () => {
+    h.findOpenDealForContact.mockResolvedValue({ id: 'deal-1', pipeline_id: 'pipe-1', title: 'X' })
+    const { db, state } = makeDb({
+      stageRow: { id: 'stage-meeting' },
+      contactRow: { email: 'already@example.com' },
+      // Same instant as ARGS.meetingAt ('2026-10-12T13:00:00.000Z'),
+      // but shaped the way PostgREST actually returns a timestamptz --
+      // a raw "===" string comparison would wrongly treat these as
+      // different and recreate the event / resend the link.
+      dealRow: { meeting_link: 'https://meet.google.com/already-exists', meeting_scheduled_at: '2026-10-12T13:00:00+00:00' },
+    })
+    const result = await ensureMeetingScheduled(db as never, ARGS)
+    expect(result).toEqual({ completed: true, dealId: 'deal-1' })
+    expect(h.createEventForAccount).not.toHaveBeenCalled()
+    expect(h.engineSendText).not.toHaveBeenCalled()
+    expect(state.dealUpdates).toHaveLength(0)
+    expect(state.contactUpdates).toHaveLength(0)
+  })
 })

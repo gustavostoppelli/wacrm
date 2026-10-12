@@ -71,7 +71,13 @@ export async function ensureMeetingScheduled(
 
   // Idempotencia: so e "ja completo" quando o negocio ja tem
   // meeting_link E o meeting_scheduled_at gravado e exatamente o
-  // meetingAt desta chamada. `meetingAt` null nunca compara igual a
+  // mesmo INSTANTE do meetingAt desta chamada. Comparado via
+  // Date.parse, nunca como string: o Postgres/PostgREST devolve
+  // meeting_scheduled_at como "2026-10-13T13:00:00+00:00", enquanto o
+  // meetingAt em tempo real vem do toISOString() do modelo
+  // ("2026-10-13T13:00:00.000Z") -- mesmo instante, string diferente,
+  // entao "===" bateria sempre false e esta guarda nunca funcionaria
+  // de verdade em producao. `meetingAt` null nunca compara igual a
   // nada, entao nunca ha short-circuit nesse caso -- cai no fluxo
   // normal abaixo, igual ao comportamento pre-extracao.
   const { data: existingDeal } = await db
@@ -79,7 +85,12 @@ export async function ensureMeetingScheduled(
     .select('meeting_link, meeting_scheduled_at')
     .eq('id', deal.id)
     .maybeSingle()
-  if (meetingAt && existingDeal?.meeting_link && existingDeal.meeting_scheduled_at === meetingAt) {
+  if (
+    meetingAt &&
+    existingDeal?.meeting_link &&
+    existingDeal.meeting_scheduled_at &&
+    Date.parse(existingDeal.meeting_scheduled_at as string) === Date.parse(meetingAt)
+  ) {
     return { completed: true, dealId: deal.id }
   }
 
