@@ -24,16 +24,36 @@ export interface EnsureMeetingScheduledArgs {
   businessHoursTimezone: string
 }
 
+export interface EnsureMeetingScheduledResult {
+  completed: boolean
+  /**
+   * Id do negocio cujas etapa/campos de reuniao foram de fato escritos
+   * (ou ja estavam, de uma chamada idempotente anterior) -- `null`
+   * quando nao ha negocio nenhum, OU quando a conta nao tem etapa
+   * `meeting_scheduled` configurada (nada foi escrito). Callers (hoje:
+   * o agendamento de lembretes em auto-reply.ts) usam isso pra decidir
+   * se os campos do negocio sao reais, nao stale/vazios, antes de
+   * depender deles.
+   */
+  dealId: string | null
+}
+
 /**
- * Best-effort, idempotent: NUNCA lança, e nunca reenvia a mensagem do
- * link se o negocio ja tiver `meeting_link` (callers podem chamar de
- * novo em cima de um estado parcial sem medo de duplicar mensagem --
- * e exatamente o que o job de reconciliacao faz).
+ * Best-effort, idempotent: NUNCA lança, e nunca recria o evento no
+ * Calendar nem reenvia a mensagem do link se o negocio ja tiver
+ * `meeting_link` E `meeting_scheduled_at` gravado pra exatamente este
+ * `meetingAt` (callers podem chamar de novo em cima de um estado
+ * parcial sem medo de duplicar mensagem -- e exatamente o que o job
+ * de reconciliacao faz). Um reagendamento de verdade -- `meetingAt`
+ * diferente do que esta gravado -- NAO e idempotente: o modelo reemite
+ * a tag tanto pra confirmar quanto pra remarcar (ver defaults.ts), e
+ * esse caminho precisa passar pelo fluxo normal de novo (novo evento,
+ * stage/nota atualizados, link reenviado).
  */
 export async function ensureMeetingScheduled(
   db: SupabaseClient,
   args: EnsureMeetingScheduledArgs,
-): Promise<{ completed: boolean }> {
+): Promise<EnsureMeetingScheduledResult> {
   const {
     accountId,
     conversationId,
@@ -47,21 +67,20 @@ export async function ensureMeetingScheduled(
   } = args
 
   const deal = await findOpenDealForContact(db, accountId, contactId, conversationId, configOwnerUserId)
-  if (!deal) return { completed: false }
+  if (!deal) return { completed: false, dealId: null }
 
-  // Idempotencia: se o negocio ja tem meeting_link (de uma chamada
-  // anterior que ja criou o evento e mandou o link), nao recria o
-  // evento no Calendar nem reenvia a mensagem -- so retorna completed
-  // direto. Isso e o que permite o job de reconciliacao (proxima
-  // task) chamar essa mesma funcao em cima de uma intencao que ja
-  // teve sucesso parcial sem duplicar nada.
+  // Idempotencia: so e "ja completo" quando o negocio ja tem
+  // meeting_link E o meeting_scheduled_at gravado e exatamente o
+  // meetingAt desta chamada. `meetingAt` null nunca compara igual a
+  // nada, entao nunca ha short-circuit nesse caso -- cai no fluxo
+  // normal abaixo, igual ao comportamento pre-extracao.
   const { data: existingDeal } = await db
     .from('deals')
-    .select('meeting_link')
+    .select('meeting_link, meeting_scheduled_at')
     .eq('id', deal.id)
     .maybeSingle()
-  if (existingDeal?.meeting_link) {
-    return { completed: true }
+  if (meetingAt && existingDeal?.meeting_link && existingDeal.meeting_scheduled_at === meetingAt) {
+    return { completed: true, dealId: deal.id }
   }
 
   const { data: stage } = await db
@@ -70,7 +89,7 @@ export async function ensureMeetingScheduled(
     .eq('pipeline_id', deal.pipeline_id)
     .eq('stage_role', 'meeting_scheduled')
     .maybeSingle()
-  if (!stage) return { completed: false }
+  if (!stage) return { completed: false, dealId: null }
 
   const update: Record<string, unknown> = { stage_id: stage.id, meeting_note: meetingNote }
   if (meetingAt) update.meeting_scheduled_at = meetingAt
@@ -144,5 +163,5 @@ export async function ensureMeetingScheduled(
     })
   }
 
-  return { completed }
+  return { completed, dealId: deal.id }
 }

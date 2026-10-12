@@ -323,16 +323,29 @@ export async function dispatchInboundToAiReply(
 }
 
 /**
- * Moves the deal linked to this conversation to the pipeline's
- * "meeting scheduled" stage (see migration 041), stamps what was
- * agreed, and — when a real date-time was parsed — (re)schedules the
- * day-before/hour-before reminders (migration 042). Silently does
- * nothing if there's no deal on this conversation, or the deal's
- * pipeline has no stage tagged for this — native to any account, but
- * only active once one is configured. Also covers rescheduling: this
- * runs again whenever the model confirms a new time (e.g. the lead
- * asked to move it after a reminder), simply overwriting the stage/
- * note and replacing any not-yet-sent reminders.
+ * Thin real-time wrapper around `ensureMeetingScheduled` (shared with
+ * the reconciliation job -- see meeting-scheduling.ts): moves the deal
+ * linked to this conversation to the pipeline's "meeting scheduled"
+ * stage (see migration 041), stamps what was agreed, creates the
+ * Calendar event and sends the link. Silently does nothing if there's
+ * no deal on this conversation, or the deal's pipeline has no stage
+ * tagged for this — native to any account, but only active once one
+ * is configured.
+ *
+ * Also covers rescheduling: this runs again whenever the model
+ * confirms a new time (e.g. the lead asked to move it after a
+ * reminder) -- ensureMeetingScheduled's idempotency check only
+ * short-circuits when the stored `meeting_scheduled_at` matches this
+ * call's `meetingAt` exactly, so a genuinely different time falls
+ * through and overwrites the stage/note/event/link like before.
+ *
+ * On top of that, when a real date-time was parsed and
+ * `meetingRemindersEnabled` is on, (re)schedules the day-before/
+ * hour-before reminders (migration 042) -- but only when
+ * ensureMeetingScheduled reports a `dealId` (i.e. it actually found a
+ * `meeting_scheduled` stage and wrote the deal's fields this call or a
+ * previous one); otherwise there's nothing real for the reminder cron
+ * to read and this must stay silent, same as before the extraction.
  */
 async function recordMeetingScheduled(
   db: SupabaseClient,
@@ -347,7 +360,7 @@ async function recordMeetingScheduled(
     config: AiConfig
   },
 ): Promise<void> {
-  await ensureMeetingScheduled(db, {
+  const result = await ensureMeetingScheduled(db, {
     accountId: args.accountId,
     conversationId: args.conversationId,
     contactId: args.contactId,
@@ -359,32 +372,26 @@ async function recordMeetingScheduled(
     businessHoursTimezone: args.config.businessHoursTimezone,
   })
 
-  // Reminder scheduling stays outside ensureMeetingScheduled -- it
-  // needs the deal id (which that function's { completed } return
-  // deliberately doesn't expose, to keep its contract stable for the
-  // reconciliation job) and only makes sense for the real-time path.
-  // findOpenDealForContact is idempotent (re-finds the same open deal
-  // rather than creating a second one), so this mirrors the exact
-  // pre-extraction behavior of recordMeetingScheduled.
-  if (args.meetingAt && args.config.meetingRemindersEnabled) {
-    const deal = await findOpenDealForContact(
-      db,
-      args.accountId,
-      args.contactId,
-      args.conversationId,
-      args.configOwnerUserId,
-    )
-    if (deal) {
-      await scheduleMeetingReminders(db, {
-        accountId: args.accountId,
-        dealId: deal.id,
-        conversationId: args.conversationId,
-        contactId: args.contactId,
-        configOwnerUserId: args.configOwnerUserId,
-        meetingAt: new Date(args.meetingAt),
-        config: args.config,
-      })
-    }
+  // Reminder scheduling stays outside ensureMeetingScheduled -- it's
+  // real-time-only and needs config.meetingRemindersEnabled, which
+  // that shared function's args don't carry. Gated on `result.dealId`
+  // (not just `meetingAt`), because ensureMeetingScheduled only sets
+  // dealId once it actually found a resolvable `meeting_scheduled`
+  // stage and wrote the deal's stage/meeting fields -- when there's
+  // no such stage configured, dealId comes back null and this must
+  // skip reminders too, same as the pre-extraction `if (!stage)
+  // return` guard that sat before this block and prevented scheduling
+  // reminders against a deal whose meeting fields were never written.
+  if (args.meetingAt && args.config.meetingRemindersEnabled && result.dealId) {
+    await scheduleMeetingReminders(db, {
+      accountId: args.accountId,
+      dealId: result.dealId,
+      conversationId: args.conversationId,
+      contactId: args.contactId,
+      configOwnerUserId: args.configOwnerUserId,
+      meetingAt: new Date(args.meetingAt),
+      config: args.config,
+    })
   }
 }
 

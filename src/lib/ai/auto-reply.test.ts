@@ -27,6 +27,8 @@ const h = vi.hoisted(() => ({
     contactUpdates: [] as Record<string, unknown>[],
     createdDealId: 'new-deal-1',
     meetingStage: null as Record<string, unknown> | null,
+    reminderInserts: [] as Record<string, unknown>[],
+    reminderDeletes: 0,
   },
 }))
 
@@ -142,6 +144,23 @@ vi.mock('./admin-client', () => ({
         }
         return chain
       }
+      if (table === 'deal_meeting_reminders') {
+        // scheduleMeetingReminders: delete-then-insert the pending
+        // day-before/hour-before rows for this deal.
+        const chain = {
+          delete: () => chain,
+          eq: () => chain,
+          is: () => {
+            h.state.reminderDeletes += 1
+            return Promise.resolve({ data: null, error: null })
+          },
+          insert: (payload: Record<string, unknown>[]) => {
+            h.state.reminderInserts.push(...payload)
+            return Promise.resolve({ data: null, error: null })
+          },
+        }
+        return chain
+      }
       // conversations
       return {
         select: () => ({
@@ -223,6 +242,8 @@ beforeEach(() => {
   h.state.contactUpdates = []
   h.state.createdDealId = 'new-deal-1'
   h.state.meetingStage = null
+  h.state.reminderInserts = []
+  h.state.reminderDeletes = 0
   h.loadAiConfig.mockResolvedValue(aiConfig())
   h.buildConversationContext.mockResolvedValue([{ role: 'user', content: 'hi' }])
   h.retrieveKnowledge.mockResolvedValue([])
@@ -485,6 +506,57 @@ describe('dispatchInboundToAiReply — meeting scheduling creates a missing deal
     )
     expect(h.state.dealInserts).toHaveLength(0)
     expect(h.createEventForAccount).not.toHaveBeenCalled()
+  })
+
+  // Rescheduling is a real, live feature (the model re-emits the
+  // meeting tag both to confirm AND to move an existing meeting to a
+  // new time -- see defaults.ts's system prompt and the reminder
+  // cron's "offer a new time and reschedule" flow). The idempotency
+  // guard in ensureMeetingScheduled must never swallow this: a
+  // different meetingAt than what's already stored has to fall
+  // through to the normal create/update/send path again.
+  it('reschedules: creates a new Calendar event and resends the link when the deal already has a meeting_link for a DIFFERENT time', async () => {
+    h.state.existingDeal = {
+      id: 'deal-existing',
+      pipeline_id: 'pipe-1',
+      title: 'Julio',
+      conversation_id: 'conv-1',
+      meeting_link: 'https://meet.google.com/old-time',
+      meeting_scheduled_at: '2026-10-11T10:00:00.000Z',
+    }
+    h.state.meetingStage = { id: 'stage-meeting-scheduled' }
+    h.generateReply.mockResolvedValue(meetingReply({ meetingAt: '2026-10-12T10:00:00.000Z' }))
+
+    await dispatchInboundToAiReply(ARGS)
+
+    expect(h.createEventForAccount).toHaveBeenCalledTimes(1)
+    expect(h.state.dealUpdates).toHaveLength(1)
+    expect(h.state.dealUpdates[0]).toMatchObject({
+      meeting_scheduled_at: '2026-10-12T10:00:00.000Z',
+      meeting_link: 'https://meet.google.com/test-link',
+    })
+    const sentTexts = h.engineSendText.mock.calls.map((c) => c[0].text)
+    expect(sentTexts).toContain('Aqui está o link da nossa reunião: https://meet.google.com/test-link')
+  })
+
+  // Critical: the pre-extraction code had `if (!stage) return` BEFORE
+  // the reminders block, so an account with no meeting_scheduled
+  // stage configured never got reminders scheduled against a deal
+  // whose meeting fields were never written. Reminders must stay
+  // gated the same way after the extraction, even though the stage
+  // lookup now happens inside ensureMeetingScheduled rather than
+  // inline in recordMeetingScheduled.
+  it('does not schedule reminders when the account has no meeting_scheduled stage configured, even with reminders enabled', async () => {
+    h.state.existingDeal = { id: 'deal-existing', pipeline_id: 'pipe-1', title: 'Julio', conversation_id: 'conv-1' }
+    h.state.meetingStage = null
+    h.loadAiConfig.mockResolvedValue(aiConfig({ meetingRemindersEnabled: true }))
+    h.generateReply.mockResolvedValue(meetingReply())
+
+    await dispatchInboundToAiReply(ARGS)
+
+    expect(h.state.dealUpdates).toHaveLength(0)
+    expect(h.state.reminderInserts).toHaveLength(0)
+    expect(h.state.reminderDeletes).toBe(0)
   })
 })
 
