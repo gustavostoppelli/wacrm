@@ -494,6 +494,16 @@ async function recordQualificationNotes(
  * pipeline/stage (`resolvePipelineAndStage` with no name args -- the
  * same default a deal created by hand in the dashboard would land in)
  * so this path never silently does nothing again.
+ *
+ * Deliberately IGNORES `accounts.auto_create_deal_on_first_message`
+ * (migration 079, default false for every account including Fuse's
+ * own -- see `ensureDealForContact` in `lib/whatsapp/inbound-message.ts`,
+ * which DOES respect that flag). That flag exists to stop a random
+ * first WhatsApp message from silently spawning a deal; a lead who
+ * got all the way to a scheduled meeting -- name, e-mail, a chosen
+ * time -- is a wholly different signal than "sent one message", so
+ * this path creates the deal regardless of the account's setting.
+ * Confirmed with the product owner on 2026-10-12.
  */
 async function findOpenDealForContact(
   db: SupabaseClient,
@@ -556,6 +566,11 @@ async function createDealForContact(
         pipeline_id: pipelineId,
         stage_id: stageId,
         title,
+        // Same fallback value `ensureDealForContact` uses for an
+        // organic/direct WhatsApp contact (migration 038's allowed-
+        // values CHECK constraint, `isDealSource`) -- accurate here
+        // too, since this path exists for exactly that kind of lead.
+        source: 'WhatsApp Direto',
         status: 'open',
       })
       .select('id, pipeline_id, title')

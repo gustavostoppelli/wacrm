@@ -427,6 +427,7 @@ describe('dispatchInboundToAiReply — meeting scheduling creates a missing deal
       pipeline_id: 'pipe-1',
       stage_id: 'stage-default',
       title: 'Julio',
+      source: 'WhatsApp Direto',
       status: 'open',
     })
 
