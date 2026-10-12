@@ -73,10 +73,13 @@ export async function ensureMeetingScheduled(
 
   const markIntentResolved = async (): Promise<void> => {
     if (!intentId) return
-    await db
+    const { error } = await db
       .from('ai_meeting_intents')
       .update({ resolved_at: new Date().toISOString(), resolution: 'completed' })
       .eq('id', intentId)
+    if (error) {
+      console.error('[meeting-scheduling] ai_meeting_intents resolve update failed:', error)
+    }
   }
 
   const deal = await findOpenDealForContact(db, accountId, contactId, conversationId, configOwnerUserId)

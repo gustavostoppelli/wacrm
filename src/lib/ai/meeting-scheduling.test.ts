@@ -16,9 +16,27 @@ function makeDb(opts: {
   contactRow?: Record<string, unknown> | null
   dealRow?: Record<string, unknown> | null
 }) {
-  const state = { dealUpdates: [] as Record<string, unknown>[], contactUpdates: [] as Record<string, unknown>[] }
+  const state = {
+    dealUpdates: [] as Record<string, unknown>[],
+    contactUpdates: [] as Record<string, unknown>[],
+    intentUpdates: [] as Record<string, unknown>[],
+  }
   const db = {
     from: (table: string) => {
+      if (table === 'ai_meeting_intents') {
+        const chain = {
+          update: (p: Record<string, unknown>) => {
+            state.intentUpdates.push({ ...p })
+            return {
+              eq: (_col: string, id: string) => {
+                state.intentUpdates[state.intentUpdates.length - 1].id = id
+                return Promise.resolve({ error: null })
+              },
+            }
+          },
+        }
+        return chain
+      }
       if (table === 'pipeline_stages') {
         const chain = { select: () => chain, eq: () => chain, maybeSingle: () => Promise.resolve({ data: opts.stageRow ?? null, error: null }) }
         return chain
@@ -180,5 +198,50 @@ describe('ensureMeetingScheduled', () => {
     expect(h.engineSendText).not.toHaveBeenCalled()
     expect(state.dealUpdates).toHaveLength(0)
     expect(state.contactUpdates).toHaveLength(0)
+  })
+
+  it('marks the intent resolved via the idempotency short-circuit when a non-null intentId is passed', async () => {
+    h.findOpenDealForContact.mockResolvedValue({ id: 'deal-1', pipeline_id: 'pipe-1', title: 'X' })
+    const { db, state } = makeDb({
+      stageRow: { id: 'stage-meeting' },
+      contactRow: { email: 'already@example.com' },
+      // Same instant as ARGS.meetingAt ('2026-10-12T13:00:00.000Z'),
+      // shaped the way PostgREST actually returns a timestamptz, while
+      // the requested meetingAt below is toISOString()-style -- same
+      // "same instant, different string" scenario as the short-circuit
+      // test above, but this time with intentId set, since this is
+      // exactly the path the daily reconciliation job will hit most
+      // often (revisiting an intent whose meeting already succeeded).
+      dealRow: { meeting_link: 'https://meet.google.com/already-exists', meeting_scheduled_at: '2026-10-12T13:00:00+00:00' },
+    })
+    const result = await ensureMeetingScheduled(db as never, { ...ARGS, intentId: 'intent-x' })
+    expect(result).toEqual({ completed: true, dealId: 'deal-1' })
+    expect(state.intentUpdates).toHaveLength(1)
+    expect(state.intentUpdates[0]).toMatchObject({ id: 'intent-x', resolution: 'completed' })
+  })
+
+  it('does not touch ai_meeting_intents when a non-null intentId is passed but the outcome is completed:false (no deal)', async () => {
+    h.findOpenDealForContact.mockResolvedValue(null)
+    const { db, state } = makeDb({})
+    const result = await ensureMeetingScheduled(db as never, { ...ARGS, intentId: 'intent-x' })
+    expect(result).toEqual({ completed: false, dealId: null })
+    expect(state.intentUpdates).toHaveLength(0)
+  })
+
+  it('does not touch ai_meeting_intents when a non-null intentId is passed but the outcome is completed:false (no stage)', async () => {
+    h.findOpenDealForContact.mockResolvedValue({ id: 'deal-1', pipeline_id: 'pipe-1', title: 'X' })
+    const { db, state } = makeDb({ stageRow: null })
+    const result = await ensureMeetingScheduled(db as never, { ...ARGS, intentId: 'intent-x' })
+    expect(result).toEqual({ completed: false, dealId: null })
+    expect(state.intentUpdates).toHaveLength(0)
+  })
+
+  it('does not touch ai_meeting_intents when a non-null intentId is passed but Calendar event creation fails', async () => {
+    h.findOpenDealForContact.mockResolvedValue({ id: 'deal-1', pipeline_id: 'pipe-1', title: 'X' })
+    h.createEventForAccount.mockRejectedValue(new Error('calendar down'))
+    const { db, state } = makeDb({ stageRow: { id: 'stage-meeting' }, contactRow: { email: 'x@example.com' } })
+    const result = await ensureMeetingScheduled(db as never, { ...ARGS, intentId: 'intent-x' })
+    expect(result).toEqual({ completed: false, dealId: 'deal-1' })
+    expect(state.intentUpdates).toHaveLength(0)
   })
 })

@@ -618,6 +618,18 @@ describe('dispatchInboundToAiReply — meeting scheduling creates a missing deal
     expect(h.state.meetingIntentInserts).toHaveLength(1)
     expect(h.state.meetingIntentUpdates).toHaveLength(0)
   })
+
+  it('creates no ai_meeting_intents row for a note-only turn (no meetingAt/meetingEmail)', async () => {
+    h.state.existingDeal = { id: 'deal-existing', pipeline_id: 'pipe-1', title: 'Julio', conversation_id: 'conv-1' }
+    h.state.meetingStage = { id: 'stage-meeting-scheduled' }
+    h.generateReply.mockResolvedValue(
+      meetingReply({ meetingAt: null, meetingEmail: null }),
+    )
+
+    await dispatchInboundToAiReply(ARGS)
+
+    expect(h.state.meetingIntentInserts).toHaveLength(0)
+  })
 })
 
 describe('dispatchInboundToAiReply — handoff', () => {
