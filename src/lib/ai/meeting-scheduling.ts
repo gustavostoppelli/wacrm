@@ -22,6 +22,10 @@ export interface EnsureMeetingScheduledArgs {
   meetingEmail: string | null
   meetingEventLabel: string | null
   businessHoursTimezone: string
+  /** Quando vem de uma ai_meeting_intents já gravada (tempo real logo
+   *  após criá-la, ou a reconciliação revisitando uma antiga), marca
+   *  essa linha resolvida ao completar com sucesso. */
+  intentId: string | null
 }
 
 export interface EnsureMeetingScheduledResult {
@@ -64,7 +68,16 @@ export async function ensureMeetingScheduled(
     meetingEmail,
     meetingEventLabel,
     businessHoursTimezone,
+    intentId,
   } = args
+
+  const markIntentResolved = async (): Promise<void> => {
+    if (!intentId) return
+    await db
+      .from('ai_meeting_intents')
+      .update({ resolved_at: new Date().toISOString(), resolution: 'completed' })
+      .eq('id', intentId)
+  }
 
   const deal = await findOpenDealForContact(db, accountId, contactId, conversationId, configOwnerUserId)
   if (!deal) return { completed: false, dealId: null }
@@ -91,6 +104,7 @@ export async function ensureMeetingScheduled(
     existingDeal.meeting_scheduled_at &&
     Date.parse(existingDeal.meeting_scheduled_at as string) === Date.parse(meetingAt)
   ) {
+    await markIntentResolved()
     return { completed: true, dealId: deal.id }
   }
 
@@ -172,6 +186,10 @@ export async function ensureMeetingScheduled(
       text: 'Só mais uma coisa pra fechar: pode me passar o nome da clínica, o site ou o Instagram? Assim já vamos analisar o contexto e preparar um diagnóstico completo pra nossa reunião.',
       aiGenerated: true,
     })
+  }
+
+  if (completed) {
+    await markIntentResolved()
   }
 
   return { completed, dealId: deal.id }

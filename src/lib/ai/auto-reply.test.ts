@@ -29,6 +29,8 @@ const h = vi.hoisted(() => ({
     meetingStage: null as Record<string, unknown> | null,
     reminderInserts: [] as Record<string, unknown>[],
     reminderDeletes: 0,
+    meetingIntentInserts: [] as Record<string, unknown>[],
+    meetingIntentUpdates: [] as Record<string, unknown>[],
   },
 }))
 
@@ -131,6 +133,26 @@ vi.mock('./admin-client', () => ({
           update: (payload: Record<string, unknown>) => {
             h.state.dealUpdates.push(payload)
             return { eq: () => Promise.resolve({ error: null }) }
+          },
+        }
+        return chain
+      }
+      if (table === 'ai_meeting_intents') {
+        const chain = {
+          insert: (payload: Record<string, unknown>) => {
+            h.state.meetingIntentInserts.push(payload)
+            return {
+              select: () => ({
+                single: () => Promise.resolve({ data: { id: 'intent-1' }, error: null }),
+              }),
+            }
+          },
+          update: (payload: Record<string, unknown>) => {
+            h.state.meetingIntentUpdates.push({ ...payload })
+            return { eq: (_col: string, id: string) => {
+              h.state.meetingIntentUpdates[h.state.meetingIntentUpdates.length - 1].id = id
+              return Promise.resolve({ error: null })
+            } }
           },
         }
         return chain
@@ -244,6 +266,8 @@ beforeEach(() => {
   h.state.meetingStage = null
   h.state.reminderInserts = []
   h.state.reminderDeletes = 0
+  h.state.meetingIntentInserts = []
+  h.state.meetingIntentUpdates = []
   h.loadAiConfig.mockResolvedValue(aiConfig())
   h.buildConversationContext.mockResolvedValue([{ role: 'user', content: 'hi' }])
   h.retrieveKnowledge.mockResolvedValue([])
@@ -557,6 +581,42 @@ describe('dispatchInboundToAiReply — meeting scheduling creates a missing deal
     expect(h.state.dealUpdates).toHaveLength(0)
     expect(h.state.reminderInserts).toHaveLength(0)
     expect(h.state.reminderDeletes).toBe(0)
+  })
+
+  it('records an ai_meeting_intents row before attempting any side effect, and marks it completed on success', async () => {
+    h.state.existingDeal = null
+    h.state.contactRow = { name: 'Julio', phone: '5522998783605', email: null }
+    h.state.meetingStage = { id: 'stage-meeting-scheduled' }
+    h.generateReply.mockResolvedValue(meetingReply())
+
+    await dispatchInboundToAiReply(ARGS)
+
+    expect(h.state.meetingIntentInserts).toHaveLength(1)
+    expect(h.state.meetingIntentInserts[0]).toMatchObject({
+      account_id: 'acct-1',
+      conversation_id: 'conv-1',
+      contact_id: 'contact-1',
+      config_owner_user_id: 'user-1',
+      meeting_at: meetingReply().meetingAt,
+      meeting_email: meetingReply().meetingEmail,
+      meeting_note: meetingReply().meetingNote,
+    })
+    expect(h.state.meetingIntentUpdates).toHaveLength(1)
+    expect(h.state.meetingIntentUpdates[0]).toMatchObject({
+      id: 'intent-1',
+      resolution: 'completed',
+    })
+  })
+
+  it('leaves the intent unresolved (does not mark it completed) when the deal cannot be created', async () => {
+    h.state.existingDeal = null
+    h.resolvePipelineAndStage.mockRejectedValue(new Error('no pipelines yet'))
+    h.generateReply.mockResolvedValue(meetingReply())
+
+    await dispatchInboundToAiReply(ARGS)
+
+    expect(h.state.meetingIntentInserts).toHaveLength(1)
+    expect(h.state.meetingIntentUpdates).toHaveLength(0)
   })
 })
 

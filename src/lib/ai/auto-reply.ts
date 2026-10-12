@@ -360,6 +360,35 @@ async function recordMeetingScheduled(
     config: AiConfig
   },
 ): Promise<void> {
+  // Record the intent (time + email) BEFORE attempting any side effect
+  // below (deal/stage/calendar/message) -- it must exist even if
+  // everything after this fails, so the daily reconciliation job has
+  // something to revisit. Best-effort: an insert failure here must not
+  // block the actual scheduling attempt, so intentId just stays null
+  // and ensureMeetingScheduled runs without one (same as before this
+  // task).
+  let intentId: string | null = null
+  if (args.meetingAt && args.meetingEmail) {
+    const { data: intent, error } = await db
+      .from('ai_meeting_intents')
+      .insert({
+        account_id: args.accountId,
+        conversation_id: args.conversationId,
+        contact_id: args.contactId,
+        config_owner_user_id: args.configOwnerUserId,
+        meeting_at: args.meetingAt,
+        meeting_email: args.meetingEmail,
+        meeting_note: args.meetingNote,
+      })
+      .select('id')
+      .single()
+    if (error) {
+      console.error('[ai auto-reply] ai_meeting_intents insert failed:', error)
+    } else {
+      intentId = intent?.id ?? null
+    }
+  }
+
   const result = await ensureMeetingScheduled(db, {
     accountId: args.accountId,
     conversationId: args.conversationId,
@@ -370,6 +399,7 @@ async function recordMeetingScheduled(
     meetingEmail: args.meetingEmail,
     meetingEventLabel: args.config.meetingEventLabel,
     businessHoursTimezone: args.config.businessHoursTimezone,
+    intentId,
   })
 
   // Reminder scheduling stays outside ensureMeetingScheduled -- it's

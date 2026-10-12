@@ -60,6 +60,7 @@ const ARGS = {
   meetingEmail: 'lead@example.com',
   meetingEventLabel: null,
   businessHoursTimezone: 'America/Sao_Paulo',
+  intentId: null,
 }
 
 beforeEach(() => {
