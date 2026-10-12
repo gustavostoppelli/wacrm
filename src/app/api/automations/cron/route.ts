@@ -9,6 +9,8 @@ import {
   clampToBusinessHours,
 } from '@/lib/ai/auto-reply'
 import { loadAiConfig } from '@/lib/ai/config'
+import { reconcileMeetingIntents } from '@/lib/ai/meeting-reconciliation'
+import type { ReconcileMeetingIntentsResult } from '@/lib/ai/meeting-reconciliation'
 import { engineSendText } from '@/lib/flows/meta-send'
 import { loadTodayActivityRanking } from '@/lib/dashboard/queries'
 import type { TodayActivityRankingRow } from '@/lib/dashboard/types'
@@ -106,6 +108,7 @@ export async function GET(request: Request) {
   const dailyDigestsSent = await drainDailyDigest(admin)
   const sdrIaProcessed = await drainSdrIa(admin)
   const instagramDisconnected = await checkInstagramConnections(admin)
+  const meetingReconciliation = await reconcileMeetingIntentsOnce(admin)
 
   return NextResponse.json({
     processed,
@@ -120,6 +123,7 @@ export async function GET(request: Request) {
     daily_digests_sent: dailyDigestsSent,
     sdr_ia_processed: sdrIaProcessed,
     instagram_connections_disconnected: instagramDisconnected,
+    meeting_reconciliation: meetingReconciliation,
   })
 }
 
@@ -1008,4 +1012,66 @@ async function checkInstagramConnections(admin: ReturnType<typeof supabaseAdmin>
     }
   }
   return disconnected
+}
+
+/**
+ * Runs `reconcileMeetingIntents` (migration 082) once per calendar day
+ * (America/Sao_Paulo), via a single fixed row on the generic
+ * `cron_job_state` table -- this job scans every account in one pass,
+ * so unlike `drainDailyDigest` (one claim column per account row)
+ * there's no natural per-account row to claim against; `cron_job_state`
+ * exists precisely for jobs like this one.
+ *
+ * Claim pattern mirrors `drainDailyDigest`'s real one: SELECT the
+ * current state first, and only THEN perform a conditional UPDATE
+ * that can succeed for just one concurrent caller -- never write the
+ * claim before checking, which would make it impossible to tell
+ * "did I just claim it" from "someone already ran it today" (the
+ * naive upsert-first ordering a few people take this shortcut with).
+ * The one wrinkle `drainDailyDigest` doesn't have: the row for this
+ * job may not exist yet the very first time this ever runs (no
+ * migration seeds it), so that case claims via an INSERT instead --
+ * which is just as atomic, since a second concurrent INSERT for the
+ * same `job_name` PK fails with a conflict instead of double-claiming.
+ */
+async function reconcileMeetingIntentsOnce(
+  admin: ReturnType<typeof supabaseAdmin>,
+): Promise<ReconcileMeetingIntentsResult | null> {
+  const { today } = brazilTodayAndHour()
+
+  const { data: state } = await admin
+    .from('cron_job_state')
+    .select('last_run_date')
+    .eq('job_name', 'reconcile_meeting_intents')
+    .maybeSingle()
+
+  if (state?.last_run_date === today) return null // já rodou hoje
+
+  let claimed: boolean
+  if (!state) {
+    // Primeira vez que esta linha é tocada -- INSERT falha com
+    // conflito de PK (job_name) se outra invocação concorrente
+    // chegar primeiro, que é exatamente o comportamento de claim que
+    // queremos aqui.
+    const { error: insertError } = await admin
+      .from('cron_job_state')
+      .insert({ job_name: 'reconcile_meeting_intents', last_run_date: today })
+    claimed = !insertError
+  } else {
+    // Mesmo padrão de drainDailyDigest: UPDATE condicional que só
+    // "ganha" pra quem chegar primeiro a virar a data de hoje -- o
+    // .or() também cobre last_run_date ainda null (não deveria
+    // acontecer dado o branch acima, mas é inofensivo contemplar).
+    const { data: claim } = await admin
+      .from('cron_job_state')
+      .update({ last_run_date: today })
+      .eq('job_name', 'reconcile_meeting_intents')
+      .or(`last_run_date.is.null,last_run_date.neq.${today}`)
+      .select('job_name')
+      .maybeSingle()
+    claimed = Boolean(claim)
+  }
+  if (!claimed) return null
+
+  return reconcileMeetingIntents(admin)
 }
