@@ -10,9 +10,9 @@ import { latestUserMessage } from './query'
 import { engineSendText } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { isWithinBusinessHours, nextBusinessHourStart } from './business-hours'
-import { createEventForAccount } from '@/lib/calendar/google'
 import { getSdrIaConfig } from '@/lib/sdr-ia/config'
 import { findOpenDealForContact } from '@/lib/deals/find-or-create-open-deal'
+import { ensureMeetingScheduled } from './meeting-scheduling'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { AiConfig } from './types'
 
@@ -347,108 +347,44 @@ async function recordMeetingScheduled(
     config: AiConfig
   },
 ): Promise<void> {
-  const {
-    accountId,
-    conversationId,
-    contactId,
-    configOwnerUserId,
-    meetingNote,
-    meetingAt,
-    meetingEmail,
-    config,
-  } = args
+  await ensureMeetingScheduled(db, {
+    accountId: args.accountId,
+    conversationId: args.conversationId,
+    contactId: args.contactId,
+    configOwnerUserId: args.configOwnerUserId,
+    meetingNote: args.meetingNote,
+    meetingAt: args.meetingAt,
+    meetingEmail: args.meetingEmail,
+    meetingEventLabel: args.config.meetingEventLabel,
+    businessHoursTimezone: args.config.businessHoursTimezone,
+  })
 
-  const deal = await findOpenDealForContact(db, accountId, contactId, conversationId, configOwnerUserId)
-  if (!deal) return
-
-  const { data: stage } = await db
-    .from('pipeline_stages')
-    .select('id')
-    .eq('pipeline_id', deal.pipeline_id)
-    .eq('stage_role', 'meeting_scheduled')
-    .maybeSingle()
-  if (!stage) return
-
-  const update: Record<string, unknown> = { stage_id: stage.id, meeting_note: meetingNote }
-  if (meetingAt) update.meeting_scheduled_at = meetingAt
-
-  // Save the email onto the contact record too (not just used to
-  // build the calendar invite below) so it shows up on the contact
-  // card even if Calendar isn't connected for this account.
-  if (meetingEmail) {
-    const { data: contact } = await db
-      .from('contacts')
-      .select('email')
-      .eq('id', contactId)
-      .maybeSingle()
-    if (!contact?.email) {
-      await db.from('contacts').update({ email: meetingEmail }).eq('id', contactId)
+  // Reminder scheduling stays outside ensureMeetingScheduled -- it
+  // needs the deal id (which that function's { completed } return
+  // deliberately doesn't expose, to keep its contract stable for the
+  // reconciliation job) and only makes sense for the real-time path.
+  // findOpenDealForContact is idempotent (re-finds the same open deal
+  // rather than creating a second one), so this mirrors the exact
+  // pre-extraction behavior of recordMeetingScheduled.
+  if (args.meetingAt && args.config.meetingRemindersEnabled) {
+    const deal = await findOpenDealForContact(
+      db,
+      args.accountId,
+      args.contactId,
+      args.conversationId,
+      args.configOwnerUserId,
+    )
+    if (deal) {
+      await scheduleMeetingReminders(db, {
+        accountId: args.accountId,
+        dealId: deal.id,
+        conversationId: args.conversationId,
+        contactId: args.contactId,
+        configOwnerUserId: args.configOwnerUserId,
+        meetingAt: new Date(args.meetingAt),
+        config: args.config,
+      })
     }
-  }
-
-  if (meetingAt && meetingEmail) {
-    // "<label configurado> - <cliente/clínica>" -- the label comes
-    // from ai_configs.meeting_event_label (Settings -> Agentes de IA),
-    // not accounts.name: that column usually holds the owner's
-    // personal name, not a brand name, so it isn't a reliable source
-    // for this. Falls back to a generic "Diagnóstico" when unset.
-    const summary = `${config.meetingEventLabel || 'Diagnóstico'} - ${deal.title}`
-
-    const event = await createEventForAccount(db, accountId, {
-      summary,
-      start: new Date(meetingAt),
-      end: new Date(new Date(meetingAt).getTime() + 30 * 60_000),
-      attendeeEmail: meetingEmail,
-      timeZone: config.businessHoursTimezone,
-    }).catch((err) => {
-      console.error('[ai auto-reply] createEventForAccount failed:', err)
-      return null
-    })
-    if (event) {
-      update.meeting_link = event.meetLink
-      update.calendar_event_id = event.id
-    }
-  }
-
-  await db.from('deals').update(update).eq('id', deal.id)
-
-  // The model's own reply (already sent by the caller) can't include
-  // the Meet link -- it doesn't exist yet at generation time, since
-  // creating it depends on this same turn's tag being parsed first.
-  // Send it as a short follow-up instead of trying to inject it into
-  // the model's text after the fact.
-  if (update.meeting_link) {
-    await engineSendText({
-      accountId,
-      userId: configOwnerUserId,
-      conversationId,
-      contactId,
-      text: `Aqui está o link da nossa reunião: ${update.meeting_link}`,
-      aiGenerated: true,
-    })
-
-    // Only asked once the event is actually confirmed -- doesn't block
-    // scheduling, just enriches the deal for whoever preps the meeting.
-    await engineSendText({
-      accountId,
-      userId: configOwnerUserId,
-      conversationId,
-      contactId,
-      text: 'Só mais uma coisa pra fechar: pode me passar o nome da clínica, o site ou o Instagram? Assim já vamos analisar o contexto e preparar um diagnóstico completo pra nossa reunião.',
-      aiGenerated: true,
-    })
-  }
-
-  if (meetingAt && config.meetingRemindersEnabled) {
-    await scheduleMeetingReminders(db, {
-      accountId,
-      dealId: deal.id,
-      conversationId,
-      contactId,
-      configOwnerUserId,
-      meetingAt: new Date(meetingAt),
-      config,
-    })
   }
 }
 
