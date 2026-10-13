@@ -33,6 +33,11 @@ export interface SdrIaConfig {
   hoursEnd: number
   sentToday: number
   lastSentDate: string | null
+  /** Timestamp of this account's last successful send (migration 083) —
+   *  distinct from `lastSentDate` (date-only, drives the daily-cap
+   *  reset). Used to space sends out across business hours instead of
+   *  bursting the whole remaining cap in one cron tick. */
+  lastSentAt: string | null
 }
 
 export type SdrIaConfigInput = Omit<SdrIaConfig, 'accountId'>
@@ -64,6 +69,7 @@ function fromRow(row: any): SdrIaConfig {
     hoursEnd: row.hours_end,
     sentToday: row.sent_today,
     lastSentDate: row.last_sent_date,
+    lastSentAt: row.last_sent_at,
   }
 }
 

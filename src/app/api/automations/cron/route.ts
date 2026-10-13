@@ -17,7 +17,7 @@ import type { TodayActivityRankingRow } from '@/lib/dashboard/types'
 import { resolveDefaultChannelForAccount } from '@/lib/whatsapp/resolve-channel'
 import { sendUazapiText } from '@/lib/whatsapp/uazapi-api'
 import { getSdrIaConfig } from '@/lib/sdr-ia/config'
-import { findOrCreateConversationForChannel, sendSdrIaFirstContact } from '@/lib/sdr-ia/send'
+import { findOrCreateConversationForChannel, sendSdrIaFirstContact, isSendSpacingSatisfied } from '@/lib/sdr-ia/send'
 import { addContactTagIfAbsent } from '@/lib/contacts/tag-write'
 import { variantTagName } from '@/lib/sdr-ia/tags'
 import { verifyInstagramToken } from '@/lib/instagram/graph-api'
@@ -892,13 +892,17 @@ async function drainSdrIa(admin: ReturnType<typeof supabaseAdmin>): Promise<numb
     const sentToday = config.lastSentDate === today ? config.sentToday : 0
     const remaining = config.dailyCap - sentToday
     if (remaining <= 0) continue
+    if (!isSendSpacingSatisfied(config.lastSentAt, new Date())) continue
 
+    // One candidate per tick, never the whole remaining cap — this is
+    // what actually spaces the day's sends out (isSendSpacingSatisfied
+    // above is what stops a later tick from sending again too soon).
     const { data: candidates } = await admin.rpc('sdr_ia_next_candidates', {
       p_account_id: accountId,
       p_lead_tag_id: config.leadTagId,
       p_contacted_tag_id: config.contactedTagId,
       p_exclusion_tag_id: config.exclusionTagId,
-      p_limit: remaining,
+      p_limit: 1,
     })
 
     for (const candidate of candidates ?? []) {

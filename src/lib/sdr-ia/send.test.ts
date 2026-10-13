@@ -1,6 +1,38 @@
 import { describe, expect, it, vi } from 'vitest'
-import { findOrCreateConversationForChannel, sendSdrIaFirstContact } from './send'
+import {
+  findOrCreateConversationForChannel,
+  sendSdrIaFirstContact,
+  isSendSpacingSatisfied,
+  MIN_MINUTES_BETWEEN_SDR_IA_SENDS,
+} from './send'
 import * as metaSend from '@/lib/automations/meta-send'
+
+describe('isSendSpacingSatisfied', () => {
+  const NOW = new Date('2026-10-13T12:00:00.000Z')
+
+  it('is satisfied when the account has never sent anything (lastSentAt null)', () => {
+    expect(isSendSpacingSatisfied(null, NOW)).toBe(true)
+  })
+
+  it('is not satisfied right after a send', () => {
+    expect(isSendSpacingSatisfied(NOW.toISOString(), NOW)).toBe(false)
+  })
+
+  it('is not satisfied one minute before the minimum window elapses', () => {
+    const lastSentAt = new Date(NOW.getTime() - (MIN_MINUTES_BETWEEN_SDR_IA_SENDS - 1) * 60_000).toISOString()
+    expect(isSendSpacingSatisfied(lastSentAt, NOW)).toBe(false)
+  })
+
+  it('is satisfied exactly at the minimum window', () => {
+    const lastSentAt = new Date(NOW.getTime() - MIN_MINUTES_BETWEEN_SDR_IA_SENDS * 60_000).toISOString()
+    expect(isSendSpacingSatisfied(lastSentAt, NOW)).toBe(true)
+  })
+
+  it('is satisfied well past the minimum window', () => {
+    const lastSentAt = new Date(NOW.getTime() - 24 * 60 * 60_000).toISOString()
+    expect(isSendSpacingSatisfied(lastSentAt, NOW)).toBe(true)
+  })
+})
 
 describe('findOrCreateConversationForChannel', () => {
   it('returns existing conversation id without calling insert', async () => {
@@ -100,7 +132,7 @@ describe('sendSdrIaFirstContact', () => {
         hoursStart: 9,
         hoursEnd: 18,
         sentToday: 0,
-        lastSentDate: null,
+        lastSentDate: null, lastSentAt: null,
       },
     })
     expect(spy).toHaveBeenCalledWith({
@@ -136,7 +168,7 @@ describe('sendSdrIaFirstContact', () => {
         hoursStart: 9,
         hoursEnd: 18,
         sentToday: 0,
-        lastSentDate: null,
+        lastSentDate: null, lastSentAt: null,
       },
     })
     expect(spy).toHaveBeenCalledWith(
@@ -171,7 +203,7 @@ function fakeDb(rows: Record<string, unknown>) {
 
 const baseConfig = {
   accountId: 'acct-1', enabled: true, leadTagId: 't1', contactedTagId: 't2', exclusionTagId: null,
-  whatsappConfigId: 'chan-1', dailyCap: 5, hoursStart: 9, hoursEnd: 18, sentToday: 0, lastSentDate: null,
+  whatsappConfigId: 'chan-1', dailyCap: 5, hoursStart: 9, hoursEnd: 18, sentToday: 0, lastSentDate: null, lastSentAt: null,
 }
 const args = (config: object) => ({
   accountId: 'acct-1', userId: 'user-1', contactId: 'contact-1', conversationId: 'conv-1',

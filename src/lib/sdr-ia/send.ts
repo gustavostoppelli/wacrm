@@ -12,6 +12,34 @@ import { looksLikePhoneNumber } from '@/lib/whatsapp/phone-utils'
 import type { SdrIaConfig } from './config'
 
 /**
+ * Minimum minutes between two successful sends for the same account
+ * (migration 083). Without this, `drainSdrIa` fetched up to the
+ * whole remaining `dailyCap` in one cron tick and sent to all of
+ * them back-to-back -- e.g. all 5 of the day's messages landing
+ * within the same minute, the first tick after business hours open.
+ * A burst like that reads more like a bot than a person working
+ * through a list, which matters more than usual here: SDR IA's
+ * default send mode is free-form text through an unofficial
+ * WhatsApp channel, the highest-risk configuration this product
+ * supports. Not (yet) configurable per account -- a flat constant
+ * until there's a real reason to tune it per client.
+ */
+export const MIN_MINUTES_BETWEEN_SDR_IA_SENDS = 20
+
+/**
+ * True when enough time has passed since `lastSentAt` to allow
+ * another send right now (or `lastSentAt` is null -- never sent,
+ * nothing to space against). Pure and trivially testable on its
+ * own; `drainSdrIa` uses it to skip an account for this cron tick
+ * without touching the send/candidate logic at all.
+ */
+export function isSendSpacingSatisfied(lastSentAt: string | null, now: Date): boolean {
+  if (!lastSentAt) return true
+  const elapsedMinutes = (now.getTime() - new Date(lastSentAt).getTime()) / 60_000
+  return elapsedMinutes >= MIN_MINUTES_BETWEEN_SDR_IA_SENDS
+}
+
+/**
  * Finds the existing conversation between this contact and this
  * SPECIFIC channel, or creates one. Unlike
  * `findOrCreateInternalRecipient` (automations/engine.ts), which picks
