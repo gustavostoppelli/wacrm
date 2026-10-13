@@ -94,7 +94,7 @@ describe('ensureMeetingScheduled', () => {
     h.findOpenDealForContact.mockResolvedValue(null)
     const { db } = makeDb({})
     const result = await ensureMeetingScheduled(db as never, ARGS)
-    expect(result).toEqual({ completed: false, dealId: null })
+    expect(result).toEqual({ completed: false, dealId: null, reason: 'no_deal' })
     expect(h.createEventForAccount).not.toHaveBeenCalled()
   })
 
@@ -102,7 +102,7 @@ describe('ensureMeetingScheduled', () => {
     h.findOpenDealForContact.mockResolvedValue({ id: 'deal-1', pipeline_id: 'pipe-1', title: 'X' })
     const { db } = makeDb({ stageRow: null })
     const result = await ensureMeetingScheduled(db as never, ARGS)
-    expect(result).toEqual({ completed: false, dealId: null })
+    expect(result).toEqual({ completed: false, dealId: null, reason: 'no_stage' })
     expect(h.createEventForAccount).not.toHaveBeenCalled()
   })
 
@@ -110,7 +110,7 @@ describe('ensureMeetingScheduled', () => {
     h.findOpenDealForContact.mockResolvedValue({ id: 'deal-1', pipeline_id: 'pipe-1', title: 'X' })
     const { db, state } = makeDb({ stageRow: { id: 'stage-meeting' }, contactRow: { email: null } })
     const result = await ensureMeetingScheduled(db as never, ARGS)
-    expect(result).toEqual({ completed: true, dealId: 'deal-1' })
+    expect(result).toEqual({ completed: true, dealId: 'deal-1', reason: 'completed' })
     expect(state.dealUpdates[0]).toMatchObject({
       stage_id: 'stage-meeting',
       meeting_note: 'Amanhã às 10h',
@@ -141,8 +141,25 @@ describe('ensureMeetingScheduled', () => {
     // scheduling) should still proceed, matching the pre-extraction
     // behavior where reminders didn't depend on event creation
     // succeeding.
-    expect(result).toEqual({ completed: false, dealId: 'deal-1' })
+    expect(result).toEqual({ completed: false, dealId: 'deal-1', reason: 'event_creation_failed' })
     expect(h.engineSendText).not.toHaveBeenCalled()
+  })
+
+  it('returns reason:no_calendar (not event_creation_failed) when the account simply has no Calendar connected', async () => {
+    h.findOpenDealForContact.mockResolvedValue({ id: 'deal-1', pipeline_id: 'pipe-1', title: 'X' })
+    // createEventForAccount resolves to null (no calendar_configs row)
+    // rather than throwing -- see src/lib/calendar/google.ts's
+    // createEventForAccount doc comment: "Never throws for 'not
+    // connected'; does throw ... for a real API failure with a
+    // connection that exists." This must NOT be confused with
+    // event_creation_failed: no_calendar is permanent (nobody connected
+    // Calendar), event_creation_failed is plausibly transient.
+    h.createEventForAccount.mockResolvedValue(null)
+    const { db, state } = makeDb({ stageRow: { id: 'stage-meeting' }, contactRow: { email: 'x@example.com' } })
+    const result = await ensureMeetingScheduled(db as never, ARGS)
+    expect(result).toEqual({ completed: false, dealId: 'deal-1', reason: 'no_calendar' })
+    expect(h.engineSendText).not.toHaveBeenCalled()
+    expect(state.dealUpdates[0]).not.toHaveProperty('meeting_link')
   })
 
   it('returns completed:true immediately, without recreating the Calendar event or resending any message, when the deal already has a meeting_link for this exact meetingAt', async () => {
@@ -153,7 +170,7 @@ describe('ensureMeetingScheduled', () => {
       dealRow: { meeting_link: 'https://meet.google.com/already-exists', meeting_scheduled_at: ARGS.meetingAt },
     })
     const result = await ensureMeetingScheduled(db as never, ARGS)
-    expect(result).toEqual({ completed: true, dealId: 'deal-1' })
+    expect(result).toEqual({ completed: true, dealId: 'deal-1', reason: 'completed' })
     expect(h.createEventForAccount).not.toHaveBeenCalled()
     expect(h.engineSendText).not.toHaveBeenCalled()
     expect(state.dealUpdates).toHaveLength(0)
@@ -169,7 +186,7 @@ describe('ensureMeetingScheduled', () => {
       dealRow: { meeting_link: 'https://meet.google.com/old-time', meeting_scheduled_at: '2026-10-13T10:00:00.000Z' },
     })
     const result = await ensureMeetingScheduled(db as never, ARGS)
-    expect(result).toEqual({ completed: true, dealId: 'deal-1' })
+    expect(result).toEqual({ completed: true, dealId: 'deal-1', reason: 'completed' })
     expect(h.createEventForAccount).toHaveBeenCalledTimes(1)
     expect(state.dealUpdates[0]).toMatchObject({
       stage_id: 'stage-meeting',
@@ -193,7 +210,7 @@ describe('ensureMeetingScheduled', () => {
       dealRow: { meeting_link: 'https://meet.google.com/already-exists', meeting_scheduled_at: '2026-10-12T13:00:00+00:00' },
     })
     const result = await ensureMeetingScheduled(db as never, ARGS)
-    expect(result).toEqual({ completed: true, dealId: 'deal-1' })
+    expect(result).toEqual({ completed: true, dealId: 'deal-1', reason: 'completed' })
     expect(h.createEventForAccount).not.toHaveBeenCalled()
     expect(h.engineSendText).not.toHaveBeenCalled()
     expect(state.dealUpdates).toHaveLength(0)
@@ -215,7 +232,7 @@ describe('ensureMeetingScheduled', () => {
       dealRow: { meeting_link: 'https://meet.google.com/already-exists', meeting_scheduled_at: '2026-10-12T13:00:00+00:00' },
     })
     const result = await ensureMeetingScheduled(db as never, { ...ARGS, intentId: 'intent-x' })
-    expect(result).toEqual({ completed: true, dealId: 'deal-1' })
+    expect(result).toEqual({ completed: true, dealId: 'deal-1', reason: 'completed' })
     expect(state.intentUpdates).toHaveLength(1)
     expect(state.intentUpdates[0]).toMatchObject({ id: 'intent-x', resolution: 'completed' })
   })
@@ -224,7 +241,7 @@ describe('ensureMeetingScheduled', () => {
     h.findOpenDealForContact.mockResolvedValue(null)
     const { db, state } = makeDb({})
     const result = await ensureMeetingScheduled(db as never, { ...ARGS, intentId: 'intent-x' })
-    expect(result).toEqual({ completed: false, dealId: null })
+    expect(result).toEqual({ completed: false, dealId: null, reason: 'no_deal' })
     expect(state.intentUpdates).toHaveLength(0)
   })
 
@@ -232,7 +249,7 @@ describe('ensureMeetingScheduled', () => {
     h.findOpenDealForContact.mockResolvedValue({ id: 'deal-1', pipeline_id: 'pipe-1', title: 'X' })
     const { db, state } = makeDb({ stageRow: null })
     const result = await ensureMeetingScheduled(db as never, { ...ARGS, intentId: 'intent-x' })
-    expect(result).toEqual({ completed: false, dealId: null })
+    expect(result).toEqual({ completed: false, dealId: null, reason: 'no_stage' })
     expect(state.intentUpdates).toHaveLength(0)
   })
 
@@ -241,7 +258,16 @@ describe('ensureMeetingScheduled', () => {
     h.createEventForAccount.mockRejectedValue(new Error('calendar down'))
     const { db, state } = makeDb({ stageRow: { id: 'stage-meeting' }, contactRow: { email: 'x@example.com' } })
     const result = await ensureMeetingScheduled(db as never, { ...ARGS, intentId: 'intent-x' })
-    expect(result).toEqual({ completed: false, dealId: 'deal-1' })
+    expect(result).toEqual({ completed: false, dealId: 'deal-1', reason: 'event_creation_failed' })
+    expect(state.intentUpdates).toHaveLength(0)
+  })
+
+  it('does not touch ai_meeting_intents when a non-null intentId is passed but there is no Calendar connected', async () => {
+    h.findOpenDealForContact.mockResolvedValue({ id: 'deal-1', pipeline_id: 'pipe-1', title: 'X' })
+    h.createEventForAccount.mockResolvedValue(null)
+    const { db, state } = makeDb({ stageRow: { id: 'stage-meeting' }, contactRow: { email: 'x@example.com' } })
+    const result = await ensureMeetingScheduled(db as never, { ...ARGS, intentId: 'intent-x' })
+    expect(result).toEqual({ completed: false, dealId: 'deal-1', reason: 'no_calendar' })
     expect(state.intentUpdates).toHaveLength(0)
   })
 })

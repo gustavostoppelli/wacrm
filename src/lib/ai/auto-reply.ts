@@ -470,8 +470,14 @@ export function clampToBusinessHours(
  * into business hours (see clampToBusinessHours). Skips a reminder
  * whose computed time has already passed (e.g. the meeting is being
  * confirmed less than 24h out).
+ *
+ * Exported so the daily reconciliation job (meeting-reconciliation.ts)
+ * can call the exact same reminder-scheduling logic after a retry
+ * completes a booking that failed live -- otherwise a meeting only
+ * ever confirmed via the retroactive job would never get its
+ * day-before/hour-before reminders scheduled at all.
  */
-async function scheduleMeetingReminders(
+export async function scheduleMeetingReminders(
   db: SupabaseClient,
   args: {
     accountId: string

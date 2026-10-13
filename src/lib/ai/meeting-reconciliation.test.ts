@@ -4,10 +4,12 @@ const h = vi.hoisted(() => ({
   ensureMeetingScheduled: vi.fn(),
   loadAiConfig: vi.fn(),
   engineSendText: vi.fn(),
+  scheduleMeetingReminders: vi.fn(),
 }))
 vi.mock('./meeting-scheduling', () => ({ ensureMeetingScheduled: h.ensureMeetingScheduled }))
 vi.mock('./config', () => ({ loadAiConfig: h.loadAiConfig }))
 vi.mock('@/lib/flows/meta-send', () => ({ engineSendText: h.engineSendText }))
+vi.mock('./auto-reply', () => ({ scheduleMeetingReminders: h.scheduleMeetingReminders }))
 
 import { reconcileMeetingIntents } from './meeting-reconciliation'
 
@@ -17,7 +19,21 @@ import { reconcileMeetingIntents } from './meeting-reconciliation'
 // see, e.g. an already-`completed` intent for the same conversation.
 // Defaults to the same list as the unresolved one when a test doesn't
 // care about that distinction.
-function makeDb(intents: Record<string, unknown>[], allIntents: Record<string, unknown>[] = intents) {
+interface DealsConfig {
+  /** The contact's open deal, as `findMatchingMeetingLinkOnOpenDeal`
+   *  and `contactHasOnlyClosedDeals`' first query would see it. `null`
+   *  (default) means no open deal. */
+  openDeal?: Record<string, unknown> | null
+  /** Whether the contact has at least one deal with `status != 'open'`
+   *  -- feeds `contactHasOnlyClosedDeals`'s second query. */
+  hasNonOpenDeal?: boolean
+}
+
+function makeDb(
+  intents: Record<string, unknown>[],
+  allIntents: Record<string, unknown>[] = intents,
+  dealsConfig: DealsConfig = {},
+) {
   const state = { updates: [] as Array<{ payload: Record<string, unknown>; id: string }> }
   const db = {
     from: (table: string) => {
@@ -57,6 +73,40 @@ function makeDb(intents: Record<string, unknown>[], allIntents: Record<string, u
           }),
         }
       }
+      if (table === 'deals') {
+        // Both `findMatchingMeetingLinkOnOpenDeal` (select meeting
+        // fields, `.eq('status', 'open')`) and `contactHasOnlyClosedDeals`
+        // (select id, `.eq('status', 'open')` then `.neq('status', 'open')`)
+        // hit this same table -- track which filter was actually used
+        // so each resolves against the right half of `dealsConfig`.
+        let wantsOpen: boolean | null = null
+        const chain = {
+          select: () => chain,
+          eq: (col: string, val: unknown) => {
+            if (col === 'status' && val === 'open') wantsOpen = true
+            return chain
+          },
+          neq: (col: string, val: unknown) => {
+            if (col === 'status' && val === 'open') wantsOpen = false
+            return chain
+          },
+          order: () => chain,
+          limit: () => chain,
+          maybeSingle: () => {
+            if (wantsOpen === true) {
+              return Promise.resolve({ data: dealsConfig.openDeal ?? null, error: null })
+            }
+            if (wantsOpen === false) {
+              return Promise.resolve({
+                data: dealsConfig.hasNonOpenDeal ? { id: 'closed-deal-1' } : null,
+                error: null,
+              })
+            }
+            return Promise.resolve({ data: null, error: null })
+          },
+        }
+        return chain
+      }
       throw new Error(`unexpected table ${table}`)
     },
   }
@@ -84,23 +134,24 @@ beforeEach(() => {
   h.ensureMeetingScheduled.mockReset()
   h.loadAiConfig.mockReset()
   h.engineSendText.mockReset()
-  h.loadAiConfig.mockResolvedValue({ meetingEventLabel: null, businessHoursTimezone: 'America/Sao_Paulo' })
+  h.scheduleMeetingReminders.mockReset()
+  h.loadAiConfig.mockResolvedValue({ meetingEventLabel: null, businessHoursTimezone: 'America/Sao_Paulo', meetingRemindersEnabled: false })
 })
 
 describe('reconcileMeetingIntents', () => {
   it('retries an unresolved intent whose meeting time is still in the future', async () => {
-    h.ensureMeetingScheduled.mockResolvedValue({ completed: true })
+    h.ensureMeetingScheduled.mockResolvedValue({ completed: true, dealId: 'deal-1', reason: 'completed' })
     const { db } = makeDb([intent()])
     const result = await reconcileMeetingIntents(db as never, NOW)
     expect(h.ensureMeetingScheduled).toHaveBeenCalledWith(
       db,
       expect.objectContaining({ accountId: 'acct-1', contactId: 'contact-1', intentId: 'intent-1' }),
     )
-    expect(result).toEqual({ completed: 1, rescheduled: 0, stillPending: 0, superseded: 0 })
+    expect(result).toEqual({ completed: 1, rescheduled: 0, stillPending: 0, superseded: 0, notApplicable: 0 })
   })
 
   it('retries an intent up to 3h past its meeting time', async () => {
-    h.ensureMeetingScheduled.mockResolvedValue({ completed: true })
+    h.ensureMeetingScheduled.mockResolvedValue({ completed: true, dealId: 'deal-1', reason: 'completed' })
     const { db } = makeDb([intent({ meeting_at: '2026-10-12T10:00:00.000Z' })]) // 2h no passado
     const result = await reconcileMeetingIntents(db as never, NOW)
     expect(h.ensureMeetingScheduled).toHaveBeenCalled()
@@ -116,21 +167,159 @@ describe('reconcileMeetingIntents', () => {
       expect.objectContaining({ accountId: 'acct-1', contactId: 'contact-1' }),
     )
     expect(state.updates[0]).toMatchObject({ payload: { resolution: 'stale_rescheduled' }, id: 'intent-1' })
-    expect(result).toEqual({ completed: 0, rescheduled: 1, stillPending: 0, superseded: 0 })
+    expect(result).toEqual({ completed: 0, rescheduled: 1, stillPending: 0, superseded: 0, notApplicable: 0 })
   })
 
-  it('counts an intent as still pending when ensureMeetingScheduled could not complete it', async () => {
-    h.ensureMeetingScheduled.mockResolvedValue({ completed: false })
+  it('counts an intent as still pending when ensureMeetingScheduled could not complete it (no_deal, transient -- keep retrying)', async () => {
+    h.ensureMeetingScheduled.mockResolvedValue({ completed: false, dealId: null, reason: 'no_deal' })
     const { db } = makeDb([intent()])
     const result = await reconcileMeetingIntents(db as never, NOW)
-    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 1, superseded: 0 })
+    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 1, superseded: 0, notApplicable: 0 })
+  })
+
+  it('counts an intent as still pending when Calendar event creation failed (transient -- keep retrying)', async () => {
+    h.ensureMeetingScheduled.mockResolvedValue({ completed: false, dealId: 'deal-1', reason: 'event_creation_failed' })
+    const { db } = makeDb([intent()])
+    const result = await reconcileMeetingIntents(db as never, NOW)
+    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 1, superseded: 0, notApplicable: 0 })
+  })
+
+  // ------------------------------------------------------------
+  // Critical fix: `no_stage` and `no_calendar` are permanent,
+  // account-level gaps (no meeting_scheduled stage configured, or
+  // Calendar never connected). Retrying tomorrow never fixes either,
+  // and letting the intent live on until it crosses the 3h stale
+  // threshold would eventually send the lead a wrong "let's
+  // reschedule?" about a flow this account was never going to
+  // complete. Both must close the intent out immediately as
+  // `not_applicable`, with zero messages sent.
+  // ------------------------------------------------------------
+  it('closes the intent out as not_applicable immediately, with zero messages sent, when the pipeline has no meeting_scheduled stage', async () => {
+    h.ensureMeetingScheduled.mockResolvedValue({ completed: false, dealId: null, reason: 'no_stage' })
+    const { db, state } = makeDb([intent()])
+    const result = await reconcileMeetingIntents(db as never, NOW)
+    expect(h.engineSendText).not.toHaveBeenCalled()
+    expect(state.updates[0]).toMatchObject({ payload: { resolution: 'not_applicable' }, id: 'intent-1' })
+    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 0, superseded: 0, notApplicable: 1 })
+  })
+
+  it('closes the intent out as not_applicable immediately, with zero messages sent, when the account has no Calendar connected', async () => {
+    h.ensureMeetingScheduled.mockResolvedValue({ completed: false, dealId: 'deal-1', reason: 'no_calendar' })
+    const { db, state } = makeDb([intent()])
+    const result = await reconcileMeetingIntents(db as never, NOW)
+    expect(h.engineSendText).not.toHaveBeenCalled()
+    expect(state.updates[0]).toMatchObject({ payload: { resolution: 'not_applicable' }, id: 'intent-1' })
+    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 0, superseded: 0, notApplicable: 1 })
+  })
+
+  // ------------------------------------------------------------
+  // Important #2: a human may have already closed out (won/lost) the
+  // contact's deal while the intent sat unresolved (e.g. waiting on
+  // Calendar to reconnect). Retrying must NOT create a brand-new
+  // "WhatsApp Direto" deal and resurrect this lead's pipeline
+  // presence -- close the intent out as not_applicable instead,
+  // without ever calling ensureMeetingScheduled (so no deal creation,
+  // no message).
+  // ------------------------------------------------------------
+  it('closes the intent out as not_applicable without creating a deal when the contact has only a closed (lost) deal, no open one', async () => {
+    const { db, state } = makeDb([intent()], undefined, { openDeal: null, hasNonOpenDeal: true })
+    const result = await reconcileMeetingIntents(db as never, NOW)
+    expect(h.ensureMeetingScheduled).not.toHaveBeenCalled()
+    expect(h.engineSendText).not.toHaveBeenCalled()
+    expect(state.updates[0]).toMatchObject({ payload: { resolution: 'not_applicable' }, id: 'intent-1' })
+    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 0, superseded: 0, notApplicable: 1 })
+  })
+
+  it('still retries normally when the contact has an open deal, regardless of any closed deal history', async () => {
+    h.ensureMeetingScheduled.mockResolvedValue({ completed: true, dealId: 'deal-1', reason: 'completed' })
+    const { db } = makeDb([intent()], undefined, { openDeal: { id: 'open-deal-1' }, hasNonOpenDeal: true })
+    const result = await reconcileMeetingIntents(db as never, NOW)
+    expect(h.ensureMeetingScheduled).toHaveBeenCalledTimes(1)
+    expect(result.completed).toBe(1)
+  })
+
+  // ------------------------------------------------------------
+  // Important #1: a meeting completed only via this retroactive job
+  // (not live) must still get its attendance reminders scheduled --
+  // otherwise the lead who got rebooked by the daily retry never
+  // gets the day-before/hour-before nudge a live booking would.
+  // ------------------------------------------------------------
+  it('schedules meeting reminders after a successful retry when meetingRemindersEnabled is on', async () => {
+    h.loadAiConfig.mockResolvedValue({
+      meetingEventLabel: null,
+      businessHoursTimezone: 'America/Sao_Paulo',
+      meetingRemindersEnabled: true,
+    })
+    h.ensureMeetingScheduled.mockResolvedValue({ completed: true, dealId: 'deal-1', reason: 'completed' })
+    const { db } = makeDb([intent()])
+    await reconcileMeetingIntents(db as never, NOW)
+    expect(h.scheduleMeetingReminders).toHaveBeenCalledTimes(1)
+    expect(h.scheduleMeetingReminders).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        accountId: 'acct-1',
+        dealId: 'deal-1',
+        contactId: 'contact-1',
+        conversationId: 'conv-1',
+      }),
+    )
+    const call = h.scheduleMeetingReminders.mock.calls[0][1]
+    expect(call.meetingAt).toBeInstanceOf(Date)
+    expect(call.meetingAt.toISOString()).toBe('2026-10-12T13:00:00.000Z')
+  })
+
+  it('does not schedule meeting reminders when meetingRemindersEnabled is off', async () => {
+    h.ensureMeetingScheduled.mockResolvedValue({ completed: true, dealId: 'deal-1', reason: 'completed' })
+    const { db } = makeDb([intent()])
+    await reconcileMeetingIntents(db as never, NOW)
+    expect(h.scheduleMeetingReminders).not.toHaveBeenCalled()
+  })
+
+  it('does not schedule meeting reminders when completed but dealId is null', async () => {
+    h.loadAiConfig.mockResolvedValue({
+      meetingEventLabel: null,
+      businessHoursTimezone: 'America/Sao_Paulo',
+      meetingRemindersEnabled: true,
+    })
+    h.ensureMeetingScheduled.mockResolvedValue({ completed: true, dealId: null, reason: 'completed' })
+    const { db } = makeDb([intent()])
+    await reconcileMeetingIntents(db as never, NOW)
+    expect(h.scheduleMeetingReminders).not.toHaveBeenCalled()
+  })
+
+  // ------------------------------------------------------------
+  // Safety check before ANY stale-reschedule message: the deal may
+  // already have THIS exact meeting confirmed (a crash between the
+  // Calendar event being created and the intent's own resolve-update
+  // running). Telling an already-confirmed lead to reschedule would
+  // be actively wrong.
+  // ------------------------------------------------------------
+  it('marks the intent completed with zero messages sent when the deal already has a matching meeting_link, even past the 3h stale threshold', async () => {
+    const staleIntent = intent({ meeting_at: '2026-10-12T08:00:00.000Z' }) // 4h no passado
+    const { db, state } = makeDb([staleIntent], undefined, {
+      openDeal: { meeting_link: 'https://meet.google.com/already-confirmed', meeting_scheduled_at: '2026-10-12T08:00:00.000Z' },
+    })
+    const result = await reconcileMeetingIntents(db as never, NOW)
+    expect(h.engineSendText).not.toHaveBeenCalled()
+    expect(state.updates[0]).toMatchObject({ payload: { resolution: 'completed' }, id: 'intent-1' })
+    expect(result).toEqual({ completed: 1, rescheduled: 0, stillPending: 0, superseded: 0, notApplicable: 0 })
+  })
+
+  it('still sends the stale-reschedule message when the deal has no matching meeting_link', async () => {
+    h.engineSendText.mockResolvedValue({ whatsapp_message_id: 'm1' })
+    const staleIntent = intent({ meeting_at: '2026-10-12T08:00:00.000Z' }) // 4h no passado
+    const { db, state } = makeDb([staleIntent], undefined, { openDeal: null })
+    const result = await reconcileMeetingIntents(db as never, NOW)
+    expect(h.engineSendText).toHaveBeenCalledTimes(1)
+    expect(state.updates[0]).toMatchObject({ payload: { resolution: 'stale_rescheduled' }, id: 'intent-1' })
+    expect(result).toEqual({ completed: 0, rescheduled: 1, stillPending: 0, superseded: 0, notApplicable: 0 })
   })
 
   it('skips an intent created less than 15 minutes ago, to not race a live in-flight attempt', async () => {
     const { db } = makeDb([intent({ created_at: '2026-10-12T11:50:00.000Z' })]) // 10min atrás
     const result = await reconcileMeetingIntents(db as never, NOW)
     expect(h.ensureMeetingScheduled).not.toHaveBeenCalled()
-    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 0, superseded: 0 })
+    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 0, superseded: 0, notApplicable: 0 })
   })
 
   // ------------------------------------------------------------
@@ -172,7 +361,7 @@ describe('reconcileMeetingIntents', () => {
     expect(supersedeUpdate?.payload.resolved_at).toBeTruthy()
 
     expect(h.engineSendText).not.toHaveBeenCalled()
-    expect(result).toEqual({ completed: 1, rescheduled: 0, stillPending: 0, superseded: 1 })
+    expect(result).toEqual({ completed: 1, rescheduled: 0, stillPending: 0, superseded: 1, notApplicable: 0 })
   })
 
   it('supersedes correctly by created_at even when the input array order is reversed', async () => {
@@ -201,7 +390,7 @@ describe('reconcileMeetingIntents', () => {
     )
     const supersedeUpdate = state.updates.find((u) => u.id === 'intent-old')
     expect(supersedeUpdate).toMatchObject({ payload: { resolution: 'superseded' } })
-    expect(result).toEqual({ completed: 1, rescheduled: 0, stillPending: 0, superseded: 1 })
+    expect(result).toEqual({ completed: 1, rescheduled: 0, stillPending: 0, superseded: 1, notApplicable: 0 })
   })
 
   // ------------------------------------------------------------
@@ -235,7 +424,7 @@ describe('reconcileMeetingIntents', () => {
     expect(h.engineSendText).not.toHaveBeenCalled()
     const supersedeUpdate = state.updates.find((u) => u.id === 'intent-old')
     expect(supersedeUpdate).toMatchObject({ payload: { resolution: 'superseded' } })
-    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 0, superseded: 1 })
+    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 0, superseded: 1, notApplicable: 0 })
   })
 
   it('supersedes a lone unresolved intent when a resolved sibling for the same conversation is newer (stale, >3h past meeting_at)', async () => {
@@ -258,6 +447,6 @@ describe('reconcileMeetingIntents', () => {
     expect(h.engineSendText).not.toHaveBeenCalled() // não manda "vamos reagendar?" -- já está resolvida
     const supersedeUpdate = state.updates.find((u) => u.id === 'intent-old')
     expect(supersedeUpdate).toMatchObject({ payload: { resolution: 'superseded' } })
-    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 0, superseded: 1 })
+    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 0, superseded: 1, notApplicable: 0 })
   })
 })

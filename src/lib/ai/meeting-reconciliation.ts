@@ -44,6 +44,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ensureMeetingScheduled } from './meeting-scheduling'
 import { loadAiConfig } from './config'
+import { scheduleMeetingReminders } from './auto-reply'
 import { engineSendText } from '@/lib/flows/meta-send'
 
 const GRACE_MINUTES_BEFORE_RETRY = 15
@@ -58,6 +59,93 @@ export interface ReconcileMeetingIntentsResult {
    *  intencao mais nova e marcadas resolvidas sem nenhuma tentativa
    *  de retry/reagendamento (ver nota acima). */
   superseded: number
+  /** Intencoes fechadas sem nenhuma tentativa de retry e SEM nenhuma
+   *  mensagem mandada pro lead, porque a causa era permanente pra essa
+   *  conta -- `ensureMeetingScheduled` devolveu `no_stage` (pipeline
+   *  sem etapa `meeting_scheduled` configurada) ou `no_calendar`
+   *  (conta nunca conectou o Google Calendar) -- ou porque um humano
+   *  ja fechou (ganhou/perdeu) o negocio deste contato depois que a
+   *  intencao foi gravada (ver nota do Important #2 abaixo). Nenhum
+   *  desses casos se resolve sozinho retentando amanha, e mandar o
+   *  "vamos reagendar?" seria uma mensagem errada pro lead. */
+  notApplicable: number
+}
+
+/**
+ * Negocio aberto do contato, so com os campos de reuniao -- usado pra
+ * checar, ANTES de mandar o "vamos reagendar?", se a reuniao desta
+ * intencao ja foi de fato confirmada (o negocio ja tem `meeting_link`
+ * pra exatamente este `meeting_at`) e so a propria linha de
+ * ai_meeting_intents que nunca foi marcada resolvida -- ex.: um crash
+ * entre o evento ser criado no Calendar e o update que resolve a
+ * intencao rodar. Mandar "vamos reagendar?" nesse caso seria uma
+ * mensagem falsa pro lead, que ja tem a reuniao confirmada.
+ */
+async function findMatchingMeetingLinkOnOpenDeal(
+  db: SupabaseClient,
+  args: { accountId: string; contactId: string; meetingAt: string },
+): Promise<boolean> {
+  const { data: deal } = await db
+    .from('deals')
+    .select('meeting_link, meeting_scheduled_at')
+    .eq('account_id', args.accountId)
+    .eq('contact_id', args.contactId)
+    .eq('status', 'open')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!deal?.meeting_link || !deal.meeting_scheduled_at) return false
+  return Date.parse(deal.meeting_scheduled_at as string) === Date.parse(args.meetingAt)
+}
+
+/**
+ * True quando o contato NAO tem negocio aberto, mas tem pelo menos um
+ * negocio ja fechado (ganho ou perdido) -- aproximacao deliberada do
+ * caso real do Important #2 (um humano fechou o negocio original
+ * enquanto a intencao ainda estava pendente, ex.: esperando o Calendar
+ * reconectar). O ideal seria so contar como "fechado DEPOIS desta
+ * intencao" comparando datas, mas essa versao mais simples cobre o
+ * mesmo risco pratico -- retentar nunca deveria criar um negocio NOVO
+ * "WhatsApp Direto" do zero pra ressuscitar a presenca desse lead no
+ * pipeline quando ja existe uma decisao humana tomada sobre ele.
+ */
+async function contactHasOnlyClosedDeals(
+  db: SupabaseClient,
+  args: { accountId: string; contactId: string },
+): Promise<boolean> {
+  const { data: openDeal } = await db
+    .from('deals')
+    .select('id')
+    .eq('account_id', args.accountId)
+    .eq('contact_id', args.contactId)
+    .eq('status', 'open')
+    .limit(1)
+    .maybeSingle()
+  if (openDeal) return false
+
+  const { data: closedDeal } = await db
+    .from('deals')
+    .select('id')
+    .eq('account_id', args.accountId)
+    .eq('contact_id', args.contactId)
+    .neq('status', 'open')
+    .limit(1)
+    .maybeSingle()
+  return !!closedDeal
+}
+
+async function markIntentNotApplicable(
+  db: SupabaseClient,
+  intentId: string,
+  now: Date,
+): Promise<void> {
+  const { error } = await db
+    .from('ai_meeting_intents')
+    .update({ resolved_at: now.toISOString(), resolution: 'not_applicable' })
+    .eq('id', intentId)
+  if (error) {
+    console.error('[meeting-reconciliation] failed to close not-applicable intent:', intentId, error)
+  }
 }
 
 export async function reconcileMeetingIntents(
@@ -69,6 +157,7 @@ export async function reconcileMeetingIntents(
     rescheduled: 0,
     stillPending: 0,
     superseded: 0,
+    notApplicable: 0,
   }
 
   const lookbackFrom = new Date(now.getTime() - LOOKBACK_DAYS * 24 * 60 * 60_000).toISOString()
@@ -152,6 +241,33 @@ export async function reconcileMeetingIntents(
 
     if (hoursPast > STALE_AFTER_HOURS) {
       try {
+        // Safety check before telling the lead their meeting might be
+        // off: the deal may already have THIS exact meeting confirmed
+        // (meeting_link + meeting_scheduled_at matching this intent's
+        // meeting_at) -- e.g. a crash between the Calendar event being
+        // created and the resolve-update running on ensureMeetingScheduled's
+        // side. Telling an already-confirmed lead to reschedule would
+        // be actively wrong, so this closes the intent as completed
+        // and sends nothing instead.
+        const alreadyConfirmed = await findMatchingMeetingLinkOnOpenDeal(db, {
+          accountId: intent.account_id as string,
+          contactId: intent.contact_id as string,
+          meetingAt: intent.meeting_at as string,
+        })
+        if (alreadyConfirmed) {
+          const { error: resolveError } = await db
+            .from('ai_meeting_intents')
+            .update({ resolved_at: now.toISOString(), resolution: 'completed' })
+            .eq('id', intent.id as string)
+          if (resolveError) {
+            console.error('[meeting-reconciliation] failed to resolve already-confirmed intent:', intent.id, resolveError)
+            result.stillPending += 1
+          } else {
+            result.completed += 1
+          }
+          continue
+        }
+
         await engineSendText({
           accountId: intent.account_id as string,
           userId: intent.config_owner_user_id as string,
@@ -173,6 +289,24 @@ export async function reconcileMeetingIntents(
     }
 
     try {
+      // Important #2: a human may have already closed out (won/lost)
+      // the contact's deal while this intent sat unresolved (e.g.
+      // waiting on Calendar to reconnect). Retrying in that situation
+      // would create a brand-new "WhatsApp Direto" deal via
+      // findOpenDealForContact and move it into the meeting-scheduled
+      // stage -- resurrecting a closed lead's pipeline presence
+      // nobody asked for. Close it out the same way as the permanent
+      // ensureMeetingScheduled reasons below: resolved, no message.
+      const closedByHuman = await contactHasOnlyClosedDeals(db, {
+        accountId: intent.account_id as string,
+        contactId: intent.contact_id as string,
+      })
+      if (closedByHuman) {
+        await markIntentNotApplicable(db, intent.id as string, now)
+        result.notApplicable += 1
+        continue
+      }
+
       const config = await loadAiConfig(db, intent.account_id as string)
       const outcome = await ensureMeetingScheduled(db, {
         accountId: intent.account_id as string,
@@ -186,8 +320,41 @@ export async function reconcileMeetingIntents(
         businessHoursTimezone: config?.businessHoursTimezone ?? 'America/Sao_Paulo',
         intentId: intent.id as string,
       })
-      if (outcome.completed) result.completed += 1
-      else result.stillPending += 1
+
+      if (outcome.reason === 'no_stage' || outcome.reason === 'no_calendar') {
+        // Permanent, account-level gap (no meeting_scheduled stage
+        // configured, or Calendar never connected) -- retrying
+        // tomorrow will never fix this, and eventually hitting the
+        // stale-after-3h branch above would send the lead a confusing
+        // "let's reschedule?" about a flow this account was never
+        // going to complete. Close it out now instead.
+        await markIntentNotApplicable(db, intent.id as string, now)
+        result.notApplicable += 1
+      } else if (outcome.completed) {
+        result.completed += 1
+
+        // Important #1: only the live wrapper (recordMeetingScheduled
+        // in auto-reply.ts) used to schedule attendance reminders. A
+        // booking completed only by this retroactive retry never got
+        // them, even though the meeting is just as real. Mirror the
+        // live wrapper's gating exactly: needs the config flag on AND
+        // a real dealId from this call.
+        if (config && config.meetingRemindersEnabled && outcome.dealId) {
+          await scheduleMeetingReminders(db, {
+            accountId: intent.account_id as string,
+            dealId: outcome.dealId,
+            conversationId: intent.conversation_id as string,
+            contactId: intent.contact_id as string,
+            configOwnerUserId: intent.config_owner_user_id as string,
+            meetingAt: new Date(intent.meeting_at as string),
+            config,
+          })
+        }
+      } else {
+        // no_deal / event_creation_failed / no_meeting_details --
+        // plausibly transient, keep retrying on future runs.
+        result.stillPending += 1
+      }
     } catch (err) {
       console.error('[meeting-reconciliation] retry failed:', intent.id, err)
       result.stillPending += 1
