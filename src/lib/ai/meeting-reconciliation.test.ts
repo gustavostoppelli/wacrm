@@ -27,6 +27,15 @@ interface DealsConfig {
   /** Whether the contact has at least one deal with `status != 'open'`
    *  -- feeds `contactHasOnlyClosedDeals`'s second query. */
   hasNonOpenDeal?: boolean
+  /** Whether the account has a `calendar_configs` row --
+   *  `isPermanentlyUnschedulable`'s first check. Defaults to `true`
+   *  (connected) so existing tests that don't care about this keep
+   *  their old behavior. */
+  calendarConnected?: boolean
+  /** Whether the open deal's pipeline has a `meeting_scheduled` stage
+   *  -- `isPermanentlyUnschedulable`'s second check, only reached when
+   *  `openDeal` is set. Defaults to `false` (no stage). */
+  hasMeetingStage?: boolean
 }
 
 function makeDb(
@@ -106,6 +115,37 @@ function makeDb(
           },
         }
         return chain
+      }
+      if (table === 'calendar_configs') {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: () =>
+                Promise.resolve({
+                  data: dealsConfig.calendarConnected === false ? null : { id: 'cal-1' },
+                  error: null,
+                }),
+            }),
+          }),
+        }
+      }
+      if (table === 'pipeline_stages') {
+        // isPermanentlyUnschedulable's stage lookup -- only reached
+        // when an open deal exists (see the `deals` branch above).
+        // Tests that care about the stage gap pass a `stageRow` via
+        // `dealsConfig`; default `undefined` means "no stage", which
+        // combined with no open deal (the common case in these tests)
+        // never even gets here in practice.
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: () =>
+                  Promise.resolve({ data: dealsConfig.hasMeetingStage ? { id: 'stage-1' } : null, error: null }),
+              }),
+            }),
+          }),
+        }
       }
       throw new Error(`unexpected table ${table}`)
     },
@@ -313,6 +353,48 @@ describe('reconcileMeetingIntents', () => {
     expect(h.engineSendText).toHaveBeenCalledTimes(1)
     expect(state.updates[0]).toMatchObject({ payload: { resolution: 'stale_rescheduled' }, id: 'intent-1' })
     expect(result).toEqual({ completed: 0, rescheduled: 1, stillPending: 0, superseded: 0, notApplicable: 0 })
+  })
+
+  // ------------------------------------------------------------
+  // Re-review gap (round 2): the permanent-gap close-out and the
+  // closed-deal check previously only ran in the NORMAL (<=3h) retry
+  // branch. The cron runs once a day, so a same-day booking is
+  // routinely already >3h stale by the time the job first sees it --
+  // a common path, not a rare one. Both safeguards must also apply to
+  // a STALE candidate, before it ever reaches the "let's reschedule?"
+  // send.
+  // ------------------------------------------------------------
+  it('a stale (>3h past) intent on an account with no Calendar connected sends zero messages and closes not_applicable (not stale_rescheduled)', async () => {
+    const staleIntent = intent({ meeting_at: '2026-10-12T08:00:00.000Z' }) // 4h no passado
+    const { db, state } = makeDb([staleIntent], undefined, { openDeal: null, calendarConnected: false })
+    const result = await reconcileMeetingIntents(db as never, NOW)
+    expect(h.ensureMeetingScheduled).not.toHaveBeenCalled()
+    expect(h.engineSendText).not.toHaveBeenCalled()
+    expect(state.updates[0]).toMatchObject({ payload: { resolution: 'not_applicable' }, id: 'intent-1' })
+    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 0, superseded: 0, notApplicable: 1 })
+  })
+
+  it('a stale (>3h past) intent for a contact whose only deal is lost sends zero messages and closes not_applicable', async () => {
+    const staleIntent = intent({ meeting_at: '2026-10-12T08:00:00.000Z' }) // 4h no passado
+    const { db, state } = makeDb([staleIntent], undefined, { openDeal: null, hasNonOpenDeal: true })
+    const result = await reconcileMeetingIntents(db as never, NOW)
+    expect(h.ensureMeetingScheduled).not.toHaveBeenCalled()
+    expect(h.engineSendText).not.toHaveBeenCalled()
+    expect(state.updates[0]).toMatchObject({ payload: { resolution: 'not_applicable' }, id: 'intent-1' })
+    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 0, superseded: 0, notApplicable: 1 })
+  })
+
+  it('the closed-deal check runs before the stale/normal branch even for a NON-stale candidate', async () => {
+    // Same closed-deal fixture as above, but with a meeting_at still
+    // in the future -- proves the check moved out of the normal-retry
+    // branch's try block without losing coverage for that original
+    // (non-stale) case.
+    const { db, state } = makeDb([intent()], undefined, { openDeal: null, hasNonOpenDeal: true })
+    const result = await reconcileMeetingIntents(db as never, NOW)
+    expect(h.ensureMeetingScheduled).not.toHaveBeenCalled()
+    expect(h.engineSendText).not.toHaveBeenCalled()
+    expect(state.updates[0]).toMatchObject({ payload: { resolution: 'not_applicable' }, id: 'intent-1' })
+    expect(result).toEqual({ completed: 0, rescheduled: 0, stillPending: 0, superseded: 0, notApplicable: 1 })
   })
 
   it('skips an intent created less than 15 minutes ago, to not race a live in-flight attempt', async () => {

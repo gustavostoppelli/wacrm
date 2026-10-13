@@ -583,6 +583,48 @@ describe('dispatchInboundToAiReply — meeting scheduling creates a missing deal
     expect(h.state.reminderDeletes).toBe(0)
   })
 
+  // Re-review gap (round 2): ensureMeetingScheduled's `no_stage` /
+  // `no_calendar` reasons are permanent, account-level gaps -- the
+  // daily reconciliation job's once-a-day cron means a same-day
+  // booking is routinely already >3h stale by the time it first looks
+  // at this intent, which used to risk a false "let's reschedule?"
+  // the very first time it's ever checked. Closing the intent out as
+  // `not_applicable` right here, the moment it's first discovered
+  // live, means it's already resolved before the reconciliation job
+  // ever gets a chance to mishandle it.
+  it('marks the intent not_applicable (not left unresolved) when the account has no meeting_scheduled stage configured', async () => {
+    h.state.existingDeal = null
+    h.state.contactRow = { name: 'Julio', phone: '5522998783605', email: null }
+    h.state.meetingStage = null
+    h.generateReply.mockResolvedValue(meetingReply())
+
+    await dispatchInboundToAiReply(ARGS)
+
+    expect(h.state.meetingIntentInserts).toHaveLength(1)
+    expect(h.state.meetingIntentUpdates).toHaveLength(1)
+    expect(h.state.meetingIntentUpdates[0]).toMatchObject({
+      id: 'intent-1',
+      resolution: 'not_applicable',
+    })
+  })
+
+  it('marks the intent not_applicable (not left unresolved) when the account has no Calendar connected', async () => {
+    h.state.existingDeal = null
+    h.state.contactRow = { name: 'Julio', phone: '5522998783605', email: null }
+    h.state.meetingStage = { id: 'stage-meeting-scheduled' }
+    h.createEventForAccount.mockResolvedValue(null) // no calendar_configs row
+    h.generateReply.mockResolvedValue(meetingReply())
+
+    await dispatchInboundToAiReply(ARGS)
+
+    expect(h.state.meetingIntentInserts).toHaveLength(1)
+    expect(h.state.meetingIntentUpdates).toHaveLength(1)
+    expect(h.state.meetingIntentUpdates[0]).toMatchObject({
+      id: 'intent-1',
+      resolution: 'not_applicable',
+    })
+  })
+
   it('records an ai_meeting_intents row before attempting any side effect, and marks it completed on success', async () => {
     h.state.existingDeal = null
     h.state.contactRow = { name: 'Julio', phone: '5522998783605', email: null }

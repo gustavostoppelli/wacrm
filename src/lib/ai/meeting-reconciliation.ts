@@ -134,6 +134,55 @@ async function contactHasOnlyClosedDeals(
   return !!closedDeal
 }
 
+/**
+ * Read-only version of the two permanent-gap checks `ensureMeetingScheduled`
+ * itself discovers (as a side effect of actually trying): no Calendar
+ * connected for the account, or -- when the contact already has an
+ * open deal -- that deal's pipeline has no `meeting_scheduled` stage
+ * configured. Used by the STALE branch below, which deliberately never
+ * calls `ensureMeetingScheduled` (that would mean creating a backdated
+ * Calendar event) but still needs to know, before sending the "let's
+ * reschedule?" message, whether this account can never complete the
+ * booking at all.
+ *
+ * Deliberately does NOT call `findOpenDealForContact` (which CREATES a
+ * deal when none exists) -- a missing deal isn't a permanent block by
+ * itself (one could still be created on a future retry), so this only
+ * checks the stage when an open deal already exists. No open deal at
+ * all just means this check can't rule anything out -- falls through
+ * to `false` (not provably permanent), same as before this fix.
+ */
+async function isPermanentlyUnschedulable(
+  db: SupabaseClient,
+  args: { accountId: string; contactId: string },
+): Promise<boolean> {
+  const { data: calendarConfig } = await db
+    .from('calendar_configs')
+    .select('id')
+    .eq('account_id', args.accountId)
+    .maybeSingle()
+  if (!calendarConfig) return true
+
+  const { data: openDeal } = await db
+    .from('deals')
+    .select('pipeline_id')
+    .eq('account_id', args.accountId)
+    .eq('contact_id', args.contactId)
+    .eq('status', 'open')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (!openDeal) return false
+
+  const { data: stage } = await db
+    .from('pipeline_stages')
+    .select('id')
+    .eq('pipeline_id', openDeal.pipeline_id as string)
+    .eq('stage_role', 'meeting_scheduled')
+    .maybeSingle()
+  return !stage
+}
+
 async function markIntentNotApplicable(
   db: SupabaseClient,
   intentId: string,
@@ -236,6 +285,37 @@ export async function reconcileMeetingIntents(
       continue // pode estar em andamento agora mesmo -- não disputa
     }
 
+    // Important #2: a human may have already closed out (won/lost) the
+    // contact's deal while this intent sat unresolved (e.g. waiting on
+    // Calendar to reconnect). This must run BEFORE the stale/normal
+    // branch below, not only inside the normal-retry branch: a
+    // same-day booking made in the morning is routinely already past
+    // the 3h stale threshold by the time the job first sees it (the
+    // cron runs once a day), so the stale branch is a common path, not
+    // a rare one -- and it used to send its "let's reschedule?"
+    // message without ever checking this. Retrying in that situation
+    // would create a brand-new "WhatsApp Direto" deal via
+    // findOpenDealForContact and move it into the meeting-scheduled
+    // stage -- resurrecting a closed lead's pipeline presence nobody
+    // asked for; sending the stale message would be telling a lead a
+    // human already closed out to reschedule a meeting nobody is
+    // going to take.
+    try {
+      const closedByHuman = await contactHasOnlyClosedDeals(db, {
+        accountId: intent.account_id as string,
+        contactId: intent.contact_id as string,
+      })
+      if (closedByHuman) {
+        await markIntentNotApplicable(db, intent.id as string, now)
+        result.notApplicable += 1
+        continue
+      }
+    } catch (err) {
+      console.error('[meeting-reconciliation] closed-deal check failed:', intent.id, err)
+      result.stillPending += 1
+      continue
+    }
+
     const meetingAt = new Date(intent.meeting_at as string)
     const hoursPast = (now.getTime() - meetingAt.getTime()) / (1000 * 60 * 60)
 
@@ -268,6 +348,28 @@ export async function reconcileMeetingIntents(
           continue
         }
 
+        // Same permanent-gap check the normal retry branch gets for
+        // free from ensureMeetingScheduled's own `no_stage`/`no_calendar`
+        // reasons -- this branch never calls ensureMeetingScheduled
+        // (that would mean creating a backdated Calendar event for a
+        // meeting time already hours in the past), so it needs its own
+        // read-only check for the same two permanent, account-level
+        // gaps. Without this, an account with no Calendar connected or
+        // no meeting_scheduled stage would get the false "let's
+        // reschedule?" the very first time its intent is checked --
+        // often the SAME day it was created, since the cron only runs
+        // once daily and a same-day afternoon booking is frequently
+        // already >3h stale by the next run.
+        const permanentlyBlocked = await isPermanentlyUnschedulable(db, {
+          accountId: intent.account_id as string,
+          contactId: intent.contact_id as string,
+        })
+        if (permanentlyBlocked) {
+          await markIntentNotApplicable(db, intent.id as string, now)
+          result.notApplicable += 1
+          continue
+        }
+
         await engineSendText({
           accountId: intent.account_id as string,
           userId: intent.config_owner_user_id as string,
@@ -289,24 +391,6 @@ export async function reconcileMeetingIntents(
     }
 
     try {
-      // Important #2: a human may have already closed out (won/lost)
-      // the contact's deal while this intent sat unresolved (e.g.
-      // waiting on Calendar to reconnect). Retrying in that situation
-      // would create a brand-new "WhatsApp Direto" deal via
-      // findOpenDealForContact and move it into the meeting-scheduled
-      // stage -- resurrecting a closed lead's pipeline presence
-      // nobody asked for. Close it out the same way as the permanent
-      // ensureMeetingScheduled reasons below: resolved, no message.
-      const closedByHuman = await contactHasOnlyClosedDeals(db, {
-        accountId: intent.account_id as string,
-        contactId: intent.contact_id as string,
-      })
-      if (closedByHuman) {
-        await markIntentNotApplicable(db, intent.id as string, now)
-        result.notApplicable += 1
-        continue
-      }
-
       const config = await loadAiConfig(db, intent.account_id as string)
       const outcome = await ensureMeetingScheduled(db, {
         accountId: intent.account_id as string,

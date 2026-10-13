@@ -402,6 +402,31 @@ async function recordMeetingScheduled(
     intentId,
   })
 
+  // `no_stage` / `no_calendar` are permanent, account-level gaps (no
+  // meeting_scheduled pipeline stage configured, or Calendar never
+  // connected) -- retrying tomorrow in the daily reconciliation job
+  // can never fix either on its own. Close the intent out as
+  // `not_applicable` right here, the moment it's first discovered,
+  // instead of leaving it unresolved for the reconciliation job to
+  // rediscover later. This matters because that job's cron only runs
+  // once a day: a same-day booking is routinely already past its
+  // 3h-stale threshold by the next run, so without this, the very
+  // first time the job ever looks at this intent it could send the
+  // lead a false "let's reschedule?" about a flow this account was
+  // never going to complete. Best-effort: an update failure here just
+  // leaves the intent unresolved, same as before this check existed --
+  // the reconciliation job's own `no_stage`/`no_calendar` handling
+  // still catches it on the next run.
+  if (intentId && (result.reason === 'no_stage' || result.reason === 'no_calendar')) {
+    const { error } = await db
+      .from('ai_meeting_intents')
+      .update({ resolved_at: new Date().toISOString(), resolution: 'not_applicable' })
+      .eq('id', intentId)
+    if (error) {
+      console.error('[ai auto-reply] failed to close not-applicable meeting intent:', intentId, error)
+    }
+  }
+
   // Reminder scheduling stays outside ensureMeetingScheduled -- it's
   // real-time-only and needs config.meetingRemindersEnabled, which
   // that shared function's args don't carry. Gated on `result.dealId`
