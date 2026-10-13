@@ -1,12 +1,48 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { templateHasVariables } from "@/lib/whatsapp/template-validators";
+import { useAuth } from "@/hooks/use-auth";
+import { createClient } from "@/lib/supabase/client";
 import type { MessageTemplate } from "@/types";
 import type { WizardDraft } from "../sdr-ia-wizard";
+
+/**
+ * Tokens available in text-mode message variants: the fixed ones
+ * (name/company) plus one per custom field the account has set up
+ * in Settings → Campos e Tags (`customFieldVarKey` in lib/sdr-ia/
+ * send.ts turns a field's label into its `{{vars.x}}` key) — this is
+ * what makes "personalize by specialty/clinic/whatever" self-serve
+ * for any client, not something Fuse has to hardcode per account.
+ */
+function usePersonalizationTokens() {
+  const { accountId } = useAuth();
+  const [customFieldNames, setCustomFieldNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!accountId) return;
+    const supabase = createClient();
+    supabase
+      .from("custom_fields")
+      .select("field_name")
+      .eq("account_id", accountId)
+      .then(({ data }) => setCustomFieldNames((data ?? []).map((f) => f.field_name as string)));
+  }, [accountId]);
+
+  return [
+    { token: "{{vars.primeiro_nome}}", label: "Primeiro nome" },
+    { token: "{{vars.nome}}", label: "Nome completo" },
+    { token: "{{vars.empresa}}", label: "Empresa" },
+    ...customFieldNames.map((name) => ({
+      token: `{{vars.${name.trim().toLowerCase().replace(/\s+/g, "_")}}}`,
+      label: name,
+    })),
+  ];
+}
 
 export function StepMessages({
   draft,
@@ -21,6 +57,7 @@ export function StepMessages({
 }) {
   const t = useTranslations("SdrIa.wizard.messages");
   const variants = draft.messageVariants ?? [];
+  const tokens = usePersonalizationTokens();
 
   const setVariant = (index: number, value: string) => {
     const next = [...variants];
@@ -89,6 +126,25 @@ export function StepMessages({
         <h2 className="text-lg font-semibold text-foreground">{t("variantsTitle")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{t("variantsDescription")}</p>
       </div>
+
+      <div className="rounded-lg border border-border bg-muted/30 p-3">
+        <p className="text-xs font-medium text-foreground">{t("personalizationTitle")}</p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {tokens.map(({ token, label }) => (
+            <button
+              key={token}
+              type="button"
+              title={label}
+              onClick={() => navigator.clipboard?.writeText(token).catch(() => {})}
+              className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground hover:bg-muted/70"
+            >
+              {token}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">{t("personalizationHint")}</p>
+      </div>
+
       {[0, 1, 2].map((i) => (
         <div key={i} className="space-y-2">
           <Label htmlFor={`variant-${i}`}>{t("variantLabel", { n: i + 1 })}</Label>

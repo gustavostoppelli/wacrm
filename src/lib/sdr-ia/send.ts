@@ -90,29 +90,71 @@ export function firstNameOf(name: string | null | undefined): string {
 }
 
 /**
- * The contact's full name and first name for personalising the first
- * contact. A name that is really a phone number (contacts created from just
- * a number get the number as their name) counts as "no name". Any lookup
- * problem degrades to "no name": a missing name must never block a send.
+ * Turns a custom field's label ("Especialidade", "Cidade de Origem")
+ * into the key a `{{vars.x}}` token uses — lowercase, spaces to
+ * underscores. Not configurable: whatever the account names the
+ * field in Settings → Campos e Tags IS the token, by design — a
+ * future client sets this up themselves without needing a developer,
+ * which is the whole point (see 2026-10-13 conversation: personali-
+ * zation by name/clinic/specialty needs to be self-serve, not
+ * something Fuse hardcodes per client).
  */
-async function loadContactNames(
+export function customFieldVarKey(fieldName: string): string {
+  return fieldName.trim().toLowerCase().replace(/\s+/g, '_')
+}
+
+/**
+ * All the `{{vars.*}}` tokens available to personalize a message for
+ * this contact: `primeiro_nome`/`nome` (contact name — a name that's
+ * really a phone number, from a contact created with just a number,
+ * counts as no name), `empresa` (contacts.company), plus one entry
+ * per custom field this account has defined in Settings → Campos e
+ * Tags that has a value set for this contact (key = customFieldVarKey
+ * of the field's label). A built-in name always wins if a custom
+ * field happens to share its key. Any lookup problem degrades that
+ * piece to '' rather than throwing: personalization data must never
+ * block a send.
+ */
+async function loadContactPersonalizationVars(
   db: SupabaseClient,
   accountId: string,
   contactId: string,
-): Promise<{ fullName: string; firstName: string }> {
+): Promise<Record<string, string>> {
+  const vars: Record<string, string> = { primeiro_nome: '', nome: '', empresa: '' }
+
   try {
     const { data } = await db
       .from('contacts')
-      .select('name')
+      .select('name, company')
       .eq('id', contactId)
       .eq('account_id', accountId)
       .maybeSingle()
     const name = String(data?.name ?? '').trim()
-    if (!name || looksLikePhoneNumber(name)) return { fullName: '', firstName: '' }
-    return { fullName: name, firstName: firstNameOf(name) }
+    if (name && !looksLikePhoneNumber(name)) {
+      vars.nome = name
+      vars.primeiro_nome = firstNameOf(name)
+    }
+    vars.empresa = String(data?.company ?? '').trim()
   } catch {
-    return { fullName: '', firstName: '' }
+    // keep the '' defaults above
   }
+
+  try {
+    const { data: customValues } = await db
+      .from('contact_custom_values')
+      .select('value, custom_fields!inner(field_name, account_id)')
+      .eq('contact_id', contactId)
+      .eq('custom_fields.account_id', accountId)
+    for (const row of (customValues ?? []) as Array<{ value: string | null; custom_fields: { field_name: string } | { field_name: string }[] }>) {
+      const fieldInfo = Array.isArray(row.custom_fields) ? row.custom_fields[0] : row.custom_fields
+      const key = fieldInfo?.field_name ? customFieldVarKey(fieldInfo.field_name) : ''
+      if (key && !(key in vars)) vars[key] = String(row.value ?? '').trim()
+    }
+  } catch {
+    // custom fields are best-effort too
+  }
+
+  return vars
 }
 
 /** Distinct `{{n}}` placeholders in a Meta template body. */
@@ -163,7 +205,7 @@ export async function sendSdrIaFirstContact(
   args: SendSdrIaFirstContactArgs,
 ): Promise<{ variantIndex: number | null }> {
   const { accountId, userId, contactId, conversationId, config } = args
-  const { fullName, firstName } = await loadContactNames(db, accountId, contactId)
+  const vars = await loadContactPersonalizationVars(db, accountId, contactId)
 
   if (config.sendMode === 'template') {
     if (!config.templateName) {
@@ -181,7 +223,7 @@ export async function sendSdrIaFirstContact(
         accountId,
         config.templateName,
         config.templateLanguage,
-        firstName,
+        vars.primeiro_nome,
       ),
     })
     return { variantIndex: null }
@@ -196,10 +238,10 @@ export async function sendSdrIaFirstContact(
     userId,
     conversationId,
     contactId,
-    // `{{vars.primeiro_nome}}` / `{{vars.nome}}` in a variant become the contact's names.
-    text: interpolateText(config.messageVariants[variantIndex], {
-      vars: { primeiro_nome: firstName, nome: fullName },
-    }),
+    // `{{vars.primeiro_nome}}` / `{{vars.nome}}` / `{{vars.empresa}}`,
+    // plus one `{{vars.<campo>}}` per custom field this account has
+    // defined (Settings → Campos e Tags) with a value for this contact.
+    text: interpolateText(config.messageVariants[variantIndex], { vars }),
   })
   return { variantIndex }
 }

@@ -2271,7 +2271,9 @@
         "variantLabel": "Variação {n}",
         "variantPlaceholder": "Escreva a mensagem...",
         "noUsableTemplates": "Nenhum template aprovado sem variáveis foi encontrado. Crie um em Configurações → Templates.",
-        "templatesWithVariablesHint": "Encontramos {n} template(s) aprovado(s), mas com campos variáveis ({{1}}) — não podem ser usados no primeiro contato automático, que não preenche variáveis."
+        "templatesWithVariablesHint": "Encontramos {n} template(s) aprovado(s), mas com campos variáveis ({{1}}) — não podem ser usados no primeiro contato automático, que não preenche variáveis.",
+        "personalizationTitle": "Tokens de personalização disponíveis",
+        "personalizationHint": "Clique num token pra copiar e cole dentro da mensagem. Campos personalizados (Settings → Campos e Tags) aparecem aqui automaticamente."
       },
       "guardrails": {
         "title": "Horário e limite diário",

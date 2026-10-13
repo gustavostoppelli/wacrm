@@ -2271,7 +2271,9 @@
         "variantLabel": "변형 {n}",
         "variantPlaceholder": "메시지를 작성하세요...",
         "noUsableTemplates": "변수가 없는 승인된 템플릿을 찾을 수 없습니다. 설정 → 템플릿에서 하나를 만드세요.",
-        "templatesWithVariablesHint": "승인된 템플릿 {n}개를 찾았지만 변수 필드({{1}})가 있어 자동 첫 연락에는 사용할 수 없습니다."
+        "templatesWithVariablesHint": "승인된 템플릿 {n}개를 찾았지만 변수 필드({{1}})가 있어 자동 첫 연락에는 사용할 수 없습니다.",
+        "personalizationTitle": "사용 가능한 개인화 토큰",
+        "personalizationHint": "토큰을 복사해서 메시지에 붙여넣으세요. 사용자 정의 필드(설정 → 필드 및 태그)는 자동으로 여기에 표시됩니다."
       },
       "guardrails": {
         "title": "시간대 및 일일 한도",
