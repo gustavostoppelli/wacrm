@@ -7,26 +7,38 @@
 // (ensureMeetingScheduled garante isso: so manda quando preenche
 // meeting_link agora).
 //
-// Antes de tudo isso, agrupa as intencoes nao resolvidas por
-// conversation_id. Toda vez que o modelo reemite a tag de reuniao --
-// inclusive num reagendamento bem-sucedido depois -- nasce uma linha
-// NOVA em ai_meeting_intents (Tasks 3/4). Uma linha MAIS ANTIGA da
-// mesma conversa pode continuar nao resolvida (ex.: falhou porque o
+// Antes de tudo isso, cada intencao NAO RESOLVIDA e checada contra
+// TODAS as intencoes da mesma conversa (resolvidas ou nao). Toda vez
+// que o modelo reemite a tag de reuniao -- inclusive num
+// reagendamento bem-sucedido depois -- nasce uma linha NOVA em
+// ai_meeting_intents (Tasks 3/4). Uma linha MAIS ANTIGA da mesma
+// conversa pode continuar nao resolvida (ex.: falhou porque o
 // Calendar estava desconectado na hora) mesmo depois que uma
-// intencao MAIS NOVA da mesma conversa/negocio ja teve sucesso com
-// outro horario. Se este job disputasse (retry) toda intencao nao
-// resolvida na ordem de criacao, ele poderia reprocessar essa
-// intencao antiga DEPOIS que a nova ja tivesse sido bem-sucedida -- e
-// como a guarda de idempotencia do ensureMeetingScheduled so trava
-// quando o horario bate EXATAMENTE, reprocessar uma intencao antiga
-// com um horario DIFERENTE (mais antigo) do que esta hoje no negocio
-// dispararia um reagendamento DE VERDADE, voltando silenciosamente a
-// reuniao do lead pro horario antigo e obsoleto. Dois revisores
-// independentes (Tasks 3 e 4) flagaram esse risco pra quem quer que
-// construisse este job -- por isso o agrupamento abaixo roda ANTES
-// do loop de retry/stale-reschedule, e so a intencao mais nova de
-// cada conversa chega la. As demais sao marcadas 'superseded' direto,
-// sem chamar ensureMeetingScheduled e sem mandar mensagem nenhuma.
+// intencao MAIS NOVA da mesma conversa/negocio ja teve sucesso e ja
+// foi marcada `resolution: 'completed'` -- ou seja, essa intencao
+// nova e mais correta simplesmente NAO aparece numa query filtrada
+// por `resolved_at IS NULL`, porque ela ja foi resolvida. Filtrar o
+// "existe uma mais nova?" apenas dentro do conjunto nao-resolvido
+// deixa passar exatamente esse caso: a intencao antiga vira um
+// "grupo de 1" sozinha, sai ilesa da checagem e e retentada de
+// verdade. Como a guarda de idempotencia do ensureMeetingScheduled so
+// trava quando o horario bate EXATAMENTE, reprocessar a intencao
+// antiga com um horario DIFERENTE do que esta hoje no negocio
+// dispararia um reagendamento DE VERDADE -- um novo evento no
+// Calendar, o `meeting_scheduled_at` do negocio voltando pro horario
+// velho, um novo link mandado -- sobrescrevendo silenciosamente a
+// reuniao que o lead ja tinha confirmado num horario diferente. Ou,
+// se a intencao antiga estiver a mais de 3h do seu meeting_at, o lead
+// recebe um "vamos reagendar?" confuso sobre uma reuniao que na
+// verdade ja esta confirmada, só que em outro horario.
+//
+// Por isso a query abaixo busca duas coisas: as intencoes nao
+// resolvidas (candidatas a retry) E, separadamente, pra cada
+// conversation_id com candidata, TODAS as intencoes dessa mesma
+// conversa (resolvida ou nao) dentro da janela de lookback -- so pra
+// comparar created_at. Uma candidata que tenha qualquer intencao mais
+// nova (resolvida ou nao) pra mesma conversa e superada direto: nunca
+// chama ensureMeetingScheduled, nunca manda mensagem.
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -70,47 +82,63 @@ export async function reconcileMeetingIntents(
     console.error('[meeting-reconciliation] failed to list unresolved intents:', error)
     return result
   }
+  if (intents.length === 0) return result
 
-  // Agrupa por conversation_id. Pra cada grupo com mais de uma
-  // intencao nao resolvida, mantem so a de created_at mais recente
-  // como candidata ao loop normal abaixo; todas as outras sao
-  // superadas aqui mesmo.
-  const byConversation = new Map<string, Record<string, unknown>[]>()
-  for (const row of intents) {
+  // Segunda consulta, SEM o filtro de nao-resolvida: pra cada
+  // conversation_id que apareceu acima, busca TODAS as intencoes
+  // dessa conversa na mesma janela de lookback -- resolvidas ou nao
+  // -- so pra comparar created_at. E essa comparacao contra o
+  // universo completo (nao so o nao-resolvido) que detecta o caso
+  // real do hazard: uma intencao mais nova que ja teve sucesso e ja
+  // foi marcada 'completed' em `ensureMeetingScheduled`.
+  const conversationIds = Array.from(new Set(intents.map((row) => row.conversation_id as string)))
+  const { data: siblings, error: siblingsError } = await db
+    .from('ai_meeting_intents')
+    .select('id, conversation_id, created_at')
+    .in('conversation_id', conversationIds)
+    .gte('created_at', lookbackFrom)
+  if (siblingsError || !siblings) {
+    // Sem conseguir checar se existe irma mais nova (resolvida ou
+    // nao), nao e seguro decidir supersede nem retry -- o risco e
+    // justamente reagendar por engano uma reuniao que outra intencao
+    // ja resolveu corretamente. Conta tudo como pendente e tenta de
+    // novo no proximo tick.
+    console.error('[meeting-reconciliation] failed to list sibling intents for supersede check:', siblingsError)
+    result.stillPending = intents.length
+    return result
+  }
+
+  const latestCreatedAtByConversation = new Map<string, number>()
+  for (const row of siblings) {
     const key = row.conversation_id as string
-    const group = byConversation.get(key)
-    if (group) group.push(row)
-    else byConversation.set(key, [row])
+    const t = new Date(row.created_at as string).getTime()
+    const current = latestCreatedAtByConversation.get(key)
+    if (current === undefined || t > current) latestCreatedAtByConversation.set(key, t)
   }
 
   const candidates: Record<string, unknown>[] = []
-  for (const group of byConversation.values()) {
-    if (group.length === 1) {
-      candidates.push(group[0])
-      continue
-    }
+  for (const row of intents) {
+    const rowCreatedAt = new Date(row.created_at as string).getTime()
+    const latestCreatedAt = latestCreatedAtByConversation.get(row.conversation_id as string) ?? rowCreatedAt
 
-    let newest = group[0]
-    for (const row of group) {
-      if (new Date(row.created_at as string).getTime() > new Date(newest.created_at as string).getTime()) {
-        newest = row
-      }
-    }
-
-    for (const row of group) {
-      if (row === newest) continue
+    if (latestCreatedAt > rowCreatedAt) {
+      // Existe uma intencao mais nova (resolvida ou nao) pra mesma
+      // conversa -- esta aqui esta obsoleta. Supera direto, sem
+      // chamar ensureMeetingScheduled e sem enviar mensagem nenhuma.
       const { error: supersedeError } = await db
         .from('ai_meeting_intents')
         .update({ resolved_at: now.toISOString(), resolution: 'superseded' })
         .eq('id', row.id as string)
       if (supersedeError) {
         console.error('[meeting-reconciliation] failed to supersede stale intent:', row.id, supersedeError)
+        result.stillPending += 1
         continue
       }
       result.superseded += 1
+      continue
     }
 
-    candidates.push(newest)
+    candidates.push(row)
   }
 
   for (const intent of candidates) {

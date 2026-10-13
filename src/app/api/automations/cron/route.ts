@@ -1033,11 +1033,25 @@ async function checkInstagramConnections(admin: ReturnType<typeof supabaseAdmin>
  * migration seeds it), so that case claims via an INSERT instead --
  * which is just as atomic, since a second concurrent INSERT for the
  * same `job_name` PK fails with a conflict instead of double-claiming.
+ *
+ * Gated to a fixed 09h-18h America/Sao_Paulo window, same spirit as
+ * `drainDailyDigest`'s `hour < 18` and `drainSdrIa`'s configured
+ * hours -- this job can send real WhatsApp messages to leads (the
+ * stale-reschedule text directly, and the Meet link + clinic-info
+ * follow-up indirectly via a successful retry), so it shouldn't claim
+ * the day and fire at 00h05 just because that's when the cron first
+ * ticks past midnight. A per-account business-hours check (like
+ * `ensureMeetingScheduled` itself threads through) would be more
+ * correct, but this job scans every account in one pass with no
+ * single `businessHoursTimezone` to key off before loading each
+ * one's config -- a fixed window is enough here, intentionally not
+ * over-built for this task.
  */
-async function reconcileMeetingIntentsOnce(
+export async function reconcileMeetingIntentsOnce(
   admin: ReturnType<typeof supabaseAdmin>,
 ): Promise<ReconcileMeetingIntentsResult | null> {
-  const { today } = brazilTodayAndHour()
+  const { today, hour } = brazilTodayAndHour()
+  if (hour < 9 || hour >= 18) return null
 
   const { data: state } = await admin
     .from('cron_job_state')
