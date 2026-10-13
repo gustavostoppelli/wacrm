@@ -2312,6 +2312,14 @@
       "hoursSaved": "Hours updated.",
       "editFull": "Edit full configuration",
       "errorGeneric": "Could not save. Please try again."
+    },
+    "metrics": {
+      "title": "Tracking",
+      "description": "Contacted, real replies and scheduled meetings over the last 14 days.",
+      "totalContacted": "Contacted",
+      "responseRate": "Response rate",
+      "totalMeetings": "Meetings scheduled",
+      "empty": "No data yet in the last 14 days."
     }
   }
 }

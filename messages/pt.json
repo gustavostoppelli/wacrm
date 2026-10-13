@@ -2312,6 +2312,14 @@
       "hoursSaved": "Horário atualizado.",
       "editFull": "Editar configuração completa",
       "errorGeneric": "Não foi possível salvar. Tente novamente."
+    },
+    "metrics": {
+      "title": "Acompanhamento",
+      "description": "Contatados, respostas de verdade e reuniões agendadas nos últimos 14 dias.",
+      "totalContacted": "Contatados",
+      "responseRate": "Taxa de resposta",
+      "totalMeetings": "Reuniões agendadas",
+      "empty": "Ainda sem dados nos últimos 14 dias."
     }
   }
 }

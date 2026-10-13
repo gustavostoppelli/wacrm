@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { SdrIaWizard } from "./sdr-ia-wizard";
 import { SdrIaStatusPanel } from "./sdr-ia-status-panel";
+import { SdrIaMetricsChart } from "./sdr-ia-metrics-chart";
 import type { SdrIaConfig } from "@/lib/sdr-ia/config";
 
 /**
@@ -31,10 +32,13 @@ export function SdrIaHome() {
   }
 
   return (
-    <SdrIaStatusPanel
-      config={config}
-      onConfigUpdated={setConfig}
-      onEditFull={() => setMode("wizard")}
-    />
+    <>
+      <SdrIaStatusPanel
+        config={config}
+        onConfigUpdated={setConfig}
+        onEditFull={() => setMode("wizard")}
+      />
+      <SdrIaMetricsChart />
+    </>
   );
 }

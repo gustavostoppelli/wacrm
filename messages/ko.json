@@ -2312,6 +2312,14 @@
       "hoursSaved": "시간이 업데이트되었습니다.",
       "editFull": "전체 설정 편집",
       "errorGeneric": "저장할 수 없습니다. 다시 시도해 주세요."
+    },
+    "metrics": {
+      "title": "추적",
+      "description": "지난 14일간의 연락, 실제 응답, 예약된 미팅 현황입니다.",
+      "totalContacted": "연락함",
+      "responseRate": "응답률",
+      "totalMeetings": "예약된 미팅",
+      "empty": "지난 14일간 데이터가 없습니다."
     }
   }
 }
