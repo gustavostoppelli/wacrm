@@ -2295,7 +2295,10 @@
         "errorNoLeadTag": "Choose or create a lead tag before continuing.",
         "errorSaveFailed": "Could not save. Please try again.",
         "errorNeedsAdmin": "You need to be an account admin to activate SDR AI."
-      }
+      },
+      "notActivatedTitle": "Full setup not done yet",
+      "notActivatedDescription": "Automatic sending from FuseHub hasn't been configured on this account yet. The metrics above already show SDR IA's real activity.",
+      "notActivatedCta": "Set up automatic sending"
     },
     "status": {
       "title": "SDR IA",

@@ -1,7 +1,7 @@
 // src/app/api/sdr-ia/metrics/route.ts
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
-import { getSdrIaStatus, getSdrIaConfig } from '@/lib/sdr-ia/config'
+import { getSdrIaStatus } from '@/lib/sdr-ia/config'
 import { computeSdrIaMetrics } from '@/lib/sdr-ia/metrics'
 
 export async function GET(request: Request) {
@@ -16,8 +16,7 @@ export async function GET(request: Request) {
     const daysParam = Number(url.searchParams.get('days'))
     const days = Number.isInteger(daysParam) && daysParam > 0 && daysParam <= 90 ? daysParam : 14
 
-    const config = await getSdrIaConfig(supabase, accountId)
-    const metrics = await computeSdrIaMetrics(supabase, accountId, config?.contactedTagId ?? null, days)
+    const metrics = await computeSdrIaMetrics(supabase, accountId, days)
     return NextResponse.json({ metrics })
   } catch (error) {
     return toErrorResponse(error)
