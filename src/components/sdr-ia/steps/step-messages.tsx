@@ -37,6 +37,7 @@ function usePersonalizationTokens() {
     { token: "{{vars.primeiro_nome}}", label: "Primeiro nome" },
     { token: "{{vars.nome}}", label: "Nome completo" },
     { token: "{{vars.empresa}}", label: "Empresa" },
+    { token: "{{vars.saudacao}}", label: "Bom dia / Boa tarde / Boa noite" },
     ...customFieldNames.map((name) => ({
       token: `{{vars.${name.trim().toLowerCase().replace(/\s+/g, "_")}}}`,
       label: name,

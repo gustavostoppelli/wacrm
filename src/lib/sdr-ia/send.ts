@@ -104,6 +104,20 @@ export function customFieldVarKey(fieldName: string): string {
 }
 
 /**
+ * "Bom dia" / "Boa tarde" / "Boa noite" for the moment of the send,
+ * in America/Sao_Paulo (same timezone the cron's hours window uses).
+ * Exposed as the `{{vars.saudacao}}` token.
+ */
+export function greetingFor(now: Date): string {
+  const hour = Number(
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23' }).format(now),
+  )
+  if (hour < 12) return 'Bom dia'
+  if (hour < 18) return 'Boa tarde'
+  return 'Boa noite'
+}
+
+/**
  * All the `{{vars.*}}` tokens available to personalize a message for
  * this contact: `primeiro_nome`/`nome` (contact name — a name that's
  * really a phone number, from a contact created with just a number,
@@ -120,7 +134,7 @@ async function loadContactPersonalizationVars(
   accountId: string,
   contactId: string,
 ): Promise<Record<string, string>> {
-  const vars: Record<string, string> = { primeiro_nome: '', nome: '', empresa: '' }
+  const vars: Record<string, string> = { primeiro_nome: '', nome: '', empresa: '', saudacao: greetingFor(new Date()) }
 
   try {
     const { data } = await db

@@ -349,3 +349,12 @@ describe('sendSdrIaFirstContact — company and custom field personalisation', (
     expect(spy).toHaveBeenLastCalledWith(expect.objectContaining({ text: 'Maria' }))
   })
 })
+
+describe('greetingFor', () => {
+  it('picks the greeting by the Sao Paulo hour', async () => {
+    const { greetingFor } = await import('./send')
+    expect(greetingFor(new Date('2026-10-14T13:00:00Z'))).toBe('Bom dia') // 10h BRT
+    expect(greetingFor(new Date('2026-10-14T16:00:00Z'))).toBe('Boa tarde') // 13h BRT
+    expect(greetingFor(new Date('2026-10-14T22:00:00Z'))).toBe('Boa noite') // 19h BRT
+  })
+})
