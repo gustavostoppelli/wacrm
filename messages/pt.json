@@ -2276,7 +2276,7 @@
         "noUsableTemplates": "Nenhum template aprovado sem variáveis foi encontrado. Crie um em Configurações → Templates.",
         "templatesWithVariablesHint": "Encontramos {n} template(s) aprovado(s), mas com campos variáveis ({{1}}) — não podem ser usados no primeiro contato automático, que não preenche variáveis.",
         "personalizationTitle": "Tokens de personalização disponíveis",
-        "personalizationHint": "Clique num token pra copiar e cole dentro da mensagem. Campos personalizados (Settings → Campos e Tags) aparecem aqui automaticamente."
+        "personalizationHint": "Clique na mensagem onde quer o dado e depois num token: ele é inserido no cursor. Campos personalizados (Settings → Campos e Tags) aparecem aqui automaticamente."
       },
       "guardrails": {
         "title": "Horário e limite diário",

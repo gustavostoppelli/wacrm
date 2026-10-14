@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -58,6 +58,26 @@ export function StepMessages({
   const t = useTranslations("SdrIa.wizard.messages");
   const variants = draft.messageVariants ?? [];
   const tokens = usePersonalizationTokens();
+  const textareaRefs = useRef<Array<HTMLTextAreaElement | null>>([]);
+  const [activeVariant, setActiveVariant] = useState(0);
+
+  // Inserts the token at the cursor of the variant the user last
+  // clicked into (or appends to the first one if none was focused).
+  const insertToken = (token: string) => {
+    const el = textareaRefs.current[activeVariant];
+    const current = variants[activeVariant] ?? "";
+    const start = el?.selectionStart ?? current.length;
+    const end = el?.selectionEnd ?? current.length;
+    const nextValue = current.slice(0, start) + token + current.slice(end);
+    setVariant(activeVariant, nextValue);
+    requestAnimationFrame(() => {
+      const target = textareaRefs.current[activeVariant];
+      if (!target) return;
+      target.focus();
+      const pos = start + token.length;
+      target.setSelectionRange(pos, pos);
+    });
+  };
 
   const setVariant = (index: number, value: string) => {
     const next = [...variants];
@@ -135,7 +155,8 @@ export function StepMessages({
               key={token}
               type="button"
               title={label}
-              onClick={() => navigator.clipboard?.writeText(token).catch(() => {})}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => insertToken(token)}
               className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground hover:bg-muted/70"
             >
               {token}
@@ -150,6 +171,10 @@ export function StepMessages({
           <Label htmlFor={`variant-${i}`}>{t("variantLabel", { n: i + 1 })}</Label>
           <Textarea
             id={`variant-${i}`}
+            ref={(el) => {
+              textareaRefs.current[i] = el;
+            }}
+            onFocus={() => setActiveVariant(i)}
             value={variants[i] ?? ""}
             onChange={(e) => setVariant(i, e.target.value)}
             placeholder={t("variantPlaceholder")}

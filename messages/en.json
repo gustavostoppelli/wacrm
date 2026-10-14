@@ -2276,7 +2276,7 @@
         "noUsableTemplates": "No approved template without variables was found. Create one in Settings → Templates.",
         "templatesWithVariablesHint": "Found {n} approved template(s), but with variable fields ({{1}}) — they can't be used for the automated first contact, which never fills in variables.",
         "personalizationTitle": "Available personalization tokens",
-        "personalizationHint": "Copy a token and paste it into the message. Custom fields (Settings → Fields and Tags) show up here automatically."
+        "personalizationHint": "Click in the message where you want the data, then click a token: it is inserted at the cursor. Custom fields (Settings → Fields and Tags) show up here automatically."
       },
       "guardrails": {
         "title": "Hours and daily limit",
