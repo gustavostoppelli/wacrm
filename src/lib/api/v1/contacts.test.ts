@@ -13,6 +13,7 @@ import {
   serializeContact,
   findOrCreateContact,
   setContactTags,
+  setContactCustomFields,
   ContactError,
 } from './contacts';
 
@@ -99,5 +100,46 @@ describe('setContactTags', () => {
       'Compraaprovada_CPOT20',
     ]);
     expect(addedTagIds).toEqual(['t-a']);
+  });
+});
+
+describe('setContactCustomFields', () => {
+  function fakeDb(existing: Array<{ id: string; field_name: string }>) {
+    const inserted: unknown[] = [];
+    const upserted: unknown[] = [];
+    const db = {
+      from: (table: string) => {
+        if (table === 'custom_fields') {
+          return {
+            select: () => ({ eq: () => Promise.resolve({ data: existing, error: null }) }),
+            insert: (row: unknown) => {
+              inserted.push(row);
+              return { select: () => ({ single: () => Promise.resolve({ data: { id: 'new-field' }, error: null }) }) };
+            },
+          };
+        }
+        return {
+          upsert: (rows: unknown) => {
+            upserted.push(rows);
+            return Promise.resolve({ error: null });
+          },
+        };
+      },
+    } as unknown as SupabaseClient;
+    return { db, inserted, upserted };
+  }
+
+  it('reuses an existing field (case-insensitive) without creating one', async () => {
+    const { db, inserted, upserted } = fakeDb([{ id: 'f1', field_name: 'Especialidade' }]);
+    await setContactCustomFields(db, 'a1', 'u1', 'c1', { especialidade: 'dermatologia' });
+    expect(inserted).toHaveLength(0);
+    expect(upserted[0]).toEqual([{ contact_id: 'c1', custom_field_id: 'f1', value: 'dermatologia' }]);
+  });
+
+  it('creates a missing field scoped to the account', async () => {
+    const { db, inserted, upserted } = fakeDb([]);
+    await setContactCustomFields(db, 'a1', 'u1', 'c1', { Cidade: 'SP' });
+    expect(inserted[0]).toMatchObject({ account_id: 'a1', user_id: 'u1', field_name: 'Cidade' });
+    expect(upserted[0]).toEqual([{ contact_id: 'c1', custom_field_id: 'new-field', value: 'SP' }]);
   });
 });

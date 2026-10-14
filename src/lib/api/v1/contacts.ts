@@ -229,6 +229,56 @@ export async function setContactTags(
 }
 
 /** Fetch + serialize a single contact scoped to the account, or null. */
+/**
+ * Sets custom-field values on a contact, keyed by field NAME (e.g.
+ * { "Especialidade": "cirurgia plástica" }). A field that doesn't exist
+ * in the account yet is created, mirroring how tags work. Names match
+ * case-insensitively. Used by SDR IA personalization ({{vars.<name>}}).
+ */
+export async function setContactCustomFields(
+  db: SupabaseClient,
+  accountId: string,
+  auditUserId: string,
+  contactId: string,
+  values: Record<string, string>
+): Promise<void> {
+  const entries = Object.entries(values)
+    .map(([name, value]) => [name.trim(), value] as const)
+    .filter(([name]) => name.length > 0);
+  if (entries.length === 0) return;
+
+  const { data: fields, error: fieldsErr } = await db
+    .from('custom_fields')
+    .select('id, field_name')
+    .eq('account_id', accountId);
+  if (fieldsErr) throw new ContactError('Failed to read custom fields', 500);
+
+  const idByName = new Map(
+    (fields ?? []).map((f) => [String(f.field_name).trim().toLowerCase(), f.id as string])
+  );
+
+  const rows: Array<{ contact_id: string; custom_field_id: string; value: string }> = [];
+  for (const [name, value] of entries) {
+    let fieldId = idByName.get(name.toLowerCase());
+    if (!fieldId) {
+      const { data: created, error: createErr } = await db
+        .from('custom_fields')
+        .insert({ account_id: accountId, user_id: auditUserId, field_name: name, field_type: 'text' })
+        .select('id')
+        .single();
+      if (createErr || !created) throw new ContactError('Failed to create custom field', 500);
+      fieldId = created.id as string;
+      idByName.set(name.toLowerCase(), fieldId);
+    }
+    rows.push({ contact_id: contactId, custom_field_id: fieldId, value });
+  }
+
+  const { error } = await db
+    .from('contact_custom_values')
+    .upsert(rows, { onConflict: 'contact_id,custom_field_id' });
+  if (error) throw new ContactError('Failed to save custom field values', 500);
+}
+
 export async function getContactById(
   db: SupabaseClient,
   accountId: string,
