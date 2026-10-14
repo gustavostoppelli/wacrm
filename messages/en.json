@@ -2307,6 +2307,11 @@
     },
     "status": {
       "title": "SDR IA",
+      "bannerActive": "SDR IA is on: {sent} of {cap} sends today",
+      "bannerWindow": "Sends between {start}h and {end}h, spaced out between messages.",
+      "bannerPaused": "SDR IA is paused: no messages will be sent",
+      "pause": "Pause",
+      "resume": "Resume",
       "enabledLabel": "On",
       "disabledLabel": "Paused",
       "enabledDescription": "Automatically reaching out to new leads within the configured hours.",

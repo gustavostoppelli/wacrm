@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,16 +25,28 @@ export function SdrIaHome() {
   const [config, setConfig] = useState<SdrIaConfig | null | "loading">("loading");
   const [mode, setMode] = useState<"status" | "wizard">("status");
 
-  useEffect(() => {
+  const loadConfig = useCallback(() => {
     fetch("/api/sdr-ia/config", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => setConfig((data.config as SdrIaConfig | undefined) ?? null))
       .catch(() => setConfig(null));
   }, []);
 
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
+
   function renderConfigSection() {
     if (config === "loading") return null;
-    if (mode === "wizard") return <SdrIaWizard onActivated={() => setMode("status")} />;
+    if (mode === "wizard") return <SdrIaWizard
+          onActivated={() => {
+            // The wizard saved a config the page never fetched: reload it,
+            // otherwise the stale null renders "not activated" right after
+            // the user activates.
+            loadConfig();
+            setMode("status");
+          }}
+        />;
     if (!config) {
       return (
         <div className="mx-auto max-w-2xl px-4 py-4">

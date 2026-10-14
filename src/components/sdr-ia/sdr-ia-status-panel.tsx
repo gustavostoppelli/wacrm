@@ -9,6 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { SdrIaConfig } from "@/lib/sdr-ia/config";
 
+// sent_today only resets when the next send happens, so a stale count
+// from a previous day must read as 0 in the banner.
+function todayInSaoPaulo() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+}
+
 /**
  * Persistent on/off + hours control for an already-activated SDR IA,
  * shown instead of forcing the full 5-step wizard every time someone
@@ -82,6 +88,38 @@ export function SdrIaStatusPanel({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
+      <div
+        className={
+          config.enabled
+            ? "mb-4 flex items-center justify-between gap-4 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3"
+            : "mb-4 flex items-center justify-between gap-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3"
+        }
+        role="status"
+      >
+        <div>
+          <p className="text-sm font-semibold text-foreground">
+            {config.enabled
+              ? t("bannerActive", {
+                  sent: config.lastSentDate === todayInSaoPaulo() ? config.sentToday : 0,
+                  cap: config.dailyCap,
+                })
+              : t("bannerPaused")}
+          </p>
+          {config.enabled && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {t("bannerWindow", { start: config.hoursStart, end: config.hoursEnd })}
+            </p>
+          )}
+        </div>
+        <Button
+          size="sm"
+          variant={config.enabled ? "outline" : "default"}
+          disabled={togglingEnabled}
+          onClick={() => handleToggle(!config.enabled)}
+        >
+          {config.enabled ? t("pause") : t("resume")}
+        </Button>
+      </div>
       <Card className="space-y-6 p-6">
         <div className="flex items-center justify-between gap-4">
           <div>

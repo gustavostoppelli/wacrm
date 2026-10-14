@@ -2307,6 +2307,11 @@
     },
     "status": {
       "title": "SDR IA",
+      "bannerActive": "SDR IA 켜짐: 오늘 {sent}/{cap}건 발송",
+      "bannerWindow": "{start}시~{end}시 사이에 메시지 간격을 두고 발송합니다.",
+      "bannerPaused": "SDR IA 일시중지: 메시지가 발송되지 않습니다",
+      "pause": "일시중지",
+      "resume": "재개",
       "enabledLabel": "켜짐",
       "disabledLabel": "일시중지",
       "enabledDescription": "설정된 시간 내에 새로운 리드에게 자동으로 연락합니다.",
