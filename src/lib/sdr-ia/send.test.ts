@@ -132,7 +132,7 @@ describe('sendSdrIaFirstContact', () => {
         hoursStart: 9,
         hoursEnd: 18,
         sentToday: 0,
-        lastSentDate: null, lastSentAt: null,
+        lastSentDate: null, lastSentAt: null, eligibleStageIds: [],
       },
     })
     expect(spy).toHaveBeenCalledWith({
@@ -168,7 +168,7 @@ describe('sendSdrIaFirstContact', () => {
         hoursStart: 9,
         hoursEnd: 18,
         sentToday: 0,
-        lastSentDate: null, lastSentAt: null,
+        lastSentDate: null, lastSentAt: null, eligibleStageIds: [],
       },
     })
     expect(spy).toHaveBeenCalledWith(
@@ -213,7 +213,7 @@ function fakeDb(rows: Record<string, unknown>) {
 
 const baseConfig = {
   accountId: 'acct-1', enabled: true, leadTagId: 't1', contactedTagId: 't2', exclusionTagId: null,
-  whatsappConfigId: 'chan-1', dailyCap: 5, hoursStart: 9, hoursEnd: 18, sentToday: 0, lastSentDate: null, lastSentAt: null,
+  whatsappConfigId: 'chan-1', dailyCap: 5, hoursStart: 9, hoursEnd: 18, sentToday: 0, lastSentDate: null, lastSentAt: null, eligibleStageIds: [],
 }
 const args = (config: object) => ({
   accountId: 'acct-1', userId: 'user-1', contactId: 'contact-1', conversationId: 'conv-1',

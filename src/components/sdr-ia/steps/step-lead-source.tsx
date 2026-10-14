@@ -12,6 +12,12 @@ interface Tag {
   name: string;
 }
 
+interface StageOption {
+  id: string;
+  name: string;
+  pipelineName: string;
+}
+
 export function StepLeadSource({
   draft,
   onChange,
@@ -21,6 +27,7 @@ export function StepLeadSource({
 }) {
   const t = useTranslations("SdrIa.wizard.leadSource");
   const [tags, setTags] = useState<Tag[]>([]);
+  const [stages, setStages] = useState<StageOption[]>([]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -29,7 +36,33 @@ export function StepLeadSource({
       .select("id, name")
       .order("name")
       .then(({ data }) => setTags(data ?? []));
+
+    supabase
+      .from("pipeline_stages")
+      .select("id, name, position, pipelines(name)")
+      .order("position")
+      .then(({ data }) => {
+        const rows = (data ?? []) as Array<{
+          id: string;
+          name: string;
+          pipelines: { name: string } | { name: string }[] | null;
+        }>;
+        setStages(
+          rows.map((row) => {
+            const pipeline = Array.isArray(row.pipelines) ? row.pipelines[0] : row.pipelines;
+            return { id: row.id, name: row.name, pipelineName: pipeline?.name ?? "" };
+          }),
+        );
+      });
   }, []);
+
+  const eligibleStageIds = draft.eligibleStageIds ?? [];
+  const toggleStage = (stageId: string) => {
+    const next = eligibleStageIds.includes(stageId)
+      ? eligibleStageIds.filter((id) => id !== stageId)
+      : [...eligibleStageIds, stageId];
+    onChange({ eligibleStageIds: next });
+  };
 
   return (
     <div className="space-y-4">
@@ -81,6 +114,34 @@ export function StepLeadSource({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="space-y-2 border-t border-border pt-4">
+        <Label>{t("stageFilterLabel")}</Label>
+        <p className="text-xs text-muted-foreground">{t("stageFilterDescription")}</p>
+        <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+          {stages.map((stage) => (
+            <label
+              key={stage.id}
+              className="flex items-center gap-2 rounded px-2 py-1 text-sm text-foreground hover:bg-muted"
+            >
+              <input
+                type="checkbox"
+                checked={eligibleStageIds.includes(stage.id)}
+                onChange={() => toggleStage(stage.id)}
+              />
+              <span>
+                {stage.name}
+                {stage.pipelineName && (
+                  <span className="ml-1 text-xs text-muted-foreground">({stage.pipelineName})</span>
+                )}
+              </span>
+            </label>
+          ))}
+        </div>
+        {eligibleStageIds.length === 0 && (
+          <p className="text-xs text-muted-foreground">{t("stageFilterNoneSelected")}</p>
+        )}
       </div>
     </div>
   );

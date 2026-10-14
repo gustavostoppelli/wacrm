@@ -43,6 +43,20 @@ export async function PUT(request: Request) {
       dailyCap?: unknown
       hoursStart?: unknown
       hoursEnd?: unknown
+      eligibleStageIds?: unknown
+    }
+
+    // Validate eligibleStageIds if present
+    if (patch.eligibleStageIds !== undefined) {
+      if (
+        !Array.isArray(patch.eligibleStageIds) ||
+        !patch.eligibleStageIds.every((id) => typeof id === 'string')
+      ) {
+        return NextResponse.json(
+          { error: 'eligibleStageIds must be an array of stage ids' },
+          { status: 400 },
+        )
+      }
     }
 
     // Validate sendMode if present

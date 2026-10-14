@@ -2246,7 +2246,10 @@
         "createPlaceholder": "ex: prospecção",
         "exclusionLabel": "Tag de exclusão (opcional)",
         "exclusionDescription": "Se um contato tiver essa tag, o SDR IA nunca fala com ele — mesmo que ainda não tenha sido marcado como contatado. Use pra tirar da fila alguém que um vendedor já está atendendo manualmente.",
-        "exclusionPlaceholder": "Nenhuma"
+        "exclusionPlaceholder": "Nenhuma",
+        "stageFilterLabel": "Etapa do funil (opcional)",
+        "stageFilterDescription": "Só manda a 1ª mensagem pra contatos cujo negócio aberto esteja numa dessas etapas. Deixe tudo desmarcado pra não filtrar por etapa (comportamento de sempre).",
+        "stageFilterNoneSelected": "Nenhuma etapa selecionada — vale pra qualquer etapa (ou sem negócio nenhum)."
       },
       "channel": {
         "title": "Canal de envio",

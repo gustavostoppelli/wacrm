@@ -66,13 +66,43 @@ describe('getSdrIaConfig', () => {
           daily_cap: 5,
           hours_start: 9,
           hours_end: 18,
+          eligible_stage_ids: ['stage-1', 'stage-2'],
         },
       }),
       'acct-1',
     )
     expect(result).toEqual(
-      expect.objectContaining({ accountId: 'acct-1', sendMode: 'text', dailyCap: 5 }),
+      expect.objectContaining({
+        accountId: 'acct-1',
+        sendMode: 'text',
+        dailyCap: 5,
+        eligibleStageIds: ['stage-1', 'stage-2'],
+      }),
     )
+  })
+
+  it('defaults eligibleStageIds to an empty array when the column is null', async () => {
+    const result = await getSdrIaConfig(
+      makeDb({
+        configRow: {
+          account_id: 'acct-1',
+          enabled: true,
+          lead_tag_id: null,
+          contacted_tag_id: null,
+          whatsapp_config_id: null,
+          send_mode: 'template',
+          template_name: null,
+          template_language: null,
+          message_variants: [],
+          daily_cap: 5,
+          hours_start: 9,
+          hours_end: 18,
+          eligible_stage_ids: null,
+        },
+      }),
+      'acct-1',
+    )
+    expect(result?.eligibleStageIds).toEqual([])
   })
 })
 

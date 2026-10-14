@@ -2246,7 +2246,10 @@
         "createPlaceholder": "e.g: prospecting",
         "exclusionLabel": "Exclusion tag (optional)",
         "exclusionDescription": "If a contact has this tag, SDR AI will never message them — even if not yet marked as contacted. Use it to pull someone a salesperson is already handling manually out of the queue.",
-        "exclusionPlaceholder": "None"
+        "exclusionPlaceholder": "None",
+        "stageFilterLabel": "Pipeline stage (optional)",
+        "stageFilterDescription": "Only send the 1st message to contacts whose open deal is in one of these stages. Leave everything unchecked to not filter by stage (the original behavior).",
+        "stageFilterNoneSelected": "No stage selected — matches any stage (or no deal at all)."
       },
       "channel": {
         "title": "Sending channel",

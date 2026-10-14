@@ -23,6 +23,10 @@ export interface SdrIaConfig {
    *  queue immediately, e.g. when a salesperson reaches a fresh lead
    *  before the cron does, before contactedTagId would ever apply. */
   exclusionTagId: string | null
+  /** Pipeline stages a contact's OPEN deal must be in to be a valid
+   *  candidate (migration 084). Empty/null = no filter (any stage,
+   *  or no deal at all) — the original, still-default behavior. */
+  eligibleStageIds: string[]
   whatsappConfigId: string | null
   sendMode: SdrIaSendMode
   templateName: string | null
@@ -59,6 +63,7 @@ function fromRow(row: any): SdrIaConfig {
     leadTagId: row.lead_tag_id,
     contactedTagId: row.contacted_tag_id,
     exclusionTagId: row.exclusion_tag_id,
+    eligibleStageIds: Array.isArray(row.eligible_stage_ids) ? row.eligible_stage_ids : [],
     whatsappConfigId: row.whatsapp_config_id,
     sendMode: row.send_mode,
     templateName: row.template_name,
@@ -96,6 +101,7 @@ export async function upsertSdrIaConfig(
     ...(patch.leadTagId !== undefined && { lead_tag_id: patch.leadTagId }),
     ...(patch.contactedTagId !== undefined && { contacted_tag_id: patch.contactedTagId }),
     ...(patch.exclusionTagId !== undefined && { exclusion_tag_id: patch.exclusionTagId }),
+    ...(patch.eligibleStageIds !== undefined && { eligible_stage_ids: patch.eligibleStageIds.length ? patch.eligibleStageIds : null }),
     ...(patch.whatsappConfigId !== undefined && { whatsapp_config_id: patch.whatsappConfigId }),
     ...(patch.sendMode !== undefined && { send_mode: patch.sendMode }),
     ...(patch.templateName !== undefined && { template_name: patch.templateName }),

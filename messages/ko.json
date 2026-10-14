@@ -2246,7 +2246,10 @@
         "createPlaceholder": "예: 잠재고객 발굴",
         "exclusionLabel": "제외 태그 (선택사항)",
         "exclusionDescription": "연락처에 이 태그가 있으면 아직 연락 완료로 표시되지 않았더라도 SDR AI가 절대 메시지를 보내지 않습니다. 영업 담당자가 이미 수동으로 응대 중인 사람을 대기열에서 제외할 때 사용하세요.",
-        "exclusionPlaceholder": "없음"
+        "exclusionPlaceholder": "없음",
+        "stageFilterLabel": "파이프라인 단계 (선택)",
+        "stageFilterDescription": "열려있는 거래가 이 단계 중 하나에 있는 연락처에게만 첫 메시지를 보냅니다. 모두 선택하지 않으면 단계로 필터링하지 않습니다(기존 동작).",
+        "stageFilterNoneSelected": "선택된 단계 없음 — 모든 단계(또는 거래 없음)에 해당합니다."
       },
       "channel": {
         "title": "발송 채널",
