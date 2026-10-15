@@ -119,6 +119,11 @@ export interface GenerateResult {
   /** Short human-readable reason paired with `reactivateAt` (e.g. why
    *  the reactivation was requested), for internal notes only. */
   reactivateReason: string | null
+  /** True when the model closed the conversation for good (lead declined,
+   *  or asked to be contacted by e-mail only) via an inline [[CLOSE]]
+   *  tag. Suppresses the automatic follow-up nudge. Only present when
+   *  true. */
+  closed?: boolean
   /** Provider token usage for this call, or null when unavailable. */
   usage: AiUsage | null
 }

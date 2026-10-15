@@ -170,7 +170,7 @@ export async function dispatchInboundToAiReply(
       timezone: config.businessHoursTimezone,
     })
 
-    const { text, handoff, meetingNote, meetingAt, meetingEmail, notes, reactivateAt, reactivateReason, usage } =
+    const { text, handoff, meetingNote, meetingAt, meetingEmail, notes, reactivateAt, reactivateReason, closed, usage } =
       await generateReply({ config, systemPrompt, messages })
 
     // Record token spend on the account's BYO key. Fire-and-forget so it
@@ -255,7 +255,9 @@ export async function dispatchInboundToAiReply(
         // inbound message (including their reply) cancels this via the
         // delete at the top of this function; the cron reschedules a 2nd
         // attempt for the next business day if the 1st also goes unanswered.
-        if (config.followupEnabled) {
+        // Not when the model closed the conversation ([[CLOSE]]): the lead
+        // declined, so a "só passando pra saber" nudge would be spam.
+        if (config.followupEnabled && !closed) {
           await scheduleFollowup(db, {
             accountId,
             conversationId,

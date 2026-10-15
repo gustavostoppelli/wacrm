@@ -6,6 +6,7 @@ import {
   type GenerateResult,
 } from './types'
 import {
+  CLOSE_SENTINEL,
   HANDOFF_SENTINEL,
   MEETING_SENTINEL_RE,
   NOTES_SENTINEL_RE,
@@ -73,6 +74,8 @@ export function parseGeneration(
 ): GenerateResult {
   const handoff = raw.includes(HANDOFF_SENTINEL)
   let text = raw.split(HANDOFF_SENTINEL).join('')
+  const closed = text.includes(CLOSE_SENTINEL)
+  if (closed) text = text.split(CLOSE_SENTINEL).join('')
 
   const meetingMatch = text.match(MEETING_SENTINEL_RE)
   let meetingNote: string | null = null
@@ -130,5 +133,6 @@ export function parseGeneration(
     reactivateAt,
     reactivateReason,
     usage,
+    ...(closed && { closed: true }),
   }
 }

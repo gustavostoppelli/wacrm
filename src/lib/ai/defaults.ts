@@ -67,6 +67,16 @@ export const NOTES_SENTINEL_RE = /\[\[NOTES:\s*([^\]]*)\]\]/i
  * Group 1 is the ISO date-time; group 2 the human-readable reason
  * (used only for internal notes, never shown to the customer).
  */
+/**
+ * Marker the model appends when the lead has clearly declined, or the
+ * conversation is over for good (e.g. "já temos uma equipe", "não tenho
+ * interesse", "me manda por e-mail"). Unlike [[HANDOFF]], the closing
+ * message IS sent to the customer; the tag only stops the automatic
+ * follow-up nudge from being scheduled afterwards. Stripped before the
+ * customer sees it.
+ */
+export const CLOSE_SENTINEL = '[[CLOSE]]'
+
 export const REACTIVATE_SENTINEL_RE =
   /\[\[REACTIVATE:\s*([^\]|]+?)(?:\s*\|\s*([^\]]*))?\]\]/i
 
@@ -144,6 +154,9 @@ export function buildSystemPrompt(args: {
     )
     parts.push(
       `If the customer can't talk now but gives you a specific future time to try again — a gatekeeper saying to call back at a certain time, or the customer themselves asking you to reach out later — end your reply (after your normal message text) with the tag [[REACTIVATE: <ISO 8601 date-time with the timezone offset above> | <short reason>]], computed the same way as the MEETING tag's date-time. Example: [[REACTIVATE: 2026-10-03T15:00:00-03:00 | Gatekeeper pediu pra ligar às 15h]]. This schedules you to proactively re-engage at that exact moment — you do not need to wait for the customer to write first. Only add this tag when a specific time was actually given; if no time was given, do not add it (follow your business instructions below on whether to keep asking for one). This tag is stripped before the customer sees it.`,
+    )
+    parts.push(
+      `When the customer clearly declines or the conversation is over for good (for example "já temos uma equipe", "não tenho interesse", or they only ask you to send something by e-mail), send a short, polite closing message and end it with the tag ${CLOSE_SENTINEL}. This stops the automatic follow-up nudge, so the customer is not contacted again. Never use it while the customer is still engaged. This tag is stripped before the customer sees it.`,
     )
     parts.push(
       `Whenever you hand off to a human (${HANDOFF_SENTINEL}), confirm a meeting ([[MEETING: ...]]), or schedule a reactivation ([[REACTIVATE: ...]]), also end your reply with a tag summarizing everything you've learned about this lead in this conversation so far, one field per line: [[NOTES: Field 1: value 1\nField 2: value 2\n...]]. Only include fields actually discussed — never invent one. This lets a human read a clean summary instead of the raw chat log. This tag is stripped before the customer sees it.`,

@@ -49,6 +49,18 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllGlobals())
 
+describe('parseGeneration [[CLOSE]]', () => {
+  it('strips the close tag, keeps the text and flags closed', () => {
+    const r = parseGeneration('Tudo bem, respeito a decisão. Sucesso! [[CLOSE]]')
+    expect(r.text).toBe('Tudo bem, respeito a decisão. Sucesso!')
+    expect(r.closed).toBe(true)
+    expect(r.handoff).toBe(false)
+  })
+  it('does not flag closed without the tag', () => {
+    expect(parseGeneration('Oi!').closed).toBeUndefined()
+  })
+})
+
 describe('parseGeneration', () => {
   it('returns text with no handoff', () => {
     expect(parseGeneration('Hello there')).toEqual({
