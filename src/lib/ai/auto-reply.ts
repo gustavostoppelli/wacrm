@@ -11,6 +11,7 @@ import { engineSendText } from '@/lib/flows/meta-send'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { isWithinBusinessHours, nextBusinessHourStart } from './business-hours'
 import { getSdrIaConfig } from '@/lib/sdr-ia/config'
+import { buildSdrLeadContextBlock, moveSdrDealStage } from '@/lib/sdr-ia/cadence'
 import { findOpenDealForContact } from '@/lib/deals/find-or-create-open-deal'
 import { ensureMeetingScheduled } from './meeting-scheduling'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -163,8 +164,16 @@ export async function dispatchInboundToAiReply(
       latestUserMessage(messages),
     )
 
+    // A lead the SDR IA cold-contacted: the agent sees only the chat, so
+    // hand it the facts (name, clinic, specialty, local, "we opened this
+    // conversation") it cannot read from the CRM itself.
+    const sdrLeadContext = await buildSdrLeadContextBlock(db, accountId, contactId).catch(() => null)
     const systemPrompt = buildSystemPrompt({
-      userPrompt: config.systemPrompt,
+      userPrompt: sdrLeadContext
+        ? `${config.systemPrompt ?? ''}
+
+${sdrLeadContext}`
+        : config.systemPrompt,
       mode: 'auto_reply',
       knowledge,
       timezone: config.businessHoursTimezone,
@@ -270,6 +279,12 @@ export async function dispatchInboundToAiReply(
         }
       } // else: lost the per-conversation cap race — skip the send, but
         // still run the shared block below (meeting/notes/reactivation).
+    }
+
+    // The model closed the conversation (decline): a cold-contacted lead
+    // goes to the exhausted column and stays out of the cadence.
+    if (closed && sdrLeadContext) {
+      await moveSdrDealStage(db, accountId, contactId, 'Lead Frio Esgotado').catch(() => 0)
     }
 
     // A meeting time was just confirmed this turn -- move the deal to

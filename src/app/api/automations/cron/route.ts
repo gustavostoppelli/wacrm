@@ -20,6 +20,8 @@ import { getSdrIaConfig } from '@/lib/sdr-ia/config'
 import { findOrCreateConversationForChannel, sendSdrIaFirstContact, isSendSpacingSatisfied } from '@/lib/sdr-ia/send'
 import { addContactTagIfAbsent } from '@/lib/contacts/tag-write'
 import { variantTagName } from '@/lib/sdr-ia/tags'
+import { runSdrIaCadence, moveSdrDealStage } from '@/lib/sdr-ia/cadence'
+import { displayNameFor } from '@/lib/sdr-ia/display-name'
 import { verifyInstagramToken } from '@/lib/instagram/graph-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 
@@ -375,7 +377,7 @@ async function drainDueFollowups(
         continue
       }
 
-      const name = (row.contact as { name?: string } | null)?.name ?? ''
+      const name = displayNameFor((row.contact as { name?: string } | null)?.name)
       const text = row.attempt === 1 ? FOLLOWUP_TEMPLATE_1(name) : FOLLOWUP_TEMPLATE_2(name)
 
       await engineSendText({
@@ -891,8 +893,30 @@ async function drainSdrIa(admin: ReturnType<typeof supabaseAdmin>): Promise<numb
 
     const sentToday = config.lastSentDate === today ? config.sentToday : 0
     const remaining = config.dailyCap - sentToday
-    if (remaining <= 0) continue
-    if (!isSendSpacingSatisfied(config.lastSentAt, new Date())) continue
+    const sendAllowed = remaining > 0 && isSendSpacingSatisfied(config.lastSentAt, new Date())
+
+    // Follow-ups of leads already contacted come BEFORE fresh leads: msg2
+    // after 2 days of silence, msg3 after 6 more, then exhausted. They
+    // share the daily cap and the spacing with first contacts (same
+    // number, same ban risk). Exhausting silent leads sends nothing, so
+    // it runs even when the cap is spent.
+    try {
+      const cadenceSent = await runSdrIaCadence(admin, {
+        accountId,
+        ownerUserId,
+        config,
+        now: new Date(),
+        sendAllowed,
+      })
+      if (cadenceSent) {
+        sent++
+        await admin.rpc('sdr_ia_register_sent', { p_account_id: accountId, p_today: today })
+        continue
+      }
+    } catch (err) {
+      console.error('[sdr-ia] cadence pass failed:', accountId, err)
+    }
+    if (!sendAllowed) continue
 
     // One candidate per tick, never the whole remaining cap — this is
     // what actually spaces the day's sends out (isSendSpacingSatisfied
@@ -962,6 +986,11 @@ async function drainSdrIa(admin: ReturnType<typeof supabaseAdmin>): Promise<numb
         }
         sent++
         await admin.rpc('sdr_ia_register_sent', { p_account_id: accountId, p_today: today })
+        try {
+          await moveSdrDealStage(admin, accountId, contactId, 'Primeiro Contato')
+        } catch (err) {
+          console.error('[sdr-ia] could not move deal to Primeiro Contato:', contactId, err)
+        }
       } catch (err) {
         // The contact is already tagged as contacted (claimed above)
         // but the send itself failed here -- intentionally NOT

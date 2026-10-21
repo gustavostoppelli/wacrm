@@ -129,7 +129,7 @@ export function greetingFor(now: Date): string {
  * piece to '' rather than throwing: personalization data must never
  * block a send.
  */
-async function loadContactPersonalizationVars(
+export async function loadContactPersonalizationVars(
   db: SupabaseClient,
   accountId: string,
   contactId: string,
